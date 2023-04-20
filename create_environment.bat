@@ -1,0 +1,1 @@
+conda create -n rocky-env python=3.10 pandas numpy scipy plotly scikit-learn matplotlib jupyter notebook ipykernel
