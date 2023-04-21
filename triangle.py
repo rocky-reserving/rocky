@@ -1,7 +1,9 @@
 """
-This module implements the Triangle class, which is used to store and manipulate triangle data.
+This module implements the Triangle class, which is used to store and manipulate
+triangle data.
 
-This class also includes methods for perfoming basic loss triangle analysis using the chain ladder method.
+This class also includes methods for perfoming basic loss triangle analysis using
+the chain ladder method.
 """
 
 import os
@@ -11,11 +13,11 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 from dataclasses import dataclass
-from typing import List, Union, Optional, Tuple
+from typing import Optional
 
 from openpyxl.utils import range_to_tuple
 
-from utils import formatter, get_allowed_triangle_types, _read_excel_range
+from utils import get_allowed_triangle_types
 # from chainladder import ChainLadder
 
 # get the aliases for the triangle types
@@ -25,7 +27,9 @@ triangle_type_aliases = get_allowed_triangle_types()
 @dataclass
 class Triangle:
     """
-    Create a `Triangle` object. The `Triangle` object is used to store and manipulate triangle data.
+    Create a `Triangle` object. The `Triangle` object is used to store and manipulate
+    triangle data.
+
     Attributes:
     -----------
     id : str
@@ -65,10 +69,17 @@ class Triangle:
         if self.id not in triangle_type_aliases:
             self.id = None
 
-        # if a triangle was passed in, set the n_rows and n_cols attributes
+        # if a triangle was passed in:
         if self.tri is not None:
+
+            # set the n_rows and n_cols attributes
             self.n_rows = self.tri.shape[0]
             self.n_cols = self.tri.shape[1]
+
+            # convert the origin to a datetime object
+            self.convert_origin_to_datetime()
+
+        
 
         
 
@@ -103,6 +114,303 @@ class Triangle:
             print()
             raise ValueError('The id is not allowed.')
         
+    def convert_origin_to_datetime(self) -> None:
+        """
+        Convert the origin to a datetime object.
+
+        Test the origin column(s):
+        1. If the origin column(s) are a single column:
+            1. Is the column either integers or a column that can be
+               converted to integers? (eg. a string column with
+               integers in it)
+                    1. Can the values be converted to 4-digit
+                       integers? If so, convert the YEARS to datetime
+                       objects, assuming the month is January and the
+                       day is the first day of the month.
+                    2. Can the values be converted to 2-digit
+                       integers? If so, convert the 2-digit YEARS to
+                       datetime objects, assuming the month is January
+                       and the day is the first day of the month.
+                    3. Can the values be converted to 5-digit
+                       integers? If so, convert the 5-digit Year-Quarter
+                       values to datetime objects, assuming the quarter
+                       is the 5th digit, the year is the first 4 digits,
+                       and the month is the first month of the quarter,
+                       first day of the month.
+                    4. Can the values be converted to 6-digit
+                       integers? If so, convert the 6-digit Year-Month
+                       values to datetime objects, assuming the month
+                       is the last 2 digits, the year is the first 4
+                       digits, and the day is the first day of the
+                       month.
+            2. Is the column a string that cannot be converted to
+               integers? (eg. a string column with non-integer values
+               such as 2023Q1 or 2023-01, etc)
+                1. does the string contain a dash (-) but does not
+                   contain a Q or a q? If so, assume that
+                   the dash is separating the year from the month, but
+                   do not assume either the year or the month is first.
+                   For example, 2023-01 and 01-2023 are both valid. Find
+                   the dash, split the string on the dash, and convert 
+                   both pieces on either side of the dash to integers.
+                   If both pieces can be converted to integers, then
+                   the month will be the piece that is between 1 and 12, 
+                   and the year will be the other one. If both the year
+                   and the month are between 1 and 12, then raise an
+                   error telling the user that the origin column is
+                   ambiguous and print out a message telling the user 
+                   why the origin column is ambiguous.
+
+                   Examples:
+                   --------
+                     1. 2023-01 -> year = 2023, month = 1, day = 1
+                     2. 01-2023 -> year = 2023, month = 1, day = 1
+                     3. 2023-13 -> Raise an error because neither the
+                                   year nor the month are between 1
+                                   and 12.
+                     4. 3-23    -> year = 2023, month = 3, day = 1
+                     5. 23-10   -> year = 2023, month = 10, day = 1
+                     6. 2001-1  -> year = 2001, month = 1, day = 1
+                     7. 1-2001  -> year = 2001, month = 1, day = 1
+                     8. 10-01   -> Raise an error because the origin
+                                   column is ambiguous.
+
+                2. does the string contain a slash (/)? If so, follow the
+                   same steps above, and try to convert both pieces to
+                   integers.
+                3. does the string contain a Q or a q but no dash? If so,
+                   assume the q is separating the year from the quarter,
+                   but do not assume either the year or the quarter is
+                   first. For example, 2023Q1 and Q1-2023 are both valid.
+                   Find the Q or q, split the string on the Q or q, and
+                   convert both pieces on either side of the Q or q to
+                   integers. Find the integer that is between 1 and 4,
+                   and assume that is the quarter. Find the other integer
+                   that is not between 1 and 4, and assume that is the
+                   year. If both the year and the quarter are between 1
+                   and 4, then raise an error telling the user that the
+                   origin column is ambiguous and print out a message
+                   telling the user why the origin column is ambiguous.
+
+                     Examples:
+                     --------
+                     1. 2023Q1 -> year = 2023, quarter = 1, month = 1, day = 1
+                     2. 3q2023 -> year = 2023, quarter = 3, month = 7, day = 1
+                     3. 22q4   -> year = 2022, quarter = 4, month = 10, day = 1
+                     4. 2023q5 -> Raise an error because neither the year
+                                  nor the quarter are between 1 and 4.
+                     5. 2023q0 -> Raise an error because neither the year
+                                  nor the quarter are between 1 and 4.
+                     6. 2q2002 -> year = 2002, quarter = 2, month = 4, day = 1
+                     7. 2q02   -> Raise an error because the origin column
+                                  is ambiguous.
+
+                4. does the string contain a Q or a q and a dash? If so,
+                   assume the dash is separating the year from the quarter,
+                   and that the Q or q is closer to the quarter than to the 
+                   year.
+
+                     Examples:
+                     --------
+                     1. 2023-Q1 -> year = 2023, quarter = 1, month = 1, day = 1
+                     2. 2021-2q -> year = 2021, quarter = 1, month = 1, day = 1
+                     3. 3q-03   -> year = 2003, quarter = 3, month = 7, day = 1
+                     4. q4-04   -> year = 2004, quarter = 4, month = 10, day = 1
+
+        Parameters:
+        -----------
+        None
+
+        Returns:
+        --------
+        None
+        """
+        import re
+        import pandas as pd
+
+        # Function to convert a given year, month, and day to a datetime object
+        def convert_to_datetime(year, month, day=1):
+            # Using pandas to_datetime function to create a datetime object
+            # with the provided year, month, and day
+            return pd.to_datetime(f"{year}-{month}-{day}", format="%Y-%m-%d")
+
+        # Function to convert origin values to datetime objects
+        def convert_origin_to_datetime(origin):
+            try:
+                # Attempt to convert the origin value to an integer
+                value = int(origin)
+
+                # Check if the value is a 4-digit integer
+                if 1000 <= value <= 9999:
+                    # Convert the 4-digit integer to a datetime object
+                    # assuming January as the month and the first day of the month
+                    return convert_to_datetime(value, 1)
+                # Check if the value is a 2-digit integer
+                elif 0 <= value <= 99:
+                    # Convert the 2-digit integer to a datetime object
+                    # assuming January as the month and the first day of the month
+                    return convert_to_datetime(value + 2000, 1)
+                # Check if the value is a 5-digit integer
+                elif 10000 <= value <= 99999:
+                    # Split the value into a 4-digit year and 1-digit quarter
+                    year, quarter = divmod(value, 10)
+
+                    # Convert the year-quarter value to a datetime object
+                    # assuming the quarter is the last digit, the year is
+                    # the first 4 digits, and the month is the first month
+                    # of the quarter
+                    return convert_to_datetime(year, quarter * 3 - 2)
+                # Check if the value is a 6-digit integer
+                elif 100000 <= value <= 999999:
+                    # Split the value into a 4-digit year and 2-digit month
+                    year, month = divmod(value, 100)
+
+                    # Convert the year-month value to a datetime object
+                    # assuming the month is the last 2 digits, the year is
+                    # the first 4 digits, and the day is the first day of the month
+                    return convert_to_datetime(year, month)
+            except ValueError:
+                # If the origin value cannot be converted to an integer, continue
+                # to the string processing section below
+                pass
+
+            # Function to extract year, month, and quarter from a string
+            # using a specified delimiter
+            def get_year_month_quarter(s, delimiter):
+                # Split the input string using the provided delimiter
+                values = s.split(delimiter)
+
+                # Attempt to convert both parts of the string to integers
+                try:
+                    a, b = int(values[0]), int(values[1])
+                except ValueError:
+                    # If either part of the string cannot be converted to
+                    # an integer, return None values
+                    return None, None, None
+
+                # Check if the first part is a month and the second part is a year
+                if 1 <= a <= 12 and 1000 <= b <= 9999:
+                    return b, a, None
+                # Check if the first part is a year and the second part is a month
+                elif 1000 <= a <= 9999 and 1 <= b <= 12:
+                    return a, b, None
+                # Check if the first part is a quarter and the second part is a year
+                elif 1 <= a <= 4 and 1000 <= b <= 9999:
+                    return b, None, a
+                # Check if the first part is a year and the second part is a quarter
+                elif 1000 <= a <= 9999 and 1 <= b <= 4:
+                    return a, None, b
+
+                # If neither of the above conditions are met, raise a ValueError
+                # indicating that the origin column is ambiguous
+                raise ValueError("Ambiguous origin column")
+
+            # Determine which type of string the origin is and convert
+            # it accordingly
+            if "-" in origin and "Q" not in origin.upper():
+                # If the origin contains a dash and no 'Q', assume the dash
+                # separates the year and month
+                year, month, _ = get_year_month_quarter(origin, "-")
+            elif "/" in origin:
+                # If the origin contains a slash, assume it separates the year
+                # and month
+                year, month, _ = get_year_month_quarter(origin, "/")
+            elif "Q" in origin.upper() and "-" not in origin:
+                # If the origin contains 'Q' and no dash, assume the 'Q' separates
+                # the year and quarter
+                origin = re.sub("[-qQ]", "", origin)
+                year, _, quarter = get_year_month_quarter(origin, "Q")
+                if quarter:
+                    month = quarter * 3 - 2
+            elif "Q" in origin.upper() and "-" in origin:
+                # If the origin contains 'Q' and a dash, assume the dash separates
+                # the year and quarter
+                origin = origin.upper().replace("Q", "")
+                year, _, quarter = get_year_month_quarter(origin, "-")
+                if quarter:
+                    month = quarter * 3 - 2
+
+            # If both year and month values are found, convert them to a
+            # datetime object
+            if year and month:
+                return convert_to_datetime(year, month)
+
+            # If none of the above conditions are met, raise a ValueError
+            # indicating that the origin column is invalid
+            raise ValueError("Invalid origin column")
+
+        # Map the convert_origin_to_datetime function to each value in the index
+        # and replace the original index with the new datetime index
+        self.tri.index = self.tri.index.map(convert_origin_to_datetime)
+
+    def set_frequency(self) -> None:
+        """
+        Sets the .frequency attribute by checking if the origin column is in 
+        monthly, quarterly, or annual frequency:
+
+            1. If all of the origin values have a month of 1, the origin column is
+            assumed to be in annual frequency.
+            2. Elif all of the origin values have a month of 1, 4, 7, or 10, the
+            origin column is assumed to be in quarterly frequency.
+            3. Else, the origin column is assumed to be in monthly frequency.
+        """
+
+        # Check if the index is a datetime index
+        if not isinstance(self.tri.index, pd.DatetimeIndex):
+            # If not, call the convert_year_to_datetime method
+            self.convert_year_to_datetime()
+
+        # Check for annual frequency
+        if all(value.month == 1 for value in self.tri.index):
+            self.frequency = "A"
+        # Check for quarterly frequency
+        elif all(value.month in [1, 4, 7, 10] for value in self.tri.index):
+            self.frequency = "Q"
+        # Assume monthly frequency
+        else:
+            self.frequency = "M"
+
+
+    def get_formatted_dataframe(self
+                                , df = None
+                                ) -> pd.DataFrame:
+        """
+        Returns a new DataFrame with the index formatted as strings based on the
+        frequency attribute:
+
+            - Annual frequencies are formatted as YYYY.
+            - Quarterly frequencies are formatted as YYYYQ#.
+            - Monthly frequencies are formatted as YYYY-MM.
+
+        Parameters:
+        -----------
+        df : pd.DataFrame
+            If provided, the `df` DataFrame will be formatted and returned.
+            If not provided, the `Triangle.tri` DataFrame will be formatted
+            and returned.
+            Default is None, which will format the `Triangle.tri` DataFrame.
+
+        """
+        if df is None:
+            # Make a copy of the DataFrame to avoid modifying the original
+            formatted_df = self.tri.copy()
+        else:
+            # Make a copy of the DataFrame to avoid modifying the original
+            formatted_df = df.copy()
+
+        # Format the index based on the frequency attribute
+        if self.frequency == "A":
+            formatted_df.index = self.tri.index.strftime("%Y")
+        elif self.frequency == "Q":
+            formatted_df.index = self.tri.index.to_period("Q").strftime("%YQ%q")
+        else:
+            formatted_df.index = self.tri.index.strftime("%Y-%m")
+
+        return formatted_df
+
+
+
+        
     @classmethod
     def from_dataframe(cls,
                        id: str,
@@ -120,7 +428,8 @@ class Triangle:
                 1. The origin period set as the index.
                 2. The development periods set as the column names.
                 3. The values set as the values in the DataFrame.
-            If any of these conditions are not met, the triangle data will be set to None.
+            If any of these conditions are not met, the triangle data will
+            be set to None.
 
         Returns:
         --------
@@ -132,9 +441,10 @@ class Triangle:
         return cls(id=id, tri=df, triangle=df)
         
     @classmethod
-    def from_clipboard(cls,
-                       id: str,
-                       origin_columns: int
+    def from_clipboard(cls
+                       , id: str
+                       , origin_columns: int
+                       , header: Optional[int] = None
                        ) -> 'Triangle':
         """
         Create a Triangle object from data copied to the clipboard.
@@ -144,6 +454,9 @@ class Triangle:
             The id of the triangle.
         origin_columns : int
             The number of columns used for the origin period.
+        header : int, default=None
+            The row number to use as the header. If None, the first row will be used
+            as the header.
         Returns:
         --------
         Triangle
@@ -152,7 +465,19 @@ class Triangle:
         # Read data from the clipboard, assuming the first row is the development period
         # and the first `origin_columns` columns should make up either an index or a
         # multi-index for the origin period in the resulting DataFrame
-        df = pd.read_clipboard(header=0, index_col=range(origin_columns))
+        df = pd.read_clipboard(header=None)
+
+        # if a header was passed in, use it, otherwise use the first row
+        if header is not None:
+            df.columns = df.iloc[header]
+            df.drop(df.index[header], inplace=True)
+        else:
+            df.columns = df.iloc[0]
+            df.drop(df.index[0], inplace=True)
+
+        # set the origin period as the index
+        idx = df.iloc[:, :origin_columns].columns.tolist()
+        df.set_index(idx, inplace=True)        
 
         # Create and return a Triangle object
         return cls(id=id, tri=df, triangle=df)
@@ -180,7 +505,9 @@ class Triangle:
             A Triangle object with data loaded from the CSV file.
         """
         # Read data from the CSV file
-        df = pd.read_csv(filename, header=0, index_col=[i for i in range(origin_columns)])
+        df = pd.read_csv(filename
+                         , header=0
+                         , index_col=[i for i in range(origin_columns)])
 
         # Create and return a Triangle object
         return cls(id=id, tri=df, triangle=df)
@@ -204,9 +531,11 @@ class Triangle:
         origin_columns : int
             The number of columns used for the origin period.
         sheet_name : str, optional
-            The name of the sheet in the Excel file containing the triangle data. If not provided, the first sheet will be used.
+            The name of the sheet in the Excel file containing the triangle data.
+            If not provided, the first sheet will be used.
         sheet_range : str, optional
-            A string containing the range of cells to read from the Excel file. The range should be in the format "A1:B2".
+            A string containing the range of cells to read from the Excel file.
+            The range should be in the format "A1:B2".
         Returns:
         --------
         Triangle
@@ -217,25 +546,46 @@ class Triangle:
             # If a range is provided, read only the specified range
             _, idx = range_to_tuple(f"'{sheet_name}'!{sheet_range}")
             row1, col1 = idx[0]-1, idx[1]-1
-            row2, col2 = idx[2]-1, idx[3]
+            row2, col2 = idx[2]-1, idx[3]-1
 
             # read in the subset of the excel file
-            df = pd.read_excel(filename, header=0, sheet_name=sheet_name).iloc[row1:row2, col1:col2]
+            df = pd.read_excel(filename
+                               , header=0
+                               , sheet_name=sheet_name
+                               
+                               # filter to only use the specified range
+                               ).iloc[row1:row2, col1:col2]
 
             # set the column names as the first row
-            # df.columns = df.iloc[0]
+            df.columns = df.iloc[0]
 
             # # drop the first row
-            # df.drop(df.index[0], inplace=True)
+            df.drop(df.index[0], inplace=True)
         else:
             # If no range is provided, read the entire sheet
             df = pd.read_excel(filename, header=0, sheet_name=sheet_name)
 
+        
+
+        # If the column names are numeric, convert them to integers
+        for col in df.columns.tolist():
+            
+            # if column name is currently numeric, convert it to an integer
+            if isinstance(col, (int, float)):
+                df[int(col)] = df[col]
+                df.drop(col, axis=1, inplace=True)
+            
+            # if column name is currently a string but can be converted to
+            # an integer, convert it, otherwise leave it as a string
+            elif isinstance(col, str):
+                try:
+                    df[int(col)] = df[col]
+                    df.drop(col, axis=1, inplace=True)
+                except ValueError:
+                    pass
+
         # Set the origin period as the index
         df.set_index(df.columns.tolist()[:origin_columns], inplace=True)
-
-        # If the columns are numeric, convert them to integer categories
-        df.columns = df.columns.astype(int)
 
         # re-sort the columns
         df.sort_index(axis=1, inplace=True)
@@ -299,11 +649,38 @@ class Triangle:
         data_file = os.path.join(current_dir, 'papers', 'dahms reserve triangles.xlsx')
         
         # Read the data from the CSV file
-        paid = cls.from_excel(data_file, sheet_name='paid', id="paid_loss", origin_columns=1, sheet_range="a1:k11")
-        rpt = cls.from_excel(data_file, sheet_name='rpt', id="rpt_loss", origin_columns=1, sheet_range="a1:k11")
+        paid = cls.from_excel(data_file
+                              , sheet_name='paid'
+                              , id="paid_loss"
+                              , origin_columns=1
+                              , sheet_range="a1:k11")
+        rpt = cls.from_excel(data_file
+                             , sheet_name='rpt'
+                             , id="rpt_loss"
+                             , origin_columns=1
+                             , sheet_range="a1:k11")
 
         # Create and return a Triangle object
         return rpt, paid
+    
+    # GETTERS
+    def getTriangle(self) -> pd.DataFrame:
+        """
+        Return the formatted triangle as a dataframe.
+        
+        Returns:
+        --------
+        pd.DataFrame
+            The triangle data, formatted as a dataframe, and with the origin period
+            formatting applied
+        """
+        # check that the index is a datetime index, and if not, convert it
+        if not isinstance(self.tri.index, pd.DatetimeIndex):
+            self.convert_origin_to_datetime()
+
+        # return the triangle, formatted as a dataframe with the origin period
+        # formatting applied
+        return self.tri.get_formatted_dataframe()
     
     # return a data frame formatted with a background color gradient for the columns
     def col_gradient(self,
@@ -366,48 +743,48 @@ class Triangle:
 
 
 
-    ## Data loading methods
-    def from_dataframe(self,
-                       df: pd.DataFrame,
-                       use_index: bool = True,
-                       use_columns: bool = True,
-                       origin_col: str = 'ay',
-                       development_col: str = 'dev_month',
-                       loss_col: str = 'loss',
-                       return_df: bool = False
-                       ) -> None:
-        """
-        Create a `Triangle` object from a pandas dataframe.
-        Parameters:
-        -----------
-        df: `pd.DataFrame`
-            The triangle data.
-        use_index: `bool`, default=`True`
-            If `True`, use the dataframe index as the origin period.
-        use_columns: `bool`, default=`True`
-            If `True`, use the dataframe columns as the development period.
-        origin_col: `str`, default=`'ay'`
-            The column name to use for the origin period. Only used
-            if `use_index` is `False`.
-        development_col: `str`, default=`'dev_month'`
-            The column name to use for the development period. Only
-            used if `use_columns` is `False`.
-        return_df: `bool`, default=`False`
-            If `True`, return the triangle data as a pandas dataframe.
-        Returns:
-        --------
-        `None`
-        """
-        # if use_index is True, use the dataframe index as the origin period
-        if use_index:
-            origin_col = df.index.name
+    # ## Data loading methods
+    # def from_dataframe(self,
+    #                    df: pd.DataFrame,
+    #                    use_index: bool = True,
+    #                    use_columns: bool = True,
+    #                    origin_col: str = 'ay',
+    #                    development_col: str = 'dev_month',
+    #                    loss_col: str = 'loss',
+    #                    return_df: bool = False
+    #                    ) -> None:
+    #     """
+    #     Create a `Triangle` object from a pandas dataframe.
+    #     Parameters:
+    #     -----------
+    #     df: `pd.DataFrame`
+    #         The triangle data.
+    #     use_index: `bool`, default=`True`
+    #         If `True`, use the dataframe index as the origin period.
+    #     use_columns: `bool`, default=`True`
+    #         If `True`, use the dataframe columns as the development period.
+    #     origin_col: `str`, default=`'ay'`
+    #         The column name to use for the origin period. Only used
+    #         if `use_index` is `False`.
+    #     development_col: `str`, default=`'dev_month'`
+    #         The column name to use for the development period. Only
+    #         used if `use_columns` is `False`.
+    #     return_df: `bool`, default=`False`
+    #         If `True`, return the triangle data as a pandas dataframe.
+    #     Returns:
+    #     --------
+    #     `None`
+    #     """
+    #     # if use_index is True, use the dataframe index as the origin period
+    #     if use_index:
+    #         origin_col = df.index.name
 
-        # if use_columns is True, use the dataframe columns as the development period
-        if use_columns:
-            development_col = df.columns.name
+    #     # if use_columns is True, use the dataframe columns as the development period
+    #     if use_columns:
+    #         development_col = df.columns.name
 
-        # pivot the dataframe to get the triangle data
-        self.triangle.tri = df.pivot_table(index=origin_col, columns=development_col, values=loss_col)
+    #     # pivot the dataframe to get the triangle data
+    #     self.triangle.tri = df.pivot_table(index=origin_col, columns=development_col, values=loss_col)
 
     def cum_to_inc(self,
                    cum_tri : pd.DataFrame = None,
@@ -543,9 +920,12 @@ class Triangle:
             The Ave-ATA triangle data. Shape is the same as the number of columns
             in the triangle data, with the index set to the column names.
         """
-        # instantiate the ave-ata results - a series whose length is equal to the number of
-        # columns in the triangle data, with the index set to the column names
-        ave_ata = pd.Series(np.zeros(self.tri.shape[1]), index=self.tri.columns, dtype=float)
+        # instantiate the ave-ata results - a series whose length is equal
+        # to the number of columns in the triangle data, with the index set
+        # to the column names
+        ave_ata = pd.Series(np.zeros(self.tri.shape[1])
+                            , index=self.tri.columns
+                            , dtype=float)
 
         # if n is None, use all available periods
         is_all = n is None
@@ -825,10 +1205,34 @@ class Triangle:
         # of the value to the column name)
 ################################################################################################################################################################
 
-
-
-
         return diag
+    
+    def calendar_index(self) -> pd.DataFrame:
+        """
+        Produces a calendar index for the triangle data. Calendar index is
+        the total number of months since the origin of the triangle data.
+
+        Calendar index is equal to 12 * origin year + origin month (if included) +
+        development period for each cell in the triangle.
+
+        Returns:
+        --------
+        calendar_index: pd.DataFrame
+            The calendar index of the triangle data.
+        """
+        # get the origin year and month (if included)
+        origin_year = self.tri.index[0].year
+
+        if self.tri.index[0].month == 1:
+            origin_month = self.tri.index[0].month
+
+        # get the development period
+        dev_period = self.tri.columns
+
+        # calculate the calendar index
+        calendar_index = 12 * (origin_year - 1) + origin_month + dev_period
+
+        return calendar_index
     
     def ata_summary(self) -> pd.DataFrame:
         """
