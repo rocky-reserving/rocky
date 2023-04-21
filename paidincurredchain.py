@@ -6,61 +6,64 @@ from sklearn.linear_model import Ridge
 from typing import Union
 
 from triangle import Triangle
-from BaseEstimator import BaseEstimator 
+from BaseEstimator import BaseEstimator
+
 
 class PaidIncurredChain(BaseEstimator):
-    def __init__(self
-                 , paid_triangle : Triangle = None
-                 , incurred_triangle : Triangle = None
-                 , bayesian : bool = False
-                 , prior_phi : np.ndarray = None
-                 , prior_psi : np.ndarray = None
-                 , prior_sigma2 : np.ndarray = None
-                 , prior_tau2 : np.ndarray = None
-                 , prior_s2 : np.ndarray = None
-                 , prior_t2 : np.ndarray = None
+    def __init__(self, paid_triangle: Triangle = None, incurred_triangle: Triangle = None, bayesian: bool = False, prior_phi: np.ndarray = None, prior_psi: np.ndarray = None, prior_sigma2: np.ndarray = None, prior_tau2: np.ndarray = None, prior_s2: np.ndarray = None, prior_t2: np.ndarray = None
                  ) -> None:
         """
-        Initialize the PaidIncurredChain class with the given triangles of claims payments and incurred losses.
-        
+        Initialize the PaidIncurredChain class with the given triangles of
+        claims payments and incurred losses.
+
         Args:
             paid_triangle (Triangle): 
-                The claims payments triangle. Rows represent accident years, and columns
-                represent development years. Each element represents the cumulative claims payments
-                for a specific accident year and development year. 
+                The claims payments triangle. Rows represent accident years,
+                and columns represent development years. Each element represents
+                the cumulative claims payments for a specific accident year and
+                development year. 
             incurred_triangle (Triangle):
-                The incurred losses triangle. Rows represent accident years, and columns
-                represent development years. Each element represents the cumulative incurred losses
-                for a specific accident year and development year.
+                The incurred losses triangle. Rows represent accident years, and
+                columns represent development years. Each element represents the
+                cumulative incurred losses for a specific accident year and
+                development year.
             bayesian (bool):
-                Whether to use the full Bayesian version of the model. If False, the variance parameters
-                are treated as fixed and identical to the prior parameters. Default is False.
+                Whether to use the full Bayesian version of the model. If False,
+                the variance parameters are treated as fixed and identical to
+                the prior parameters. Default is False.
             prior_phi (np.ndarray):
-                The prior for the phi (log paid LDF mean) parameters. If an array is passed, the prior for
-                each development period is specified. Default is None, in which case the prior parameters
-                are estimated from the data.
+                The prior for the phi (log paid LDF mean) parameters. If an array
+                is passed, the prior for each development period is specified.
+                Default is None, in which case the prior parameters are estimated
+                from the data.
             prior_psi (np.ndarray):
-                The prior for the psi (log incurred LDF mean) parameters. If an array is passed, the prior for
-                each development period is specified. Default is None, in which case the prior parameters
-                are estimated from the data.
+                The prior for the psi (log incurred LDF mean) parameters. If an array
+                is passed, the prior for each development period is specified.
+                Default is None, in which case the prior parameters are estimated
+                from the data.
             prior_sigma2 (np.ndarray):
-                The prior for the sigma2 (log paid LDF variance) parameters. If an array is passed, the prior for
-                each development period is specified. Default is None, in which case the prior parameters
-                are estimated from the data.
+                The prior for the sigma2 (log paid LDF variance) parameters. If an array
+                is passed, the prior for each development period is specified.
+                Default is None, in which case the prior parameters are estimated
+                from the data.
             prior_tau2 (np.ndarray):
-                The prior for the tau2 (log incurred LDF variance) parameters. If an array is passed, the prior for
-                each development period is specified. Default is None, in which case the prior parameters
-                are estimated from the data.
+                The prior for the tau2 (log incurred LDF variance) parameters.
+                If an array is passed, the prior for each development period is
+                specified. Default is None, in which case the prior parameters are
+                estimated from the data.
             prior_s2 (np.ndarray):
-                The prior for the s2 (variance of mean log paid LDF) parameters. If an array is passed, the prior for
-                each development period is specified. Default is None, in which case the prior parameters
-                are assumed to be 10 at each development period, effectively placing no weight on the prior 
-                estimate of the prior mean of the log paid LDF. 
+                The prior for the s2 (variance of mean log paid LDF) parameters.
+                If an array is passed, the prior for each development period is
+                specified. Default is None, in which case the prior parameters
+                are assumed to be 10 at each development period, effectively placing
+                no weight on the prior estimate of the prior mean of the log paid LDF. 
             prior_t2 (np.ndarray):
-                The prior for the t2 (variance of mean log incurred LDF) parameters. If an array is passed, the prior for
-                each development period is specified. Default is None, in which case the prior parameters
-                are assumed to be 10 at each development period, effectively placing no weight on the prior
-                estimate of the prior mean of the log incurred LDF.
+                The prior for the t2 (variance of mean log incurred LDF) parameters.
+                If an array is passed, the prior for each development period is
+                specified. Default is None, in which case the prior parameters
+                are assumed to be 10 at each development period, effectively placing
+                no weight on the prior estimate of the prior mean of the log incurred
+                LDF.
         """
         super().__init__()
         # store the paid and incurred triangles in their rocky triangle format
@@ -70,9 +73,6 @@ class PaidIncurredChain(BaseEstimator):
         # use shorter variable names for the paid and incurred triangles as data frames
         self.P = paid_triangle.tri.copy()
         self.I = incurred_triangle.tri.copy()
-
-        # print(f"self.P:\n{self.P}\n\nindex: {self.P.index}\ncolumns: {self.P.columns}\n")
-        # print(f"self.I:\n{self.I}\n\nindex: {self.I.index}\ncolumns: {self.I.columns}\n")
 
         # number of development years
         self.J = self.P.shape[1]
@@ -85,7 +85,7 @@ class PaidIncurredChain(BaseEstimator):
             self.prior_phi = self.empirical_phi_mean()
         else:
             self.prior_phi = prior_phi
-        
+
         if prior_psi is None:
             self.prior_psi = self.empirical_psi_mean()
         else:
@@ -119,9 +119,7 @@ class PaidIncurredChain(BaseEstimator):
         self.s2 = self.prior_s2
         self.t2 = self.prior_t2
 
-           
-
-    def _para_tbl(self, param : str) -> pd.DataFrame:
+    def _para_tbl(self, param: str) -> pd.DataFrame:
         """
         Helper function for ParameterTable
         """
@@ -159,13 +157,12 @@ class PaidIncurredChain(BaseEstimator):
             out['age'] = self.P.columns[:len(self.prior_t2)]
         else:
             raise ValueError("Invalid parameter name.")
-        
+
         out = out[['parameter', 'age', 'prior', 'posterior']]
-        
+
         return out
 
-    def ParameterTable(self
-                       , param : Union[str, list] = None
+    def ParameterTable(self, param: Union[str, list] = None
                        ) -> pd.DataFrame:
         """
         Returns a table with the prior and posterior parameter estimates.
@@ -173,8 +170,8 @@ class PaidIncurredChain(BaseEstimator):
         Parameters
         ----------
         param : str or list
-            The parameter(s) for which to return the table. If None, all parameters are returned.
-            Default is None.
+            The parameter(s) for which to return the table. If None,
+            all parameters are returned. Default is None.
 
         Returns
         -------
@@ -197,16 +194,14 @@ class PaidIncurredChain(BaseEstimator):
                     pass
         else:
             raise ValueError("Invalid parameter name.")
-        
+
         return out
 
     #########################################################
     # this section reproduces the calculations in Section 2 #
     #########################################################
 
-    def _paid_ldf(self
-                  , i : int
-                  , j : int
+    def _paid_ldf(self, i: int, j: int
                   ) -> float:
         """
         Convenience function to calculate the paid loss development factor
@@ -224,15 +219,13 @@ class PaidIncurredChain(BaseEstimator):
         """
         P = np.array(self.P)
         P_shifted = np.hstack((np.zeros((P.shape[0], 1)), P[:, :-1]))
-        LDF = np.divide(P, P_shifted, out=np.ones_like(P), where=(P_shifted != 0))
+        LDF = np.divide(P, P_shifted, out=np.ones_like(P),
+                        where=(P_shifted != 0))
         LDF[:, 0] = P[:, 0]
         return LDF
 
-        
-    def _incurred_ldf(self
-                      , i : int
-                      , j : int
-                        ) -> float:
+    def _incurred_ldf(self, i: int, j: int
+                      ) -> float:
         """
         Convenience function to calculate the incurred loss development factor
         at the given row and column indices.
@@ -248,13 +241,12 @@ class PaidIncurredChain(BaseEstimator):
         """
         I = np.array(self.I)
         I_shifted = np.hstack((np.zeros((I.shape[0], 1)), I[:, :-1]))
-        LDF = np.divide(I, I_shifted, out=np.ones_like(I), where=(I_shifted != 0))
+        LDF = np.divide(I, I_shifted, out=np.ones_like(I),
+                        where=(I_shifted != 0))
         LDF[:, 0] = I[:, 0]
         return LDF
 
-        
-    def _mu(self
-            , j : int
+    def _mu(self, j: int
             ) -> float:
         """
         v^2 parameter for incurred log losses conditional on data in
@@ -263,7 +255,7 @@ class PaidIncurredChain(BaseEstimator):
         Given in Proposition 2.2 in the paper. 
 
         Calculated as:
-        
+
         (sum from 0 to J of the phi values)
         -
         (sum from j to J-1 of the psi values)
@@ -285,7 +277,7 @@ class PaidIncurredChain(BaseEstimator):
             return phi_sum
         else:
             return phi_sum - psi_sum
-        
+
     def ldf_estimator(self, triangle: str = 'paid') -> np.ndarray:
         """
         Estimate of the LDFs for the given triangle.
@@ -304,7 +296,8 @@ class PaidIncurredChain(BaseEstimator):
         elif triangle == "incurred":
             C = self.I
         else:
-            raise ValueError(f"Invalid triangle: {triangle}. Must be 'paid' or 'incurred'.")
+            raise ValueError(
+                f"Invalid triangle: {triangle}. Must be 'paid' or 'incurred'.")
 
         num_columns = C.shape[1]
         ldf = np.zeros(num_columns - 1)
@@ -322,7 +315,7 @@ class PaidIncurredChain(BaseEstimator):
                 ldf[j - 1] = sum_log_ratios / count
 
         return ldf
-        
+
     def variance_estimator(self, triangle: str = "paid") -> float:
         """
         Estimate of the sigma2 parameter or the tau2 parameter for paid
@@ -348,7 +341,8 @@ class PaidIncurredChain(BaseEstimator):
             LDF = self.incurred_ldf()[:, 1:]
             tri = self.incurred_triangle
         else:
-            raise ValueError("The triangle argument must be either 'paid' or 'incurred'.")
+            raise ValueError(
+                "The triangle argument must be either 'paid' or 'incurred'.")
 
         logLDF = np.log(LDF)
         logLDF_est = self.ldf_estimator(triangle)
@@ -356,11 +350,12 @@ class PaidIncurredChain(BaseEstimator):
         # for each column, replace nan values with 0, calculate the sum of the squared differences
         # between each nonzero item and the estimated LDF for that column
         # should return a vector of length LDF.shape[1]
-        diff2 = np.sum(np.square(np.where(np.logical_or(np.isnan(logLDF), np.equal(logLDF, 0)), 0, logLDF - logLDF_est)), axis=0)
+        diff2 = np.sum(np.square(np.where(np.logical_or(
+            np.isnan(logLDF), np.equal(logLDF, 0)), 0, logLDF - logLDF_est)), axis=0)
 
         variance = diff2 / (tri.n_rows - np.arange(1, LDF.shape[1] + 1))
 
-        # note this does not provide an estimator for the last column, so we will use loglinear 
+        # note this does not provide an estimator for the last column, so we will use loglinear
         # regression with regularization to estimate the variance for the last column
         y = np.log(variance[:-1])
         X = np.arange(1, len(y) + 1).reshape(-1, 1)
@@ -371,7 +366,7 @@ class PaidIncurredChain(BaseEstimator):
 
         # return the variance vector with the last column variance appended
         return np.append(variance[:-1], last_col_var)
-    
+
     def empirical_sigma2_estimator(self) -> np.ndarray:
         """
         Prior estimate of the sigma2 parameter for paid losses conditional on data in the paid
@@ -381,7 +376,7 @@ class PaidIncurredChain(BaseEstimator):
         "paid".
         """
         return self.variance_estimator(triangle="paid")
-    
+
     def empirical_tau2_estimator(self) -> np.ndarray:
         """
         Prior estimate of the tau2 parameter for incurred losses conditional on data in the
@@ -421,8 +416,7 @@ class PaidIncurredChain(BaseEstimator):
 
         return mu_values
 
-        
-    def _v2(self, j : int) -> float:
+    def _v2(self, j: int) -> float:
         """
         v^2 parameter for incurred log losses conditional on data in
         the incurred triangle only.
@@ -430,7 +424,7 @@ class PaidIncurredChain(BaseEstimator):
         Given in Proposition 2.2 in the paper. 
 
         Calculated as:
-        
+
         (sum from 0 to J of the sigma squared values)
         +
         (sum from j to J-1 of the tau squared values)
@@ -440,7 +434,7 @@ class PaidIncurredChain(BaseEstimator):
             raise ValueError("The sigma2 values have not been calculated yet.")
         if self.tau2 is None:
             raise ValueError("The tau2 values have not been calculated yet.")
-        
+
         # sum of sigma squared values
         sigma2_sum = np.sum(self.sigma2)
 
@@ -452,7 +446,7 @@ class PaidIncurredChain(BaseEstimator):
             return sigma2_sum
         else:
             return sigma2_sum + tau2_sum
-        
+
     def v2(self, t2: np.ndarray = None) -> np.ndarray:
         """
         Vectorized function to calculate the v^2 values for all columns j.
@@ -477,12 +471,8 @@ class PaidIncurredChain(BaseEstimator):
 
         return v2_values
 
-        
-    def _cond_log_incurred_mean(self
-                            , i: int
-                            , j : int
-                            , l : int
-                            ) -> float:
+    def _cond_log_incurred_mean(self, i: int, j: int, l: int
+                                ) -> float:
         """
         Mean of the conditional distribution of the log incurred losses
         conditional on data in the incurred triangle only.
@@ -534,7 +524,8 @@ class PaidIncurredChain(BaseEstimator):
 
         # Calculate the ratio of v2 values for all pairs of (j+l, j) where v2(j) is not zero
         # The result has shape (J+1, J+1)
-        v2_ratio = np.divide(v2_values[:, np.newaxis], v2_values, where=(v2_values != 0))
+        v2_ratio = np.divide(
+            v2_values[:, np.newaxis], v2_values, where=(v2_values != 0))
 
         # Calculate the difference between the logarithm of the incurred triangle (element-wise)
         # and the mu_values (except the last one), broadcasting mu_values along the rows
@@ -543,7 +534,8 @@ class PaidIncurredChain(BaseEstimator):
 
         # Calculate the product of v2_ratio and log_I_minus_mu_j
         # The result has shape (J+1, J+1, I, J)
-        product_term = v2_ratio[:, :, np.newaxis] * log_I_minus_mu_j[np.newaxis, np.newaxis, :, :]
+        product_term = v2_ratio[:, :, np.newaxis] * \
+            log_I_minus_mu_j[np.newaxis, np.newaxis, :, :]
 
         # Add mu_j_plus_l to the product_term, broadcasting mu_j_plus_l along the last two dimensions
         # The result has shape (J+1, J+1, I, J)
@@ -551,8 +543,7 @@ class PaidIncurredChain(BaseEstimator):
 
         return cond_mean
 
-    
-    def _cond_log_incurred_var(self, i : int, j : int, l : int) -> float:
+    def _cond_log_incurred_var(self, i: int, j: int, l: int) -> float:
         """
         Variance of the conditional distribution of the log incurred losses
         conditional on data in the incurred triangle only.
@@ -598,7 +589,8 @@ class PaidIncurredChain(BaseEstimator):
 
         # Calculate the ratio of v2 values for all pairs of (j+l, j) where v2(j) is not zero
         # The result has shape (J+1, J+1)
-        v2_ratio = np.divide(v2_values[:, np.newaxis], v2_values, where=(v2_values != 0))
+        v2_ratio = np.divide(
+            v2_values[:, np.newaxis], v2_values, where=(v2_values != 0))
 
         # Calculate 1 - v2_ratio, ensuring that the result is 0 where v2(j) is zero
         # The result has shape (J+1, J+1)
@@ -618,8 +610,7 @@ class PaidIncurredChain(BaseEstimator):
 
         return cond_var
 
-    
-    def _alpha(self, j : int) -> float:
+    def _alpha(self, j: int) -> float:
         """
         Alpha credibility weight for expected ultimate losses conditional on
         data in the incurred triangle only, and parameter vector Theta.
@@ -631,7 +622,6 @@ class PaidIncurredChain(BaseEstimator):
         1 - (_v2(J) / _v2(j))
         """
         return 1 - (self._v2(self.J) / self._v2(j))
-
 
     def alpha(self) -> np.ndarray:
         """
@@ -650,10 +640,7 @@ class PaidIncurredChain(BaseEstimator):
 
         return alpha_values
 
-    
-    def _cond_incurred_mean_ultimate(self
-                                     , i : int
-                                     , j : int
+    def _cond_incurred_mean_ultimate(self, i: int, j: int
                                      ) -> float:
         """
         Mean of the conditional distribution of the incurred ultimate losses
@@ -682,8 +669,8 @@ class PaidIncurredChain(BaseEstimator):
 
         # return the mean
         return Iij * np.exp(psi_sum + tau2_sum) * np.exp(alpha_j * (mu_j - np.log(Iij) - tau2_sum))
-        
-    def _eta(self, j : int) -> float:
+
+    def _eta(self, j: int) -> float:
         """
         Eta parameter for log paid losses at ultimate conditional on data in
         both paid and incurred triangles.
@@ -691,7 +678,7 @@ class PaidIncurredChain(BaseEstimator):
         Given in Theorem 2.4 of the paper. 
 
         Calculated as:
-        
+
         (sum from 0 to j of the phi values)
 
         """
@@ -700,8 +687,8 @@ class PaidIncurredChain(BaseEstimator):
 
         # return the eta value
         return phi_sum
-    
-    def _w2(self, j : int) -> float:
+
+    def _w2(self, j: int) -> float:
         """
         w^2 parameter for log paid losses at ultimate conditional on data in
         both paid and incurred triangles.
@@ -709,7 +696,7 @@ class PaidIncurredChain(BaseEstimator):
         Given in Theorem 2.4 of the paper. 
 
         Calculated as:
-        
+
         (sum from 0 to j of the sigma squared values)
 
         """
@@ -718,9 +705,8 @@ class PaidIncurredChain(BaseEstimator):
 
         # return the w2 value
         return sigma2_sum
-        
-    
-    def _beta(self, j : int) -> float:
+
+    def _beta(self, j: int) -> float:
         """
         Beta credibility parameter for log paid losses at ultimate conditional
         on data in both paid and incurred triangles.
@@ -728,18 +714,15 @@ class PaidIncurredChain(BaseEstimator):
         Given in Theorem 2.4 of the paper. 
 
         Calculated as:
-        
+
         [v2(J) - w2(j)]
         /
         [v2(j) - w2(j)]
         """
         return (self._v2(self.J) - self._w2(j)) / (self._v2(j) - self._w2(j))
-    
-    def _cond_log_paid_mean_ultimate(self
-                                     , i : int
-                                     , j : int
+
+    def _cond_log_paid_mean_ultimate(self, i: int, j: int
                                      ) -> float:
-        
         """
         Mean of the conditional distribution of the log paid ultimate losses
         for origin period i, conditional on data in both paid and incurred
@@ -769,10 +752,8 @@ class PaidIncurredChain(BaseEstimator):
         cond_mean += beta_j * (np.log(I_ij) - mu_j)
 
         return cond_mean
-    
-    def _cond_log_paid_var_ultimate(self
-                                    , i : int
-                                    , j : int
+
+    def _cond_log_paid_var_ultimate(self, i: int, j: int
                                     ) -> float:
         """
         Variance of the conditional distribution of the log paid ultimate
@@ -792,10 +773,8 @@ class PaidIncurredChain(BaseEstimator):
 
         # return the variance
         return (1 - beta_j) * (v2_J - w2_j)
-    
-    def _pic_ultimate_loss_chain_ladder_adjustment(self
-                                                   , i : int
-                                                   , j : int
+
+    def _pic_ultimate_loss_chain_ladder_adjustment(self, i: int, j: int
                                                    ) -> float:
         """
         Adjustment factor applied to the standard chain ladder ultimate
@@ -841,13 +820,9 @@ class PaidIncurredChain(BaseEstimator):
         cl_adjustment -= (mu_j - eta_j)       # (4)
         cl_adjustment -= (sigma2_sum / 2)     # (5)
         cl_adjustment *= beta_j               # (2)
-        cl_adjustment = np.exp(cl_adjustment) # (1)
+        cl_adjustment = np.exp(cl_adjustment)  # (1)
 
-
-    
-    def _pic_ultimate_loss_prediction(self
-                                      , i : int
-                                      , j : int
+    def _pic_ultimate_loss_prediction(self, i: int, j: int
                                       ) -> float:
         """
         Predicted ultimate loss for origin period i, conditional on data in
@@ -875,34 +850,32 @@ class PaidIncurredChain(BaseEstimator):
         cl_adjustment = self._pic_ultimate_loss_chain_ladder_adjustment(i, j)
 
         # calculate the prediction step by step
-        pred = phi_sum + (sigma2_sum / 2) # (3) + (4)
+        pred = phi_sum + (sigma2_sum / 2)  # (3) + (4)
         pred = np.exp(pred)               # (2)
         pred *= P_ij                      # (1)
         pred *= cl_adjustment             # (5)
 
         return pred
-    
+
     #########################################################
     # This section reproduces the calculations in section 3 #
     #########################################################
 
-    def _hash(self
-              , j : int
+    def _hash(self, j: int
               ) -> int:
         """
         Hash (#) function from the paper. This is the number of
         future development years. See Theorem 3.2 in the paper.
         """
         return self.J - j + 1
-    
+
     def n_future_development_years(self):
         """
         Number of future development years. See Theorem 3.2 in the paper.
         """
         return pd.Series(self._hash(j) for j in range(self.J)).to_numpy()
-    
-    def _gammaP(self
-                , j : int
+
+    def _gammaP(self, j: int
                 ) -> float:
         """
         GammaP credibility weight for the posterior distribution of
@@ -920,20 +893,18 @@ class PaidIncurredChain(BaseEstimator):
         sigma2_j = self.sigma2[j]
         s2_j = self.s2[j]
         return self._hash(j) / (self._hash(j) + (sigma2_j / s2_j))
-    
+
     def gammaP(self) -> np.ndarray:
         """
         Credibility weights for the posterior distribution of phi.
         See Theorem 3.2 in the paper.
         """
-        denom = self.n_future_development_years()[:-1] + (np.divide(self.sigma2, self.s2))
+        denom = self.n_future_development_years(
+        )[:-1] + (np.divide(self.sigma2, self.s2))
         num = self.n_future_development_years()[:-1]
         return np.divide(num, denom)
-    
 
-    
-    def _empirical_phi_mean(self
-                            , j : int
+    def _empirical_phi_mean(self, j: int
                             ) -> float:
         """
         Empirical mean of the posterior distribution of phi_j.
@@ -947,7 +918,7 @@ class PaidIncurredChain(BaseEstimator):
         """
         paid_ldfs = [self._paid_ldf(i) for i in range(self.J - j + 1)]
         return np.sum(np.log(paid_ldfs)) / self._hash(j)
-    
+
     def empirical_phi_mean(self) -> np.ndarray:
         """
         Empirical means of the posterior distribution of phi.
@@ -969,11 +940,8 @@ class PaidIncurredChain(BaseEstimator):
         post = np.multiply(self.gammaP(), self.empirical_phi_mean())
         post += np.multiply((1 - self.gammaP()), self.prior_phi)
         return post
-    
-    
-    
-    def _posterior_phi_sample_variance(self
-                                       , j : int
+
+    def _posterior_phi_sample_variance(self, j: int
                                        ) -> float:
         """
         Posterior variance of phi_j, given the observed data.
@@ -993,7 +961,7 @@ class PaidIncurredChain(BaseEstimator):
         s2_j = self.s2[j]
         sigma2_j = self.sigma2[j]
         return 1 / ((1 / s2_j) + (self._hash(j) / sigma2_j))
-    
+
     def posterior_phi_sample_variance(self) -> np.ndarray:
         """
         Posterior sample variances of phi.
@@ -1002,9 +970,8 @@ class PaidIncurredChain(BaseEstimator):
         two = np.divide(self.n_future_development_years()[:-1], self.sigma2)
         three = np.add(one, two)
         return np.power(three, -1)
-    
-    def _posterior_ultimate_paid_loss(self
-                                      , i : int
+
+    def _posterior_ultimate_paid_loss(self, i: int
                                       ) -> float:
         """
         Posterior mean of the ultimate loss for origin period i, based
@@ -1027,9 +994,11 @@ class PaidIncurredChain(BaseEstimator):
             ]
         """
         P_ij = self.P.iloc[i, self.J - i]
-        post_phi_mean = [self._posterior_phi_mean(l) for l in range(self.J - i + 1, self.J + 1)]
+        post_phi_mean = [self._posterior_phi_mean(
+            l) for l in range(self.J - i + 1, self.J + 1)]
         sigma2 = [self.sigma2[l] for l in range(self.J - i + 1, self.J + 1)]
-        post_phi_var = [self._posterior_phi_sample_variance(l) for l in range(self.J - i + 1, self.J + 1)]
+        post_phi_var = [self._posterior_phi_sample_variance(
+            l) for l in range(self.J - i + 1, self.J + 1)]
 
         # calculate the prediction step by step
         ultimate = post_phi_mean + (sigma2 / 2)  # (4) + (5)
@@ -1039,7 +1008,7 @@ class PaidIncurredChain(BaseEstimator):
         ultimate *= P_ij                         # (1)
 
         return ultimate
-    
+
     def posterior_ultimate_paid_loss(self) -> np.ndarray:
         """
         Posterior means of the ultimate paid loss for each origin period.
@@ -1051,20 +1020,16 @@ class PaidIncurredChain(BaseEstimator):
 
         # calculate the prediction step by step
         ultimate = np.add(posterior_phi_mean, (sigma2 / 2))  # (4) + (5)
-        ultimate = np.add(ultimate, (posterior_phi_var / 2)) # (6)
+        ultimate = np.add(ultimate, (posterior_phi_var / 2))  # (6)
         ultimate = np.exp(ultimate)                          # (3)
         ultimate = np.flip(ultimate)              # (2)
-        ultimate = np.cumprod(ultimate)    
+        ultimate = np.cumprod(ultimate)
         ultimate = np.flip(ultimate)              # (2)
         ultimate = np.multiply(P, ultimate)           # (1)
 
         return ultimate
-    
-    
-    
-    def _aI_element(self
-                    , n : int
-                    , m : int
+
+    def _aI_element(self, n: int, m: int
                     ) -> float:
         """
         Element from a^I matrix at row n and column m. 
@@ -1094,11 +1059,11 @@ class PaidIncurredChain(BaseEstimator):
         # calculate the element step by step
         a = 1 / t2           # (2)
         a += (J - n) / tau2  # (3)
-        a *= (1 == (n == m)) # (4)
+        a *= (1 == (n == m))  # (4)
         a += np.sum(1 / v2)  # (1)
 
         return a
-    
+
     def _aI_matrix(self) -> np.ndarray:
         """
         Posterior covariance matrix of psi.
@@ -1114,9 +1079,8 @@ class PaidIncurredChain(BaseEstimator):
             for m in range(self.J + 1):
                 aI[n, m] = self._aI_element(n, m)
         return aI
-    
-    def _gammaI(self
-                , j : int
+
+    def _gammaI(self, j: int
                 ) -> float:
         """
         GammaI credibility weight for the posterior distribution of
@@ -1138,9 +1102,7 @@ class PaidIncurredChain(BaseEstimator):
         t2_j = self.t2[j]
         return (hash_j - 1) / (hash_j - 1 + (tau2_j / t2_j))
 
-
-    def _empirical_psi_mean(self
-                            , j : int
+    def _empirical_psi_mean(self, j: int
                             ) -> float:
         """
         Empirical mean of psi_j, calculated from the observed data.
@@ -1157,17 +1119,17 @@ class PaidIncurredChain(BaseEstimator):
         """
         J = self.J
         hash_j = self._hash(j)
-        log_ldf_sum = np.sum(np.log(1 / self._incurred_ldf(i, j + 1)) for i in range(J - j))
+        log_ldf_sum = np.sum(np.log(1 / self._incurred_ldf(i, j + 1))
+                             for i in range(J - j))
         return log_ldf_sum / (hash_j - 1)
-    
+
     def empirical_psi_mean(self) -> np.ndarray:
         """
         Empirical mean of psi_j, calculated from the observed data.
         """
         return self.ldf_estimator('incurred')
-    
-    def _credibility_weighted_psi_mean(self
-                                       , j : int
+
+    def _credibility_weighted_psi_mean(self, j: int
                                        ) -> float:
         """
         Credibility weighted mean of psi_j, calculated from the observed data.
@@ -1184,9 +1146,8 @@ class PaidIncurredChain(BaseEstimator):
         empirical_psi_mean = self._empirical_psi_mean(j)
         psi = self.psi[j]
         return (gammaI * empirical_psi_mean) + ((1 - gammaI) * psi)
-    
-    def _bI_element_from_credibility(self
-                                     , j : int
+
+    def _bI_element_from_credibility(self, j: int
                                      ) -> float:
         """
         Element j from b^I vector.
@@ -1212,11 +1173,9 @@ class PaidIncurredChain(BaseEstimator):
         t2_j = self.t2[j]
         tau2_j = self.tau2[j]
         hash_j = self._hash(j)
-        return psi_j * ((1 / t2_j )+ ((hash_j - 1) / tau2_j))
-        
-    
-    def _bI_element(self
-                    , j : int
+        return psi_j * ((1 / t2_j) + ((hash_j - 1) / tau2_j))
+
+    def _bI_element(self, j: int
                     ) -> float:
         """
         Element j from b^I vector. 
@@ -1256,7 +1215,7 @@ class PaidIncurredChain(BaseEstimator):
         b -= np.sum(logI / v2)     # (4)
 
         return b
-    
+
     def _bI(self) -> np.ndarray:
         """
         Convenience function to calculate the b^I vector.
@@ -1266,7 +1225,7 @@ class PaidIncurredChain(BaseEstimator):
     def _likelihood(self) -> float:
         """
         Joint likelihood function of the data D_J and the model parameters psi and v.
-        
+
         Given by Equation 3.5 in the paper.
 
         Calculated as:
@@ -1311,14 +1270,15 @@ class PaidIncurredChain(BaseEstimator):
                             /
             (18)            I_{i, j+1} * sqrt(2 * pi * tau2(j))
                     }
-        """ 
+        """
         # ================
         # == Part A ======
         # ================
-        
+
         # Part A-4: -(phi(j) - log(_paid_ldf(i, j)))^2
         phi = self.phi
-        paid_ldf = np.array([self._paid_ldf(i, j) for i in range(self.J + 1) for j in range(self.J + 1 - i)])
+        paid_ldf = np.array([self._paid_ldf(i, j) for i in range(
+            self.J + 1) for j in range(self.J + 1 - i)])
         paid_ldf = paid_ldf.reshape(self.J + 1, self.J + 1)
         paid_ldf = np.log(paid_ldf)
         A4 = np.square(phi - paid_ldf)
@@ -1354,7 +1314,7 @@ class PaidIncurredChain(BaseEstimator):
         vct = np.sqrt(2 * np.pi * (v2 - w2))
         # multiply corresponding elements of vct and columns of I
         B9 = vct * I
-        
+
         # Part B-7: product from i=1 to J of {B8 / B9}
         B7 = np.prod(B8 / B9, axis=0)
 
@@ -1375,18 +1335,9 @@ class PaidIncurredChain(BaseEstimator):
         )
         log_inc_paid_ratio = np.log(inc_paid_ratio)
 
-
-
-
-
-
-
-        
-
-
     # def _calculate_log_ratios(self):
     #     """
-    #     Calculate the log ratios for both the claims payments and incurred losses triangles. Log ratios are 
+    #     Calculate the log ratios for both the claims payments and incurred losses triangles. Log ratios are
     #     calculated as the natural logarithm of the ratio of the current element and its adjacent element in the
     #     same row (i.e., the ratio of the current development year and the previous development year).
     #     """
@@ -1411,7 +1362,6 @@ class PaidIncurredChain(BaseEstimator):
     #             , 0
     #             , np.log(self.I.iloc[:, col] / self.I.iloc[:, col + 1])
     #             )
-        
 
     # def _estimate_sigma2_hat(self):
     #     """
@@ -1429,7 +1379,6 @@ class PaidIncurredChain(BaseEstimator):
     #     # reset the index
     #     self.sigma2_hat = self.sigma2_hat.reset_index(drop=True)
 
-
     # def _estimate_sigma2_hat_last_year(self):
     #     """
     #     Estimate the sigma2.hat value for the last development year using log-linear regression on the values of
@@ -1437,14 +1386,13 @@ class PaidIncurredChain(BaseEstimator):
     #     """
     #     y = pd.Series(np.log(np.var(self.logP.iloc[:, :-1], axis=0)), index=self.logP.columns[:-1])
     #     X = pd.Series(np.arange(1, len(y) + 1), index=y.index)
-        
+
     #     # fit a ridge regression model to the data
     #     ridge = Ridge(alpha=1.0, fit_intercept=True)
     #     ridge.fit(X.values.reshape(-1, 1), y.values)
 
     #     # return the predicted value for the last development year
     #     return np.exp(ridge.predict(np.array([len(y)]).reshape(-1, 1)))
-
 
     # def _estimate_tau2_hat(self):
     #     """
@@ -1462,7 +1410,6 @@ class PaidIncurredChain(BaseEstimator):
     #     # reset the index
     #     self.tau2_hat = self.tau2_hat.reset_index(drop=True)
 
-
     # def _estimate_tau2_hat_last_year(self):
     #     """
     #     Estimate the tau2.hat value for the last two development years using log-linear regression on the values of
@@ -1470,14 +1417,14 @@ class PaidIncurredChain(BaseEstimator):
     #     """
     #     y = pd.Series(np.log(np.var(self.logI.iloc[:, :-2], axis=0)), index=self.logI.columns[:-2])
     #     X = pd.Series(np.arange(1, len(y) + 1), index=y.index)
-        
+
     #     # fit a ridge regression model to the data
     #     ridge = Ridge(alpha=1.0, fit_intercept=True)
     #     ridge.fit(X.values.reshape(-1, 1), y.values)
 
     #     # return the predicted value for the last development year
     #     return np.exp(ridge.predict(np.array([len(y)]).reshape(-1, 1)))
-    
+
     # def _estimate_v2_hat(self):
     #     """
     #     Current R code:
@@ -1537,7 +1484,7 @@ class PaidIncurredChain(BaseEstimator):
     #     for (j in 1:J)	{
     #         if (j==1) {
     #         c[j] <- (1/sigma2.hat[j]) * sum(fP[1:J,j])
-    #         } 
+    #         }
     #         else if (j==2) {
     #         c[j] <- (1/sigma2.hat[j]) * sum(fP[1:(J+1-j),j]) +
     #         sum( 1/(v2[1:(j-1)]-w2[1:(j-1)]) *
@@ -1562,7 +1509,7 @@ class PaidIncurredChain(BaseEstimator):
     #     # print(f"sigma2_hat:\n{self.sigma2_hat}\n")
     #     # print(f"w2_hat:\n{self.w2_hat}\n")
     #     # print(f"v2_hat:\n{self.v2_hat}\n\n")
-        
+
     #     # Loop over each development year from 1 to J-1
     #     for j in range(1, self.J):
     #         print(f"j, row index, col index: {j}, {self.J-j}, {j}\n")
@@ -1598,10 +1545,10 @@ class PaidIncurredChain(BaseEstimator):
     #                     + np.sum(1 / (self.v2_hat[:j-1] - self.w2_hat[:j-1]) * np.log(diag_I / diag_P))
 
     #     self.c = c
-        
+
     #     # # Initialize an array of length J full of zeros
     #     # c = np.zeros(self.J)
-        
+
     #     # # The first element of c is the sum of the log ratios of the incurred losses triangle divided by
     #     # # the paid losses triangle for the first development year
     #     # # We can calculate this separately since it requires a different slice of self.logP and only depends on sigma2_hat[0]
@@ -1610,7 +1557,7 @@ class PaidIncurredChain(BaseEstimator):
     #     # print(f"self.J = {self.J}")
     #     # print(f"self.M = {self.M}")
     #     # print(f"self.sigma2_hat = {self.sigma2_hat}")
-        
+
     #     # # Loop over each development year from 2 to J-1
     #     # for j in range(2, self.J):
     #     #     print(f"j = {j}")
@@ -1622,14 +1569,14 @@ class PaidIncurredChain(BaseEstimator):
 
     #     #     print(f"tri_I = {tri_I}")
     #     #     print(f"tri_P = {tri_P}")
-            
+
     #     #     # Extract the diagonal elements of the submatrices using np.diag()
     #     #     diag_I = np.diag(tri_I)
     #     #     diag_P = np.diag(tri_P)
 
     #     #     print(f"diag_I: {diag_I}")
     #     #     print(f"diag_P: {diag_P}")
-            
+
     #     #     # Calculate the element of c using vectorized operations
     #     #     # First, calculate the sum of the loiloc ratios of the incurred losses triangle divided by
     #     #     # the paid losses triangle for the current development year
@@ -1637,7 +1584,7 @@ class PaidIncurredChain(BaseEstimator):
     #     #     # the paid losses triangle for the previous development years using vectorized operations
     #     #     # Finally, calculate the sum of the log ratios of the diagonal elements of I divided by the diagonal
     #     #     # elements of P for the previous development years using vectorized operations
-            
+
     #     #     # tempA = self.logP.iloc[self.J-j:self.J, j-1]
     #     #     tempA = (self.P.iloc[self.J-j, j-1] + 1e-9) / (self.sigma2_hat[j-1] + 1e-9)
 
@@ -1658,15 +1605,15 @@ class PaidIncurredChain(BaseEstimator):
     #     #     print(f"temp_arr3 = temp_arr2 / temp_arr1 = {temp_arr2} / {temp_arr1.values}")
     #     #     temp_arr3 = np.divide(temp_arr2, temp_arr1)
     #     #     print(f"temp_arr3: {temp_arr3}")
-    #     #     temp2 = np.sum(temp_arr3) 
+    #     #     temp2 = np.sum(temp_arr3)
     #     #     print(f"temp2: {temp2}")
     #     #     c[j-1] = (np.sum(self.logP.iloc[self.J-j:self.J, j-1] / self.sigma2_hat[j-1])
     #     #               + np.sum(1 / (self.v2_hat[:j-1] - self.w2_hat[:j]) * np.log(diag_I / diag_P)))
-        
+
     #     # # The last element of c is the sum of the log ratios of the incurred losses triangle divided by
     #     # # the paid losses triangle for the final development year
     #     # c[-1] = np.sum(self.logP.iloc[:, -1] / self.sigma2_hat[-1])
-        
+
     #     # # Set self.c to the resulting array of c values
     #     # self.c = c
 
@@ -1717,7 +1664,7 @@ class PaidIncurredChain(BaseEstimator):
     #             diag_P = np.diag(self.P[self.J-j:self.J-1, :j])
     #             b[j-1] = -(1/self.tau2_hat[j-1]) * np.sum(self.logI[:self.J-j, j-1]) \
     #                       - np.sum(1 / (self.v2_hat[:j] - self.w2_hat[:j]) * np.log(diag_I[:j] / diag_P[:j]))
-        
+
     #     # Set self.b to the resulting array of b values
     #     self.b = b
 
@@ -1732,10 +1679,10 @@ class PaidIncurredChain(BaseEstimator):
     #     w2_hat = self.w2_hat
 
     #     # Create indices for the diagonal and off-diagonal elements.
-    #     # diag_indices will be a tuple containing two arrays of equal length, 
+    #     # diag_indices will be a tuple containing two arrays of equal length,
     #     # each representing the row and column indices of the diagonal elements.
     #     diag_indices = np.diag_indices(2 * J - 1)
-        
+
     #     # off_diag_indices will be a tuple containing two arrays of equal length,
     #     # each representing the row and column indices of the off-diagonal elements (upper right block).
     #     off_diag_indices = np.diag_indices_from(diag_indices, offset=J)
@@ -1756,7 +1703,7 @@ class PaidIncurredChain(BaseEstimator):
     #     # Set the off-diagonal elements of A (upper right block).
     #     # We calculate the sum of (1 / (v2_hat - w2_hat)), excluding the last element, and assign it to the off-diagonal elements.
     #     A[off_diag_indices] = -np.sum(1 / (v2_hat[:, None] - w2_hat), axis=0)[:-1]
-        
+
     #     # Set the lower left block of A by symmetry.
     #     # The .T attribute transposes the matrix, so A.T[off_diag_indices] refers to the lower left block.
     #     A.T[off_diag_indices] = A[off_diag_indices]
@@ -1894,16 +1841,10 @@ class PaidIncurredChain(BaseEstimator):
     #         'Reserve': self.PIC_Ris,
     #         'Prediction Error': self.PIC_se
     #     }, index=self.P.index)
-    #     self.ultimates = results_df    
+    #     self.ultimates = results_df
 
     #     # Return the results DataFrame if return_df is True
     #     if return_df:
-        
+
     #         # Return the results DataFrame
     #         return results_df
-
-
-
-
-
-
