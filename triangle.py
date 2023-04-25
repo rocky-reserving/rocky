@@ -89,8 +89,11 @@ class Triangle:
                 try:
                     self.tri[c] = self.tri[c].astype(float)
                 except:
-                    self.tri[c] = self.tri[c].str.replace(",", "").str.replace(
-                        ")", "").str.replace("(", "-").astype(float)
+                    self.tri[c] = (self.tri[c]
+                                   .str.replace(",", "")
+                                   .str.replace(")", "")
+                                   .str.replace("(", "-")
+                                   .astype(float))
 
         # load and run is_cum model
         self._load_is_cum_model()
@@ -1607,28 +1610,36 @@ class Triangle:
 
         # pre-fit/saved triangle model
         if model_file is None:
-            model_file = r"C:\Users\aweaver\OneDrive - The Cincinnati Insurance Company\rocky\inc_cum_tri.torch"
+            try:
+                model_file = r"C:\Users\aweaver\OneDrive - The Cincinnati Insurance Company\rocky\inc_cum_tri.torch"
+                self.cum_model="loaded"
+            except:
+                self.cum_model = None
 
-        # initialize model
-        model = LossTriangleClassifier(torch.Size([1, 10, 10]),
-                                       num_classes=2,
-                                       num_conv_layers=5,
-                                       base_conv_nodes=256,
-                                       kernel_size=(2, 2),
-                                       stride=(1, 1),
-                                       padding=(1, 1),
-                                       linear_nodes=[1024, 512, 256, 128],
-                                       linear_dropout=[0.4, 0.3, 0.2, 0.1],
-                                       relu_neg_slope=0.1)
+        if self.cum_model == "loaded":
+            # initialize model
+            model = LossTriangleClassifier(torch.Size([1, 10, 10]),
+                                        num_classes=2,
+                                        num_conv_layers=5,
+                                        base_conv_nodes=256,
+                                        kernel_size=(2, 2),
+                                        stride=(1, 1),
+                                        padding=(1, 1),
+                                        linear_nodes=[1024, 512, 256, 128],
+                                        linear_dropout=[0.4, 0.3, 0.2, 0.1],
+                                        relu_neg_slope=0.1)
 
-        # load model on CPU
-        model.to(torch.device('cpu'))
+            # load model on CPU
+            model.to(torch.device('cpu'))
 
-        # load saved parameters to instanciated model
-        model.load_state_dict(torch.load(
-            model_file, map_location=torch.device('cpu')))
+            # load saved parameters to instanciated model
+            model.load_state_dict(torch.load(
+                model_file, map_location=torch.device('cpu')))
 
-        self.is_cum_model = model
+            self.is_cum_model = model
+        else:
+            self.is_cum_model = None
+
 
     def _is_cum_model(self):
         # build DataLoader from the preprocessed data

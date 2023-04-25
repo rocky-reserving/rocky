@@ -1,0 +1,70 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>rocky</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <script src="js/script.js"></script>
+</head>
+<body>
+    
+    <!-- ============================= -->
+    <!-- left side of screen = toolbar -->
+    <!-- ============================= -->
+
+    <div class="toolbar">
+        <!-- To display icons and text labels on mouseover,\
+            use CSS :hover selectors and JavaScript event listeners. -->
+
+        <!-- toolbar buttons -->
+        <button class="toolbar-button save" title="Save">💾</button>
+        <button class="toolbar-button load" title="Load">📂</button>
+
+        
+        <!-- data loading -->
+        <details class="accordion">
+            <summary class="accordion-summary">Data Loading</summary>
+            <div class="accordion-content">
+                <!-- CONTENT -->
+            </div>
+        </details>
+
+        <!-- model selection -->
+        <details class="accordion">
+            <summary class="accordion-summary">Model Selection</summary>
+            <div class="accordion-content">
+                <!-- CONTENT -->
+            </div>
+        </details>
+
+        <!-- visualization -->
+        <details class="accordion">
+            <summary class="accordion-summary">Visualization</summary>
+            <div class="accordion-content">
+                <!-- CONTENT -->
+            </div>
+        </details>
+
+        <!-- forecast -->
+        <details class="accordion">
+            <summary class="accordion-summary">Forecast</summary>
+            <div class="accordion-content">
+                <!-- CONTENT -->
+            </div>
+        </details>
+    </div>
+
+    <!-- ======================================== -->
+    <!-- right side of screen = main working area -->
+    <!-- ======================================== -->
+
+    <div class="main-working-area">
+        <!-- will need to dynamically add panels as they are created -->
+        <div class="panel active maximized" id="panel1">
+            <!-- Panel 1 content goes here -->
+            <h1>THIS IS THE MAIN PANEL</h1>
+        </div>
+    </div>    
+</body>
+</html>

@@ -10,7 +10,16 @@ from BaseEstimator import BaseEstimator
 
 
 class PaidIncurredChain(BaseEstimator):
-    def __init__(self, paid_triangle: Triangle = None, incurred_triangle: Triangle = None, bayesian: bool = False, prior_phi: np.ndarray = None, prior_psi: np.ndarray = None, prior_sigma2: np.ndarray = None, prior_tau2: np.ndarray = None, prior_s2: np.ndarray = None, prior_t2: np.ndarray = None
+    def __init__(self
+                 , paid_triangle: Triangle = None
+                 , incurred_triangle: Triangle = None
+                 , bayesian: bool = False
+                 , prior_phi: np.ndarray = None
+                 , prior_psi: np.ndarray = None
+                 , prior_sigma2: np.ndarray = None
+                 , prior_tau2: np.ndarray = None
+                 , prior_s2: np.ndarray = None
+                 , prior_t2: np.ndarray = None
                  ) -> None:
         """
         Initialize the PaidIncurredChain class with the given triangles of
