@@ -54,6 +54,7 @@ class Triangle:
     y_base_train: np.ndarray = None
     X_base_forecast: pd.DataFrame = None
     y_base_forecast: np.ndarray = None
+    has_cum_model_file: bool = False
     is_cum_model: Any = None
 
     def __post_init__(self) -> None:
@@ -95,9 +96,14 @@ class Triangle:
                                    .str.replace("(", "-")
                                    .astype(float))
 
-        # load and run is_cum model
-        self._load_is_cum_model()
-        self._is_cum_model()
+        # test if there is a cum model file
+        self.has_cum_model_file = os.path.isfile(f'./models/{self.id}_is_cum_model.pt')
+
+    
+        # load and run is_cum model if there is a cum model file
+        if self.has_cum_model_file:
+            self._load_is_cum_model()
+            self._is_cum_model()
 
     def __repr__(self) -> str:
         return self.tri.__repr__()
