@@ -130,3 +130,6 @@ dmypy.json
 
 # node modules
 rocky-app/node_modules/
+
+# conda environment
+conda/
