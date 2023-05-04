@@ -12,8 +12,8 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-import torch
-from torch.utils.data import DataLoader
+# import torch
+# from torch.utils.data import DataLoader
 
 from dataclasses import dataclass
 from typing import Optional, Any
@@ -22,7 +22,7 @@ from openpyxl.utils import range_to_tuple
 
 from utils import get_allowed_triangle_types
 # from chainladder import ChainLadder
-from model.LossTriangleClassifier import LossTriangleClassifier
+# from model.LossTriangleClassifier import LossTriangleClassifier
 
 # get the aliases for the triangle types
 triangle_type_aliases = get_allowed_triangle_types()
@@ -96,13 +96,13 @@ class Triangle:
                                    .str.replace("(", "-")
                                    .astype(float))
 
-        # test if there is a cum model file
-        self.has_cum_model_file = os.path.isfile(f'./models/{self.id}_is_cum_model.pt')
+        # # test if there is a cum model file
+        # self.has_cum_model_file = os.path.isfile(f'./models/{self.id}_is_cum_model.pt')
 
-        # load and run is_cum model if there is a cum model file	
-        if self.has_cum_model_file:	
-            self._load_is_cum_model()	
-            self._is_cum_model()
+        # # load and run is_cum model if there is a cum model file	
+        # if self.has_cum_model_file:	
+        #     self._load_is_cum_model()	
+        #     self._is_cum_model()
 
     def __repr__(self) -> str:
         return self.tri.__repr__()
@@ -1611,77 +1611,44 @@ class Triangle:
         else:
             return scaled
 
-    def _load_is_cum_model(self, model_file = None):
+    # def _load_is_cum_model(self, model_file = None):
 
-        # pre-fit/saved triangle model
-        model_file = r"C:\Users\aweaver\OneDrive - The Cincinnati Insurance Company\rocky\inc_cum_tri.torch"
-        
-        if model_file is None:
-            try:	
-                model_file = r"C:\Users\aweaver\OneDrive - The Cincinnati Insurance Company\rocky\inc_cum_tri.torch"	
-                self.cum_model="loaded"
-            except:
-                self.cum_model = None
+    #     # pre-fit/saved triangle model
+    #     model_file = r"C:\Users\aweaver\OneDrive - The Cincinnati Insurance Company\rocky\inc_cum_tri.torch"
 
+    #     # initialize model
+    #     model = LossTriangleClassifier(torch.Size([1, 10, 10]),
+    #                                    num_classes=2,
+    #                                    num_conv_layers=5,
+    #                                    base_conv_nodes=256,
+    #                                    kernel_size=(2, 2),
+    #                                    stride=(1, 1),
+    #                                    padding=(1, 1),
+    #                                    linear_nodes=[1024, 512, 256, 128],
+    #                                    linear_dropout=[0.4, 0.3, 0.2, 0.1],
+    #                                    relu_neg_slope=0.1)
 
-        if self.cum_model == "loaded":
-            # initialize model
-            model = LossTriangleClassifier(torch.Size([1, 10, 10]),
-                                        num_classes=2,
-                                        num_conv_layers=5,
-                                        base_conv_nodes=256,
-                                        kernel_size=(2, 2),
-                                        stride=(1, 1),
-                                        padding=(1, 1),
-                                        linear_nodes=[1024, 512, 256, 128],
-                                        linear_dropout=[0.4, 0.3, 0.2, 0.1],
-                                        relu_neg_slope=0.1)
+    #     # load model on CPU
+    #     model.to(torch.device('cpu'))
 
-        model.load_state_dict(torch.load(
-            # load model on CPU
-            model.to(torch.device('cpu'))
+    #     # load saved parameters to instanciated model
+    #     model.load_state_dict(torch.load(
+    #         model_file, map_location=torch.device('cpu')))
 
-        self.is_cum_model = model
-            # load saved parameters to instanciated model	
-            model.load_state_dict(torch.load(	
-                model_file, map_location=torch.device('cpu')))	
+    #     self.is_cum_model = model
 
-            self.is_cum_model = model	
-        else:	
-            self.is_cum_model = None
+    # def _is_cum_model(self):
+    #     # build DataLoader from the preprocessed data
+    #     data = DataLoader(self.prep_for_cnn().values, batch_size=1)
 
-        # initialize model
-        model = LossTriangleClassifier(torch.Size([1, 10, 10]),
-                                       num_classes=2,
-                                       num_conv_layers=5,
-                                       base_conv_nodes=256,
-                                       kernel_size=(2, 2),
-                                       stride=(1, 1),
-                                       padding=(1, 1),
-                                       linear_nodes=[1024, 512, 256, 128],
-                                       linear_dropout=[0.4, 0.3, 0.2, 0.1],
-                                       relu_neg_slope=0.1)
+    #     # set model to evaluate (eg not train)
+    #     self.is_cum_model.eval()
 
-        # load model on CPU
-        model.to(torch.device('cpu'))
+    #     # no gradient update
+    #     with torch.no_grad():
+    #         inputs = torch.from_numpy(data.dataset.reshape(1, 10, 10))
+    #         pred = self.is_cum_model(inputs.float().unsqueeze(0))
 
-        # load saved parameters to instanciated model
-        model.load_state_dict(torch.load(
-            model_file, map_location=torch.device('cpu')))
+    #     self._is_cum_pred = pred
+    #     self.is_cum = torch.argmax(pred, dim=1).cpu().item()
 
-        self.is_cum_model = model
-
-    def _is_cum_model(self):
-        # build DataLoader from the preprocessed data
-        data = DataLoader(self.prep_for_cnn().values, batch_size=1)
-
-        # set model to evaluate (eg not train)
-        self.is_cum_model.eval()
-
-        # no gradient update
-        with torch.no_grad():
-            inputs = torch.from_numpy(data.dataset.reshape(1, 10, 10))
-            pred = self.is_cum_model(inputs.float().unsqueeze(0))
-
-        self._is_cum_pred = pred
-        self.is_cum = torch.argmax(pred, dim=1).cpu().item()
