@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from triangle import Triangle
 from typing import Tuple
 import numpy as np
-# import torch
+from scipy import stats
 
 
 @dataclass
@@ -43,62 +43,159 @@ class MegaData:
 
 class ChainLadderMCMC:
   def __init__(self,
-               data: MegaData):
+               data: MegaData,
+               burnin: int = 1000,
+               samples: int = 4000,
+               chains: int = 4):
     """
     Read in the data and store it in the MegaModel class. The data is stored in
     triangles that have been converted to pytorch tensors. 
     """
     self.data = data
-    self.acc = data.accident_periods.year
+    # self.acc = data.accident_periods.year
+    # self.dev = data.development_periods.astype(int).values
+    self.acc = data.accident_periods.year.values
     self.dev = data.development_periods.astype(int).values
-    # self.acc = torch.as_tensor(data.accident_periods.year, dtype=torch.int16)
-    # self.dev = torch.as_tensor(data.development_periods.astype(int).values, dtype=torch.int16)
 
     # loss triangles
+    # self.tri = data.triangle.tri.values
     self.tri = data.triangle.tri.values
+
+    # need a triangle mask -- true if the value is not nan
+    self.tri_mask = ~np.isnan(data.triangle.tri.values)
+
+    # MCMC parameters
+    self.burnin = burnin
+    self.samples = samples
+    self.chains = chains
+
+    self.cl_ult = np.multiply(self.data.triangle.diag().values,
+                           self.data.triangle.atu().sort_index(ascending=False).values)
 
   # @pymc.dtrm(trace=True)
   def prior_ultimate_distributions(self
-                                 , mu: float = 10
-                                 , tau: float = 0.2):
+                                 , mu: float = None
+                                 , sigma: float = None
+                                 , standalone: bool = True
+                                 ) -> Tuple:
     """
-    Define informative prior distributions for the latent variables. The prior distributions are
-    defined as pymc deterministic variables. Doing is this way should capture the relationship
-    between the different ultimate values - this relationship is fixed and not a random variable.
-    """
-    # latent variables for ultimate
-    _ultimate = pymc.Normal('latent_ultimate', mu=mu, tau=tau, shape=self.tri.shape[0])
+    Define informative prior distributions for the latent variables. The prior
+    distributions are defined as pymc deterministic variables. Doing is this way
+    should capture the relationship between the different ultimate values - this
+    relationship is fixed and not a random variable.
 
-    # deterministic functions for the prior estimates of ultimates
-    # it doesn't make sense to do this like this, but it mirrors the method in
-    # the MegaModel class
-    alpha = pymc.Deterministic('alpha', _ultimate)
+    Use normal distributions for the latent variables.
+
+    Parameters
+    ----------
+    mu: float
+      The mu from the lognormal distribution for the latent variables. The default
+      value is None, which means that mu is estimated from the data.
+    sigma: float
+      The sigma of the lognormal distribution for the latent variables.
+      The default value is None, which means that sigma is estimated from
+      the data.
+    standalone: bool
+      If True, then the latent variables are defined as a standalone variable (eg
+      does not need to be passed inside a pymc.Model). If False, then the latent
+      variables are defined as variables inside a pymc.Model, and thus cannot
+      be used outside of a block.
+    """
+    if mu is None or sigma is None:
+      m = np.sum(np.log(self.cl_ult)) / self.cl_ult.shape[0]
+      s2 = np.sum(np.power(np.log(self.cl_ult) - m, 2)) / self.cl_ult.shape[0]
+      s = np.sqrt(s2)
+
+      if mu is None:
+        mu = m
+      if sigma is None:
+        sigma = s
+
+    # latent variables for ultimate
+    if standalone:
+      alpha = pymc.LogNormal.dist(mu=mu,
+                                  sigma=sigma,
+                                  shape=self.tri.shape[0])
+    else:
+      _ultimate = pymc.LogNormal('latent_ultimate',
+                                  mu=mu,
+                                  sigma=sigma,
+                                  shape=(self.tri.shape[0],1))
+
+      # deterministic functions for the prior estimates of ultimates
+      # it doesn't make sense to do this like this, but it mirrors the method in
+      # the MegaModel class
+      alpha = pymc.Deterministic('alpha', _ultimate)
     
     return alpha
 
   # @pymc.stoch(trace=True)
-  def prior_development_distributions(self) -> Tuple:
+  def prior_development_distributions(self
+                                    , mu: float = 0
+                                    , sigma: float = 5
+                                    , standalone: bool = True
+                                    ) -> Tuple:
     """
-    Define noninformative prior distributions for the development factors. The prior distributions are
-    defined as pymc stochastic variables, and are assumed to be almost between 0 and 1. The development
-    parameters are denoted as beta, and are the percent of total for the development period. 
+    Define noninformative prior distributions for the development factors. The
+    prior distributions are defined as pymc stochastic variables, and are assumed
+    to be almost between 0 and 1. The development parameters are denoted as beta,
+    and are the percent of total for the development period. 
 
     Use normal distributions for the development parameters.
+
+    Parameters
+    ----------
+    mu: float
+      The mean of the normal distribution for the development parameters. The
+      default value is 0.5.
+    tau: float
+      The precision of the normal distribution for the development parameters.
+      Tau is the inverse of the standard deviation. The default value is 0.2,
+      which corresponds to a standard deviation of 5.
+    standalone: bool
+      If True, then the development parameters are defined as a standalone
+      variable (eg does not need to be passed inside a pymc.Model). If False,
+      then the development parameters are defined as variables inside a pymc.Model,
+      and thus cannot be used outside of a block.
+
+    Returns
+    -------
+    beta: pymc.Normal
+      The development parameters.
     """
+
     # prior distributions for development
-    beta = pymc.Normal('beta', mu=0.5, tau=0.2, size=self.dev.shape[0])
+    if standalone:
+      beta = pymc.Normal.dist(mu=mu,
+                              sigma=sigma,
+                              size=self.dev.shape[0])
+    else:
+      beta = pymc.Normal('beta',
+                         mu=mu,
+                         sigma=sigma,
+                         size=(1,self.dev.shape[0]))
 
     return beta
 
   # @pymc.stoch(trace=True)
-  def prior_sigma_distributions(self) -> Tuple:
+  def prior_sigma_distributions(self
+                                , beta: float = 2.5
+                                , standalone: bool = True
+                                ) -> Tuple:
     """
-    Define noninformative prior distributions for the standard deviations of the alpha parameters. The
-    prior distributions half Cauchy distributions with a scale parameter of 2.5. The standard deviations
-    vary by the type of triangle and the development period.
+    Define noninformative prior distributions for the standard deviations of the
+    alpha parameters. The prior distributions half Cauchy distributions with a
+    scale parameter of 2.5. The standard deviations vary by the type of triangle
+    and the development period.
     """
     # variance of each of the triangles
-    sigma = pymc.HalfCauchy('sigma', beta=2.5, size=self.dev.shape[0])
+    if standalone:
+      sigma = pymc.HalfCauchy.dist(beta=beta,
+                                    size=self.dev.shape[0])
+    else:
+      sigma = pymc.HalfCauchy('sigma',
+                              beta=beta,
+                              size=self.dev.shape[0])
     
     return sigma
 
@@ -107,72 +204,117 @@ class ChainLadderMCMC:
        , alpha = None 
        , beta = None):
     """
-    Helper function for defining the expected value of a cell in the triangle. The expected value
-    is the product of the ultimate and the development factor.
+    Helper function for defining the expected value of a cell in the triangle.
+    The expected value is the product of the ultimate and the development factor.
     """
     print("Shape of alpha:", alpha.shape)
     print("Shape of beta:", beta.shape)
 
-    alpha = alpha.reshape((-1, 1))  # Reshape alpha into a column vector with shape (m, 1)
-    beta = beta.reshape((1, -1))  # Reshape beta into a row vector with shape (1, n)
+    print("Type of alpha:", type(alpha))
+    print("Type of beta:", type(beta))
 
-    # alpha_np = alpha.to_numpy().reshape(-1, 1)  # Convert alpha to NumPy array and reshape it to a column vector
-    # beta_np = beta.to_numpy().reshape(1, -1)  # Convert beta to NumPy array and reshape it to a row vector
-
-
-
-    # shape = accident_periods x development_periods
-    return np.multiply(alpha, beta)
+    # return np.multiply(alpha, beta)
     # return np.multiply(alpha_np, beta_np)
-    # return torch.multiply(alpha, beta)
+    return (np.matmul(alpha.eval().reshape(-1, 1),
+                     beta.eval().reshape(1, -1)))
+    # return alpha, beta
 
   def _gamma_alpha(self, E, sigma):
     """
-    Helper function for calculating the alpha parameter for the gamma distribution. The alpha parameter
-    is the square of the expected value divided by the variance.
+    Helper function for calculating the alpha parameter for the gamma distribution.
+    The alpha parameter is the square of the expected value divided by the variance.
     """
-    return np.divide(np.power(E, 2), np.power(sigma, 2))
-    # return torch.divide(torch.power(E, 2), torch.power(sigma, 2))
+    # return np.divide(np.power(E, 2), np.power(sigma, 2))
+    # return torch.divide(torch.pow(E, 2), torch.pow(sigma, 2))
+    # return (E ** 2) / (sigma ** 2)
+    return np.divide(np.power(E, 2), np.power(sigma.eval(), 2))
 
   def _gamma_beta(self, E, sigma):
     """
-    Helper function for calculating the beta parameter for the gamma distribution. The beta parameter
-    is the expected value divided by the variance.
+    Helper function for calculating the beta parameter for the gamma distribution.
+    The beta parameter is the expected value divided by the variance.
     """
-    return np.divide(E, np.power(sigma, 2))
-    # return torch.divide(E, torch.power(sigma, 2))
+    # return np.divide(E, np.power(sigma, 2))
+    # return torch.divide(E, torch.pow(sigma, 2))
+    # return E / (sigma ** 2)
+    return np.divide(E, np.power(sigma.eval(), 2))
 
   def _beta_alpha(self, E, sigma):
     """
-    Helper function for calculating the alpha parameter for the beta distribution. The alpha parameter
-    is the expected value times the variance plus 1.
+    Helper function for calculating the alpha parameter for the beta distribution.
+    The alpha parameter is the expected value times the variance plus 1.
 
     alpha = E * (E * (1 - E) / sigma**2 - 1)
     """
-    return np.multiply(E, np.subtract(np.divide(np.multiply(E, np.subtract(1, E)), np.power(sigma, 2)), 1))
-    # return torch.multiply(E, torch.subtract(torch.divide(torch.multiply(E, torch.subtract(1, E)), torch.power(sigma, 2)), 1))
+    return (E * (E * (1 - E) / sigma**2 - 1))
+    # return (np.multiply(E, np.subtract(np.divide(np.multiply(E, np.subtract(1, E)),
+    # np.power(sigma, 2)), 1)))
+    # return (torch.multiply(
+    #           E,
+    #           torch.subtract(
+    #             torch.divide(
+    #               torch.multiply(
+    #                 E,
+    #                 torch.subtract(
+    #                   1,
+    #                   E
+    #                 )
+    #               ),
+    #               torch.power(
+    #                 sigma,
+    #                 2
+    #               )
+    #             ),
+    #             1
+    #           )
+    #         )
+    #       )
 
   def _beta_beta(self, E, sigma):
     """
-    Helper function for calculating the beta parameter for the beta distribution. The beta parameter
-    is (1 - the expected value) times the variance plus 1.
+    Helper function for calculating the beta parameter for the beta distribution.
+    The beta parameter is (1 - the expected value) times the variance plus 1.
 
     beta = (1 - E) * (E * (1 - E) / sigma**2 - 1)
     """
-    return np.multiply(np.subtract(1, E), np.subtract(np.divide(np.multiply(E, np.subtract(1, E)), np.power(sigma, 2)), 1))
-    # return torch.multiply(torch.subtract(1, E), torch.subtract(torch.divide(torch.multiply(E, torch.subtract(1, E)), torch.power(sigma, 2)), 1))
+    return ((1 - E) * (E * (1 - E) / sigma**2 - 1))
+    # return (np.multiply(np.subtract(1, E), np.subtract(np.divide(np.multiply(E,
+    # np.subtract(1, E)), np.power(sigma, 2)), 1)))
+    # return (torch.multiply(
+    #           torch.subtract(
+    #             1,
+    #             E
+    #           ),
+    #           torch.subtract(
+    #             torch.divide(
+    #               torch.multiply(
+    #                 E,
+    #                 torch.subtract(
+    #                   1,
+    #                   E
+    #                 )
+    #               ),
+    #               torch.power(
+    #                 sigma,
+    #                 2
+    #               )
+    #             ),
+    #             1
+    #           )
+    #         )
+    #       )
 
 
-  def chain_ladder(self):
+  def chain_ladder_model(self):
     with pymc.Model() as model:
       # prior distributions for the ultimate parameters
-      alpha = self.prior_ultimate_distributions()
+      alpha = self.prior_ultimate_distributions(standalone=False)
       
       # prior distributions for the development parameters
-      beta = self.prior_development_distributions()
+      beta = self.prior_development_distributions(standalone=False)
 
       # prior distributions for the standard deviations
-      sigma = self.prior_sigma_distributions()
+      sigma = self.prior_sigma_distributions(standalone=False)
 
       # expected values for the triangles
       # shape = accident_periods x development_periods
@@ -187,10 +329,33 @@ class ChainLadderMCMC:
       # likelihood distributions for the observed data
       # shape = accident_periods x development_periods
       # loss distributions get gamma distributions
-      loglik = pymc.Gamma('loglik'
-                        , alpha=self._gamma_alpha(E, sigma)
-                        , beta=self._gamma_beta(E, sigma)
-                        , observed=True)
+      # loglik = pymc.Gamma('loglik'
+      #                   , alpha=self._gamma_alpha(E, sigma)[self.tri_mask]
+      #                   , beta=self._gamma_beta(E, sigma)[self.tri_mask]
+      #                   , observed=self.tri[self.tri_mask])
+      
+      loglik = pymc.Normal('loglik'
+                        , mu=E[self.tri_mask]
+                        , sigma=np.array([sigma.eval() for _ in range(self.tri.shape[0])])[self.tri_mask]
+                        , observed=self.tri[self.tri_mask])
+      # loglik = pymc.Gamma('loglik'
+      #                   , alpha=self._gamma_alpha(E, sigma)
+      #                   , beta=self._gamma_beta(E, sigma)
+      #                   , observed=self.tri)
 
     self.model = model
     return model
+  
+  def fit(self, samples=None, burnin=None, chains=None):
+    if samples is None:
+      samples = self.samples
+    if burnin is None:
+      burnin = self.burnin
+    if chains is None:
+      chains = self.chains
+    with self.chain_ladder_model():
+    # inference
+      self.trace = pymc.sample(draws=samples,
+                               tune=burnin,
+                               chains=chains,
+                               cores=None)

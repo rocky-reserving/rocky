@@ -133,3 +133,6 @@ rocky-app/node_modules/
 
 # conda environment
 conda/
+
+# model outputs
+model_outputs/
