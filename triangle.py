@@ -283,7 +283,7 @@ class Triangle:
                     # assuming the month is the last 2 digits, the year is
                     # the first 4 digits, and the day is the first day of the month
                     return convert_to_datetime(year, month)
-            except ValueError:
+            except:
                 # If the origin value cannot be converted to an integer, continue
                 # to the string processing section below
                 pass
@@ -550,12 +550,13 @@ class Triangle:
         if sheet_range:
             # If a range is provided, read only the specified range
             _, idx = range_to_tuple(f"'{sheet_name}'!{sheet_range}")
-            row1, col1 = idx[0]-1, idx[1]-1
-            row2, col2 = idx[2]-1, idx[3]
+            c1, r1, c2, r2 = idx
+
 
             # read in the subset of the excel file
             df = pd.read_excel(
-                filename, header=0, sheet_name=sheet_name).iloc[row1:row2, col1:col2]
+                filename, header=0, sheet_name=sheet_name).iloc[(r1-1):(r2-1), (c1-1):(c2-1)]
+            print(df)
 
             # set the column names as the first row
             # df.columns = df.iloc[0]
@@ -567,7 +568,7 @@ class Triangle:
             df = pd.read_excel(filename, header=0, sheet_name=sheet_name)
 
         # Set the origin period as the index
-        df.set_index(df.columns.tolist()[:origin_columns], inplace=True)
+        # df.set_index(df.columns.tolist()[:origin_columns], inplace=True)
 
         # If the columns are numeric, convert them to integer categories
         df.columns = df.columns.astype(int)
@@ -576,10 +577,10 @@ class Triangle:
         df.sort_index(axis=1, inplace=True)
 
         # If there are rows with all zeros, or all NaNs, drop them
-        df.dropna(axis=0, how='all', inplace=True)
+        # df.dropna(axis=0, how='all', inplace=True)
 
         # If there are any remaining columns with all zeros, or all NaNs, drop them
-        df.dropna(axis=1, how='all', inplace=True)
+        # df.dropna(axis=1, how='all', inplace=True)
 
         # Create and return a Triangle object
         return cls(id=id, tri=df, triangle=df)
@@ -768,48 +769,48 @@ class Triangle:
 
     # Data loading methods
 
-    def from_dataframe(self,
-                       df: pd.DataFrame,
-                       use_index: bool = True,
-                       use_columns: bool = True,
-                       origin_col: str = 'ay',
-                       development_col: str = 'dev_month',
-                       loss_col: str = 'loss',
-                       return_df: bool = False
-                       ) -> None:
-        """
-        Create a `Triangle` object from a pandas dataframe.
-        Parameters:
-        -----------
-        df: `pd.DataFrame`
-            The triangle data.
-        use_index: `bool`, default=`True`
-            If `True`, use the dataframe index as the origin period.
-        use_columns: `bool`, default=`True`
-            If `True`, use the dataframe columns as the development period.
-        origin_col: `str`, default=`'ay'`
-            The column name to use for the origin period. Only used
-            if `use_index` is `False`.
-        development_col: `str`, default=`'dev_month'`
-            The column name to use for the development period. Only
-            used if `use_columns` is `False`.
-        return_df: `bool`, default=`False`
-            If `True`, return the triangle data as a pandas dataframe.
-        Returns:
-        --------
-        `None`
-        """
-        # if use_index is True, use the dataframe index as the origin period
-        if use_index:
-            origin_col = df.index.name
+    # def from_dataframe(self,
+    #                    df: pd.DataFrame,
+    #                    use_index: bool = True,
+    #                    use_columns: bool = True,
+    #                    origin_col: str = 'ay',
+    #                    development_col: str = 'dev_month',
+    #                    loss_col: str = 'loss',
+    #                    return_df: bool = False
+    #                    ) -> None:
+    #     """
+    #     Create a `Triangle` object from a pandas dataframe.
+    #     Parameters:
+    #     -----------
+    #     df: `pd.DataFrame`
+    #         The triangle data.
+    #     use_index: `bool`, default=`True`
+    #         If `True`, use the dataframe index as the origin period.
+    #     use_columns: `bool`, default=`True`
+    #         If `True`, use the dataframe columns as the development period.
+    #     origin_col: `str`, default=`'ay'`
+    #         The column name to use for the origin period. Only used
+    #         if `use_index` is `False`.
+    #     development_col: `str`, default=`'dev_month'`
+    #         The column name to use for the development period. Only
+    #         used if `use_columns` is `False`.
+    #     return_df: `bool`, default=`False`
+    #         If `True`, return the triangle data as a pandas dataframe.
+    #     Returns:
+    #     --------
+    #     `None`
+    #     """
+    #     # if use_index is True, use the dataframe index as the origin period
+    #     if use_index:
+    #         origin_col = df.index.name
 
-        # if use_columns is True, use the dataframe columns as the development period
-        if use_columns:
-            development_col = df.columns.name
+    #     # if use_columns is True, use the dataframe columns as the development period
+    #     if use_columns:
+    #         development_col = df.columns.name
 
-        # pivot the dataframe to get the triangle data
-        self.triangle.tri = df.pivot_table(
-            index=origin_col, columns=development_col, values=loss_col)
+    #     # pivot the dataframe to get the triangle data
+    #     self.triangle.tri = df.pivot_table(
+    #         index=origin_col, columns=development_col, values=loss_col)
 
     def cum_to_inc(self,
                    cum_tri: pd.DataFrame = None,
