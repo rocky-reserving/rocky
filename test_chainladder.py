@@ -1,11 +1,12 @@
-import ChainLadder_MCMC as clmc
+# import ChainLadder_MCMC as clmc
+
 import triangle as tr
 import numpy as np
 
 t = tr.Triangle.from_taylor_ashe()
-data = clmc.MegaData(triangle=t)
+data = MegaData(triangle=t)
 
-cl = clmc.ChainLadderMCMC(data=data)
+cl = MegaChainLadder(data=data)
 
 alpha = cl.prior_ultimate_distributions()
 beta = cl.prior_development_distributions()
