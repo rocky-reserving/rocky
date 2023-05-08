@@ -548,16 +548,17 @@ class Triangle:
             c1, r1, c2, r2 = idx
 
             # read in the subset of the excel file
-            df = pd.read_excel(filename, header=0, sheet_name=sheet_name).iloc[
-                (r1 - 1) : (r2 - 1), (c1 - 1) : (c2)
+            df = pd.read_excel(filename, header=None, sheet_name=sheet_name).iloc[
+                (r1 - 1) : (r2), (c1 - 1) : (c2)
             ]
-            print(df)
+            # print(df)
 
             # set the column names as the first row
-            # df.columns = df.iloc[0]
+            df.columns = df.iloc[0]
+            df.columns.name=None
 
             # # drop the first row
-            # df.drop(df.index[0], inplace=True)
+            df.drop(df.index[0], inplace=True)
         else:
             # If no range is provided, read the entire sheet
             df = pd.read_excel(filename, header=0, sheet_name=sheet_name)
@@ -565,12 +566,8 @@ class Triangle:
         # Set the origin period as the index
         df.set_index(df.columns.tolist()[:origin_columns], inplace=True)
 
-        # If the columns are numeric, convert them to integer categories
-        # df.columns = [
-        #     (int(c) for c in df.columns.tolist()) if isinstance(c, (int, float)) else c
-        # ]
-
-        # print(df)
+        # round to a single digit
+        df = df.round(1)
 
         # re-sort the columns
         df.sort_index(axis=1, inplace=True)
@@ -582,7 +579,7 @@ class Triangle:
         # df.dropna(axis=1, how='all', inplace=True)
 
         # Create and return a Triangle object
-        return cls(id=id, tri=df, triangle=df)
+        return cls(id=id, tri=df.round(1), triangle=df.round(1))
 
     @classmethod
     def from_taylor_ashe(cls) -> "Triangle":
