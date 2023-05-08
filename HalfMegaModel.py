@@ -308,19 +308,19 @@ class HalfMegaModel:
             ]
 
             # expected values for the triangles
-            E_rpt_loss = self._E(alpha_loss, beta_rpt_loss)
-            E_paid_loss = self._E(alpha_loss, beta_paid_loss)
+            E_rpt_loss = self._E(alpha_loss, beta_rpt_loss)[self.tri_mask]
+            E_paid_loss = self._E(alpha_loss, beta_paid_loss)[self.tri_mask]
 
             # likelihood functions
             loglik_rpt_loss = pymc.Normal(
                 "loglik-rpt-loss",
-                mu=E_rpt_loss[self.tri_mask],
+                mu=E_rpt_loss,
                 sigma=sigma_rpt,
                 observed=self.rpt_loss[self.tri_mask],
             )
             loglik_paid_loss = pymc.Normal(
                 "loglik-paid-loss",
-                mu=E_paid_loss[self.tri_mask],
+                mu=E_paid_loss,
                 sigma=sigma_paid,
                 observed=self.paid_loss[self.tri_mask],
             )
