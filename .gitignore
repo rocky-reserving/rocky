@@ -136,3 +136,6 @@ conda/
 
 # model outputs
 model_outputs/
+
+# papers folder (don't need to track pdfs)
+papers/

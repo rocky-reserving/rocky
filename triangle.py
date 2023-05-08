@@ -633,7 +633,7 @@ class Triangle:
 
         # Construct the file path to the sample data
         data_file = os.path.join(
-            current_dir, 'papers', 'dahms reserve triangles.xlsx')
+            current_dir, 'data', 'dahms reserve triangles.xlsx')
 
         # Read the data from the CSV file
         paid = cls.from_excel(data_file, sheet_name='paid',
