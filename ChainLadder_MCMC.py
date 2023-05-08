@@ -41,7 +41,7 @@ class MegaData:
     self.dev_period = self.development_periods if self.development_periods is not None else None
   
 
-class ChainLadderMCMC:
+class MegaChainLadder:
   def __init__(self,
                data: MegaData,
                burnin: int = 1000,
@@ -52,13 +52,10 @@ class ChainLadderMCMC:
     triangles that have been converted to pytorch tensors. 
     """
     self.data = data
-    # self.acc = data.accident_periods.year
-    # self.dev = data.development_periods.astype(int).values
     self.acc = data.accident_periods.year.values
     self.dev = data.development_periods.astype(int).values
 
     # loss triangles
-    # self.tri = data.triangle.tri.values
     self.tri = data.triangle.tri.values
 
     # need a triangle mask -- true if the value is not nan
@@ -72,8 +69,8 @@ class ChainLadderMCMC:
     self.cl_ult = np.multiply(self.data.triangle.diag().values,
                            self.data.triangle.atu().sort_index(ascending=False).values)
 
-  # @pymc.dtrm(trace=True)
   def prior_ultimate_distributions(self
+                                 , name: str = 'alpha'
                                  , mu: float = None
                                  , sigma: float = None
                                  , standalone: bool = True
@@ -88,6 +85,9 @@ class ChainLadderMCMC:
 
     Parameters
     ----------
+    name: str
+      The name given to the parameters. This is how the parameters are referred
+      to in some model diagnostics. Defaults to 'alpha'.
     mu: float
       The mu from the lognormal distribution for the latent variables. The default
       value is None, which means that mu is estimated from the data.
@@ -95,17 +95,21 @@ class ChainLadderMCMC:
       The sigma of the lognormal distribution for the latent variables.
       The default value is None, which means that sigma is estimated from
       the data.
-    standalone: bool
+    DEPRECIATED standalone: bool
       If True, then the latent variables are defined as a standalone variable (eg
       does not need to be passed inside a pymc.Model). If False, then the latent
       variables are defined as variables inside a pymc.Model, and thus cannot
       be used outside of a block.
     """
+    # if you don't pass lognormal parameters, they will be estimated from the data
     if mu is None or sigma is None:
+      
+      # method of moments is used for a prior estimate
       m = np.sum(np.log(self.cl_ult)) / self.cl_ult.shape[0]
       s2 = np.sum(np.power(np.log(self.cl_ult) - m, 2)) / self.cl_ult.shape[0]
       s = np.sqrt(s2)
 
+      # only replace priors that aren't passed
       if mu is None:
         mu = m
       if sigma is None:
@@ -125,12 +129,12 @@ class ChainLadderMCMC:
       # deterministic functions for the prior estimates of ultimates
       # it doesn't make sense to do this like this, but it mirrors the method in
       # the MegaModel class
-      alpha = pymc.Deterministic('alpha', _ultimate)
+      alpha = pymc.Deterministic(name, _ultimate)
     
     return alpha
 
-  # @pymc.stoch(trace=True)
   def prior_development_distributions(self
+                                    , name: str = 'beta'
                                     , mu: float = 0
                                     , sigma: float = 5
                                     , standalone: bool = True
@@ -145,6 +149,9 @@ class ChainLadderMCMC:
 
     Parameters
     ----------
+    name: str
+      The name given to the parameters. This is how the parameters are referred
+      to in some model diagnostics. Defaults to 'beta'.
     mu: float
       The mean of the normal distribution for the development parameters. The
       default value is 0.5.
@@ -152,7 +159,7 @@ class ChainLadderMCMC:
       The precision of the normal distribution for the development parameters.
       Tau is the inverse of the standard deviation. The default value is 0.2,
       which corresponds to a standard deviation of 5.
-    standalone: bool
+    DEPRECIATED standalone: bool
       If True, then the development parameters are defined as a standalone
       variable (eg does not need to be passed inside a pymc.Model). If False,
       then the development parameters are defined as variables inside a pymc.Model,
@@ -170,15 +177,15 @@ class ChainLadderMCMC:
                               sigma=sigma,
                               size=self.dev.shape[0])
     else:
-      beta = pymc.Normal('beta',
-                         mu=mu,
-                         sigma=sigma,
-                         size=(1,self.dev.shape[0]))
+      beta = pymc.Normal(name,
+                        mu=mu,
+                        sigma=sigma,
+                        size=(1,self.dev.shape[0]))
 
     return beta
 
-  # @pymc.stoch(trace=True)
   def prior_sigma_distributions(self
+                                , name: str = 'sigma'
                                 , beta: float = 2.5
                                 , standalone: bool = True
                                 ) -> Tuple:
@@ -193,13 +200,12 @@ class ChainLadderMCMC:
       sigma = pymc.HalfCauchy.dist(beta=beta,
                                     size=self.dev.shape[0])
     else:
-      sigma = pymc.HalfCauchy('sigma',
+      sigma = pymc.HalfCauchy(name,
                               beta=beta,
                               size=self.dev.shape[0])
-    
+      
     return sigma
 
-  # @pymc.dtrm(trace=True)
   def _E(self
        , alpha = None 
        , beta = None):
@@ -207,26 +213,18 @@ class ChainLadderMCMC:
     Helper function for defining the expected value of a cell in the triangle.
     The expected value is the product of the ultimate and the development factor.
     """
-    print("Shape of alpha:", alpha.shape)
-    print("Shape of beta:", beta.shape)
-
-    print("Type of alpha:", type(alpha))
-    print("Type of beta:", type(beta))
-
-    # return np.multiply(alpha, beta)
-    # return np.multiply(alpha_np, beta_np)
+    assert alpha is not None, "`alpha` must be passed to _E"
+    assert beta is not None, "`beta` must be passed to _E"
     return (np.matmul(alpha.eval().reshape(-1, 1),
                      beta.eval().reshape(1, -1)))
-    # return alpha, beta
 
   def _gamma_alpha(self, E, sigma):
     """
     Helper function for calculating the alpha parameter for the gamma distribution.
     The alpha parameter is the square of the expected value divided by the variance.
     """
-    # return np.divide(np.power(E, 2), np.power(sigma, 2))
-    # return torch.divide(torch.pow(E, 2), torch.pow(sigma, 2))
-    # return (E ** 2) / (sigma ** 2)
+    assert E is not None, "`E` must be passed to _gamma_alpha"
+    assert sigma is not None, "`sigma` must be passed to _gamma_alpha"
     return np.divide(np.power(E, 2), np.power(sigma.eval(), 2))
 
   def _gamma_beta(self, E, sigma):
@@ -234,9 +232,8 @@ class ChainLadderMCMC:
     Helper function for calculating the beta parameter for the gamma distribution.
     The beta parameter is the expected value divided by the variance.
     """
-    # return np.divide(E, np.power(sigma, 2))
-    # return torch.divide(E, torch.pow(sigma, 2))
-    # return E / (sigma ** 2)
+    assert E is not None, "`E` must be passed to _gamma_beta"
+    assert sigma is not None, "`sigma` must be passed to _gamma_beta"
     return np.divide(E, np.power(sigma.eval(), 2))
 
   def _beta_alpha(self, E, sigma):
@@ -246,29 +243,7 @@ class ChainLadderMCMC:
 
     alpha = E * (E * (1 - E) / sigma**2 - 1)
     """
-    return (E * (E * (1 - E) / sigma**2 - 1))
-    # return (np.multiply(E, np.subtract(np.divide(np.multiply(E, np.subtract(1, E)),
-    # np.power(sigma, 2)), 1)))
-    # return (torch.multiply(
-    #           E,
-    #           torch.subtract(
-    #             torch.divide(
-    #               torch.multiply(
-    #                 E,
-    #                 torch.subtract(
-    #                   1,
-    #                   E
-    #                 )
-    #               ),
-    #               torch.power(
-    #                 sigma,
-    #                 2
-    #               )
-    #             ),
-    #             1
-    #           )
-    #         )
-    #       )
+    return E * (E * (1 - E) / sigma**2 - 1)
 
   def _beta_beta(self, E, sigma):
     """
@@ -278,31 +253,7 @@ class ChainLadderMCMC:
     beta = (1 - E) * (E * (1 - E) / sigma**2 - 1)
     """
     return ((1 - E) * (E * (1 - E) / sigma**2 - 1))
-    # return (np.multiply(np.subtract(1, E), np.subtract(np.divide(np.multiply(E,
-    # np.subtract(1, E)), np.power(sigma, 2)), 1)))
-    # return (torch.multiply(
-    #           torch.subtract(
-    #             1,
-    #             E
-    #           ),
-    #           torch.subtract(
-    #             torch.divide(
-    #               torch.multiply(
-    #                 E,
-    #                 torch.subtract(
-    #                   1,
-    #                   E
-    #                 )
-    #               ),
-    #               torch.power(
-    #                 sigma,
-    #                 2
-    #               )
-    #             ),
-    #             1
-    #           )
-    #         )
-    #       )
+    
 
 
   def chain_ladder_model(self):
@@ -320,10 +271,10 @@ class ChainLadderMCMC:
       # shape = accident_periods x development_periods
       E = self._E(alpha, beta) # paid/reported count ratios
 
-      print("Shape of E:", E.shape)
-      print("Shape of sigma:", sigma.shape)
-      print("Shape of gamma_alpha:", self._gamma_alpha(E, sigma).shape)
-      print("Shape of gamma_beta:", self._gamma_beta(E, sigma).shape)
+      # print("Shape of E:", E.shape)
+      # print("Shape of sigma:", sigma.shape)
+      # print("Shape of gamma_alpha:", self._gamma_alpha(E, sigma).shape)
+      # print("Shape of gamma_beta:", self._gamma_beta(E, sigma).shape)
 
 
       # likelihood distributions for the observed data
@@ -353,9 +304,16 @@ class ChainLadderMCMC:
       burnin = self.burnin
     if chains is None:
       chains = self.chains
-    with self.chain_ladder_model():
+
+    if self.model is None:
+      mod = self.chain_ladder_model()
+    else:
+      mod = self.model
+    with mod:
+    # with self.chain_ladder_model():
     # inference
       self.trace = pymc.sample(draws=samples,
                                tune=burnin,
                                chains=chains,
                                cores=None)
+
