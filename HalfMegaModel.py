@@ -1,5 +1,5 @@
 import pymc
-from pymc import HalfCauchy
+from pymc import HalfCauchy, Normal, LogNormal, Deterministic
 
 from dataclasses import dataclass
 from triangle import Triangle
@@ -86,7 +86,9 @@ class HalfMegaModel:
         self.paid_loss = self.paid_loss_tri.tri.values
 
         # need a triangle mask -- true if the value is not nan
-        self.tri_mask = ~np.isnan(self.rpt_loss)
+        self.tri_mask = pd.DataFrame(~np.isnan(self.rpt_loss),
+                                     index=self.rpt_loss_tri.tri.index,
+                                     columns=self.rpt_loss_tri.tri.columns)
 
         # triangle stats
         self.n_rows = self.rpt_loss_tri.tri.shape[0]
@@ -102,6 +104,11 @@ class HalfMegaModel:
             self.rpt_loss_tri.diag().values,
             self.rpt_loss_tri.atu().sort_index(ascending=False).values,
         )
+
+        # Prior beta means
+        self.prior_beta_mean = {}
+        self.prior_beta_mean['rpt_loss'] = np.divide(1, self.rpt_loss_tri.atu())
+        self.prior_beta_mean['paid_loss'] = np.divide(1, self.paid_loss_tri.atu())
 
     def prior_ultimate_distributions(
         self, name: str = "alpha", standalone: bool = True
@@ -166,8 +173,8 @@ class HalfMegaModel:
     def prior_development_distributions(
         self,
         name: str = "beta",
-        mu: float = 0,
-        sigma: float = 5,
+        # mu: float = 0,
+        # sigma: float = 5,
         standalone: bool = True,
     ) -> Tuple:
         """
@@ -202,19 +209,26 @@ class HalfMegaModel:
           The development parameters.
         """
 
+        # Estimate prior hyperparameters from data
+
+
         # prior distributions for development
         if standalone:
-            beta_rpt_loss = pymc.Normal.dist(mu=mu, sigma=sigma, size=self.dev.shape[0])
-            beta_paid_loss = pymc.Normal.dist(
-                mu=mu, sigma=sigma, size=self.dev.shape[0]
-            )
+            beta_rpt_loss = pymc.Normal.dist(mu=self.prior_beta_mean['rpt_loss'],
+                                             sigma=np.power(self.prior_beta_mean['rpt_loss'], 1/3),
+                                             size=self.dev.shape[0])
+            beta_paid_loss = pymc.Normal.dist(mu=self.prior_beta_mean['paid_loss'],
+                                             sigma=np.power(self.prior_beta_mean['paid_loss'], 1/3),
+                                             size=self.dev.shape[0])
         else:
-            beta_rpt_loss = pymc.Normal(
-                "beta-rpt-loss", mu=mu, sigma=sigma, size=self.dev.shape[0]
-            )
-            beta_paid_loss = pymc.Normal(
-                "beta-paid-loss", mu=mu, sigma=sigma, size=self.dev.shape[0]
-            )
+            beta_rpt_loss = pymc.Normal("beta-rpt-loss",
+                                        mu=self.prior_beta_mean['rpt_loss'],
+                                        sigma=np.power(self.prior_beta_mean['rpt_loss'], 1/3),
+                                        size=self.dev.shape[0])
+            beta_paid_loss = pymc.Normal("beta-paid-loss",
+                                         mu=self.prior_beta_mean['paid_loss'],
+                                         sigma=np.power(self.prior_beta_mean['paid_loss'], 1/3),
+                                         size=self.dev.shape[0])
 
         return beta_rpt_loss, beta_paid_loss
 
@@ -319,6 +333,65 @@ class HalfMegaModel:
                 observed=self.rpt_loss[self.tri_mask],
             )
             loglik_paid_loss = pymc.Normal(
+                "loglik-paid-loss",
+                mu=E_paid_loss,
+                sigma=sigma_paid,
+                observed=self.paid_loss[self.tri_mask],
+            )
+        self.model = model
+        return model
+
+    def chain_ladder_model2(self):
+        with pymc.Model() as model:
+            # prior distributions for the ultimate parameters
+            ult_ln_prior = stats.lognorm.fit(self.loss_ult_prior)
+            alpha_loss = LogNormal('alpha-loss', mu=np.log(ult_ln_prior[2]), sigma=ult_ln_prior[0])
+
+            # prior distributions for the development parameters
+            beta_rpt_loss = Normal("beta-rpt-loss",
+                                        mu=self.prior_beta_mean['rpt_loss'],
+                                        sigma=np.power(self.prior_beta_mean['rpt_loss'], 1/3),
+                                        size=self.dev.shape[0])
+            beta_paid_loss = Normal("beta-paid-loss",
+                                        mu=self.prior_beta_mean['paid_loss'],
+                                        sigma=np.power(self.prior_beta_mean['paid_loss'], 1/3),
+                                        size=self.dev.shape[0])
+
+            # prior distributions for the standard deviations
+            # sigma_rpt_loss, sigma_paid_loss = self.prior_sigma_distributions(
+            #     standalone=False
+            # )
+            sigma_rpt_loss = HalfCauchy(
+                "sigma-rpt-loss", beta=10, size=self.dev.shape[0]
+            )
+            sigma_paid_loss = HalfCauchy(
+                "sigma-paid-loss", beta=10, size=self.dev.shape[0]
+            )
+            # sigma_rpt = np.array([sigma_rpt_loss.eval() for _ in range(self.n_rows)])[
+            #     self.tri_mask
+            # ]
+            # sigma_paid = np.array([sigma_paid_loss.eval() for _ in range(self.n_rows)])[
+            #     self.tri_mask
+            # ]
+
+            # expected values for the triangles
+
+            E_rpt_loss, E_paid_loss = [],[]
+            for row in self.rpt_loss_tri.shape[0]:
+                E_rpt_loss.append([((alpha_loss[row] * beta) if ~self.rpt_loss_tri.tri.iloc[row, i].isna() else np.nan) for i, beta in enumerate(beta_rpt_loss)])
+                E_rpt_loss.append(alpha_loss[row] * beta_paid_loss)
+
+            # E_rpt_loss = self._E(alpha_loss, beta_rpt_loss)[self.tri_mask]
+            # E_paid_loss = self._E(alpha_loss, beta_paid_loss)[self.tri_mask]
+
+            # likelihood functions
+            loglik_rpt_loss = Normal(
+                "loglik-rpt-loss",
+                mu=E_rpt_loss,
+                sigma=sigma_rpt,
+                observed=self.rpt_loss[self.tri_mask],
+            )
+            loglik_paid_loss = Normal(
                 "loglik-paid-loss",
                 mu=E_paid_loss,
                 sigma=sigma_paid,
