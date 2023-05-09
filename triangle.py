@@ -1,4 +1,4 @@
-"""
+    """
 This module implements the Triangle class, which is used to store and manipulate
 triangle data.
 
