@@ -123,24 +123,6 @@ class HalfMegaModel:
         relationship is fixed and not a random variable.
 
         Use normal distributions for the latent variables.
-
-        Parameters
-        ----------
-        name: str
-          The name given to the parameters. This is how the parameters are referred
-          to in some model diagnostics. Defaults to 'alpha'.
-        mu: float
-          The mu from the lognormal distribution for the latent variables. The default
-          value is None, which means that mu is estimated from the data.
-        sigma: float
-          The sigma of the lognormal distribution for the latent variables.
-          The default value is None, which means that sigma is estimated from
-          the data.
-        DEPRECIATED standalone: bool
-          If True, then the latent variables are defined as a standalone variable (eg
-          does not need to be passed inside a pymc.Model). If False, then the latent
-          variables are defined as variables inside a pymc.Model, and thus cannot
-          be used outside of a block.
         """
         # if you don't pass lognormal parameters, they will be estimated from the data
         # if mu is None or sigma is None:
@@ -187,29 +169,6 @@ class HalfMegaModel:
         and are the percent of total for the development period.
 
         Use normal distributions for the development parameters.
-
-        Parameters
-        ----------
-        name: str
-          The name given to the parameters. This is how the parameters are referred
-          to in some model diagnostics. Defaults to 'beta'.
-        mu: float
-          The mean of the normal distribution for the development parameters. The
-          default value is 0.5.
-        tau: float
-          The precision of the normal distribution for the development parameters.
-          Tau is the inverse of the standard deviation. The default value is 0.2,
-          which corresponds to a standard deviation of 5.
-        DEPRECIATED standalone: bool
-          If True, then the development parameters are defined as a standalone
-          variable (eg does not need to be passed inside a pymc.Model). If False,
-          then the development parameters are defined as variables inside a pymc.Model,
-          and thus cannot be used outside of a block.
-
-        Returns
-        -------
-        beta: pymc.Normal
-          The development parameters.
         """
 
         # Estimate prior hyperparameters from data
@@ -272,43 +231,8 @@ class HalfMegaModel:
         """
         assert alpha is not None, "`alpha` must be passed to _E"
         assert beta is not None, "`beta` must be passed to _E"
-        return np.matmul(alpha.eval().reshape(-1, 1), beta.eval().reshape(1, -1))
-
-    def _gamma_alpha(self, E, sigma):
-        """
-        Helper function for calculating the alpha parameter for the gamma distribution.
-        The alpha parameter is the square of the expected value divided by the variance.
-        """
-        assert E is not None, "`E` must be passed to _gamma_alpha"
-        assert sigma is not None, "`sigma` must be passed to _gamma_alpha"
-        return np.divide(np.power(E, 2), np.power(sigma.eval(), 2))
-
-    def _gamma_beta(self, E, sigma):
-        """
-        Helper function for calculating the beta parameter for the gamma distribution.
-        The beta parameter is the expected value divided by the variance.
-        """
-        assert E is not None, "`E` must be passed to _gamma_beta"
-        assert sigma is not None, "`sigma` must be passed to _gamma_beta"
-        return np.divide(E, np.power(sigma.eval(), 2))
-
-    def _beta_alpha(self, E, sigma):
-        """
-        Helper function for calculating the alpha parameter for the beta distribution.
-        The alpha parameter is the expected value times the variance plus 1.
-
-        alpha = E * (E * (1 - E) / sigma**2 - 1)
-        """
-        return E * (E * (1 - E) / sigma**2 - 1)
-
-    def _beta_beta(self, E, sigma):
-        """
-        Helper function for calculating the beta parameter for the beta distribution.
-        The beta parameter is (1 - the expected value) times the variance plus 1.
-
-        beta = (1 - E) * (E * (1 - E) / sigma**2 - 1)
-        """
-        return (1 - E) * (E * (1 - E) / sigma**2 - 1)
+        return np.matmul(alpha.reshape(-1, 1), beta.reshape(1, -1))
+        # return np.matmul(alpha.eval().reshape(-1, 1), beta.eval().reshape(1, -1))
 
     def chain_ladder_model(self):
         with pymc.Model() as model:
@@ -324,25 +248,27 @@ class HalfMegaModel:
             sigma_rpt_loss, sigma_paid_loss = self.prior_sigma_distributions(
                 standalone=False
             )
-            sigma_rpt = np.array([sigma_rpt_loss.eval() for _ in range(self.n_rows)])[
-                self.tri_mask
-            ]
-            sigma_paid = np.array([sigma_paid_loss.eval() for _ in range(self.n_rows)])[
-                self.tri_mask
-            ]
+            # sigma_rpt = np.array([sigma_rpt_loss.eval() for _ in range(self.n_rows)])[
+            #     self.tri_mask
+            # ]
+            # sigma_paid = np.array([sigma_paid_loss.eval() for _ in range(self.n_rows)])[
+            #     self.tri_mask
+            # ]
+            sigma_rpt = np.tile(sigma_rpt_loss, (self.n_rows, 1))[self.tri_mask]
+            sigma_paid = np.tile(sigma_paid_loss, (self.n_rows, 1))[self.tri_mask]
 
             # expected values for the triangles
             E_rpt_loss = self._E(alpha_loss, beta_rpt_loss)[self.tri_mask]
             E_paid_loss = self._E(alpha_loss, beta_paid_loss)[self.tri_mask]
 
             # likelihood functions
-            loglik_rpt_loss = pymc.Normal(
+            loglik_rpt_loss = Normal(
                 "loglik-rpt-loss",
                 mu=E_rpt_loss,
                 sigma=sigma_rpt,
                 observed=self.rpt_loss[self.tri_mask],
             )
-            loglik_paid_loss = pymc.Normal(
+            loglik_paid_loss = Normal(
                 "loglik-paid-loss",
                 mu=E_paid_loss,
                 sigma=sigma_paid,
@@ -351,79 +277,79 @@ class HalfMegaModel:
         self.model = model
         return model
 
-    def chain_ladder_model2(self):
-        with pymc.Model() as model:
-            # prior distributions for the ultimate parameters
-            ult_ln_prior = stats.lognorm.fit(self.loss_ult_prior)
-            alpha_loss = LogNormal(
-                "alpha-loss", mu=np.log(ult_ln_prior[2]), sigma=ult_ln_prior[0]
-            )
+    # def chain_ladder_model2(self):
+    #     with pymc.Model() as model:
+    #         # prior distributions for the ultimate parameters
+    #         ult_ln_prior = stats.lognorm.fit(self.loss_ult_prior)
+    #         alpha_loss = LogNormal(
+    #             "alpha-loss", mu=np.log(ult_ln_prior[2]), sigma=ult_ln_prior[0]
+    #         )
 
-            # prior distributions for the development parameters
-            beta_rpt_loss = Normal(
-                "beta-rpt-loss",
-                mu=self.prior_beta_mean["rpt_loss"],
-                sigma=np.power(self.prior_beta_mean["rpt_loss"], 1 / 3),
-                size=self.dev.shape[0],
-            )
-            beta_paid_loss = Normal(
-                "beta-paid-loss",
-                mu=self.prior_beta_mean["paid_loss"],
-                sigma=np.power(self.prior_beta_mean["paid_loss"], 1 / 3),
-                size=self.dev.shape[0],
-            )
+    #         # prior distributions for the development parameters
+    #         beta_rpt_loss = Normal(
+    #             "beta-rpt-loss",
+    #             mu=self.prior_beta_mean["rpt_loss"],
+    #             sigma=np.power(self.prior_beta_mean["rpt_loss"], 1 / 3),
+    #             size=self.dev.shape[0],
+    #         )
+    #         beta_paid_loss = Normal(
+    #             "beta-paid-loss",
+    #             mu=self.prior_beta_mean["paid_loss"],
+    #             sigma=np.power(self.prior_beta_mean["paid_loss"], 1 / 3),
+    #             size=self.dev.shape[0],
+    #         )
 
-            # prior distributions for the standard deviations
-            # sigma_rpt_loss, sigma_paid_loss = self.prior_sigma_distributions(
-            #     standalone=False
-            # )
-            sigma_rpt_loss = HalfCauchy(
-                "sigma-rpt-loss", beta=10, size=self.dev.shape[0]
-            )
-            sigma_paid_loss = HalfCauchy(
-                "sigma-paid-loss", beta=10, size=self.dev.shape[0]
-            )
-            # sigma_rpt = np.array([sigma_rpt_loss.eval() for _ in range(self.n_rows)])[
-            #     self.tri_mask
-            # ]
-            # sigma_paid = np.array([sigma_paid_loss.eval() for _ in range(self.n_rows)])[
-            #     self.tri_mask
-            # ]
+    #         # prior distributions for the standard deviations
+    #         # sigma_rpt_loss, sigma_paid_loss = self.prior_sigma_distributions(
+    #         #     standalone=False
+    #         # )
+    #         sigma_rpt_loss = HalfCauchy(
+    #             "sigma-rpt-loss", beta=10, size=self.dev.shape[0]
+    #         )
+    #         sigma_paid_loss = HalfCauchy(
+    #             "sigma-paid-loss", beta=10, size=self.dev.shape[0]
+    #         )
+    #         # sigma_rpt = np.array([sigma_rpt_loss.eval() for _ in range(self.n_rows)])[
+    #         #     self.tri_mask
+    #         # ]
+    #         # sigma_paid = np.array([sigma_paid_loss.eval() for _ in range(self.n_rows)])[
+    #         #     self.tri_mask
+    #         # ]
 
-            # expected values for the triangles
+    #         # expected values for the triangles
 
-            E_rpt_loss, E_paid_loss = [], []
-            for row in self.rpt_loss_tri.shape[0]:
-                E_rpt_loss.append(
-                    [
-                        (
-                            (alpha_loss[row] * beta)
-                            if ~self.rpt_loss_tri.tri.iloc[row, i].isna()
-                            else np.nan
-                        )
-                        for i, beta in enumerate(beta_rpt_loss)
-                    ]
-                )
-                E_rpt_loss.append(alpha_loss[row] * beta_paid_loss)
+    #         E_rpt_loss, E_paid_loss = [], []
+    #         for row in self.rpt_loss_tri.shape[0]:
+    #             E_rpt_loss.append(
+    #                 [
+    #                     (
+    #                         (alpha_loss[row] * beta)
+    #                         if ~self.rpt_loss_tri.tri.iloc[row, i].isna()
+    #                         else np.nan
+    #                     )
+    #                     for i, beta in enumerate(beta_rpt_loss)
+    #                 ]
+    #             )
+    #             E_paid_loss.append(alpha_loss[row] * beta_paid_loss)
 
-            # E_rpt_loss = self._E(alpha_loss, beta_rpt_loss)[self.tri_mask]
-            # E_paid_loss = self._E(alpha_loss, beta_paid_loss)[self.tri_mask]
+    #         # E_rpt_loss = self._E(alpha_loss, beta_rpt_loss)[self.tri_mask]
+    #         # E_paid_loss = self._E(alpha_loss, beta_paid_loss)[self.tri_mask]
 
-            # likelihood functions
-            loglik_rpt_loss = Normal(
-                "loglik-rpt-loss",
-                mu=E_rpt_loss,
-                sigma=sigma_rpt_loss,
-                observed=self.rpt_loss[self.tri_mask],
-            )
-            loglik_paid_loss = Normal(
-                "loglik-paid-loss",
-                mu=E_paid_loss,
-                sigma=sigma_paid_loss,
-                observed=self.paid_loss[self.tri_mask],
-            )
-        self.model = model
-        return model
+    #         # likelihood functions
+    #         loglik_rpt_loss = Normal(
+    #             "loglik-rpt-loss",
+    #             mu=E_rpt_loss,
+    #             sigma=sigma_rpt_loss,
+    #             observed=self.rpt_loss[self.tri_mask],
+    #         )
+    #         loglik_paid_loss = Normal(
+    #             "loglik-paid-loss",
+    #             mu=E_paid_loss,
+    #             sigma=sigma_paid_loss,
+    #             observed=self.paid_loss[self.tri_mask],
+    #         )
+    #     self.model = model
+    #     return model
 
     def fit(self, samples=None, burnin=None, chains=None):
         if samples is None:
