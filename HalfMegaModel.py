@@ -1,5 +1,7 @@
 import pymc
 from pymc import HalfCauchy, Normal, LogNormal, Deterministic
+import pytensor
+from pytensor.tensor.nlinalg import matrix_dot
 
 from dataclasses import dataclass
 from triangle import Triangle
@@ -175,27 +177,27 @@ class HalfMegaModel:
 
         # prior distributions for development
         if standalone:
-            beta_rpt_loss = pymc.Normal.dist(
-                mu=self.prior_beta_mean["rpt_loss"],
-                sigma=np.power(self.prior_beta_mean["rpt_loss"], 1 / 3),
+            beta_rpt_loss = Normal.dist(
+                mu=self.prior_beta_mean["rpt_loss"].values,
+                sigma=np.power(self.prior_beta_mean["rpt_loss"].values, 1 / 3),
                 size=self.dev.shape[0],
             )
-            beta_paid_loss = pymc.Normal.dist(
-                mu=self.prior_beta_mean["paid_loss"],
-                sigma=np.power(self.prior_beta_mean["paid_loss"], 1 / 3),
+            beta_paid_loss = Normal.dist(
+                mu=self.prior_beta_mean["paid_loss"].values,
+                sigma=np.power(self.prior_beta_mean["paid_loss"].values, 1 / 3),
                 size=self.dev.shape[0],
             )
         else:
-            beta_rpt_loss = pymc.Normal(
+            beta_rpt_loss = Normal(
                 "beta-rpt-loss",
-                mu=self.prior_beta_mean["rpt_loss"],
-                sigma=np.power(self.prior_beta_mean["rpt_loss"], 1 / 3),
+                mu=self.prior_beta_mean["rpt_loss"].values,
+                sigma=np.power(self.prior_beta_mean["rpt_loss"].values, 1 / 3),
                 size=self.dev.shape[0],
             )
-            beta_paid_loss = pymc.Normal(
+            beta_paid_loss = Normal(
                 "beta-paid-loss",
-                mu=self.prior_beta_mean["paid_loss"],
-                sigma=np.power(self.prior_beta_mean["paid_loss"], 1 / 3),
+                mu=self.prior_beta_mean["paid_loss"].values,
+                sigma=np.power(self.prior_beta_mean["paid_loss"].values, 1 / 3),
                 size=self.dev.shape[0],
             )
 
@@ -231,8 +233,11 @@ class HalfMegaModel:
         """
         assert alpha is not None, "`alpha` must be passed to _E"
         assert beta is not None, "`beta` must be passed to _E"
-        return np.matmul(alpha.reshape(-1, 1), beta.reshape(1, -1))
-        # return np.matmul(alpha.eval().reshape(-1, 1), beta.eval().reshape(1, -1))
+        out = np.matmul(
+            alpha.eval().reshape(self.n_rows, 1), beta.eval().reshape(1, self.n_cols)
+        )
+        out = out[self.tri_mask]
+        return pytensor.tensor.as_tensor_variable(out)
 
     def chain_ladder_model(self):
         with pymc.Model() as model:
@@ -248,18 +253,17 @@ class HalfMegaModel:
             sigma_rpt_loss, sigma_paid_loss = self.prior_sigma_distributions(
                 standalone=False
             )
-            # sigma_rpt = np.array([sigma_rpt_loss.eval() for _ in range(self.n_rows)])[
-            #     self.tri_mask
-            # ]
-            # sigma_paid = np.array([sigma_paid_loss.eval() for _ in range(self.n_rows)])[
-            #     self.tri_mask
-            # ]
-            sigma_rpt = np.tile(sigma_rpt_loss, (self.n_rows, 1))[self.tri_mask]
-            sigma_paid = np.tile(sigma_paid_loss, (self.n_rows, 1))[self.tri_mask]
+
+            sigma_rpt = np.tile(sigma_rpt_loss, (self.n_rows, self.n_cols))[:, :20][
+                self.tri_mask
+            ]
+            sigma_paid = np.tile(sigma_paid_loss, (self.n_rows, self.n_cols))[:, :20][
+                self.tri_mask
+            ]
 
             # expected values for the triangles
-            E_rpt_loss = self._E(alpha_loss, beta_rpt_loss)[self.tri_mask]
-            E_paid_loss = self._E(alpha_loss, beta_paid_loss)[self.tri_mask]
+            E_rpt_loss = self._E(alpha_loss, beta_rpt_loss)
+            E_paid_loss = self._E(alpha_loss, beta_paid_loss)
 
             # likelihood functions
             loglik_rpt_loss = Normal(

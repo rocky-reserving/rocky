@@ -1,0 +1,125 @@
+#root {
+	/* max-width: 1280px; */
+	margin: auto;
+	padding: auto;
+	align-items: center;
+	/* align: center; */
+}
+
+/* #load-data {
+	background-color: rgb(254, 105, 105);
+	width: 100%;
+} */
+
+.logo {
+	height: 6em;
+	padding: 1.5em;
+	will-change: filter;
+	transition: filter 300ms;
+}
+.logo:hover {
+	filter: drop-shadow(0 0 2em #646cffaa);
+}
+.logo.react:hover {
+	filter: drop-shadow(0 0 2em #61dafbaa);
+}
+
+@keyframes logo-spin {
+	from {
+		transform: rotate(0deg);
+	}
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	a:nth-of-type(2) .logo {
+		animation: logo-spin infinite 20s linear;
+	}
+}
+
+.card {
+	padding: 2em;
+}
+
+.read-the-docs {
+	color: #888;
+}
+
+/* DRAGGABLE WINDOW COMPONENT 
+------------------------------------------------------------------------------------------------------- */
+.window {
+	background-color: white;
+	border-radius: 10px;
+	border-color: black;
+	border-style: solid;
+	border-width: 1px;
+}
+
+.window-open {
+	height: auto;
+	width: auto;
+	border-radius: 10px;
+	border-color: black;
+	border-style: solid;
+	border-width: 1px;
+}
+
+.window-open:hover {
+	filter: drop-shadow(0 0 1em #646cff);
+	transition: filter 200ms 100ms;
+}
+
+.window-closed {
+	height: 45px;
+	width: auto;
+	border-radius: 10px;
+	border-color: black;
+	border-style: solid;
+	border-width: 1px;
+}
+
+.window-closed:hover {
+	filter: drop-shadow(0 0 1em #646cff);
+	transition: filter 200ms 100ms;
+}
+
+.window-header {
+	height: 45px;
+	text-align: left;
+}
+.window-header-default {
+	background-color: grey;
+}
+
+.window-header-load-data {
+	background-color: rgba(238, 49, 49, 0.8);
+}
+
+.window-header-model-selection {
+	background-color: rgba(200, 200, 0, 0.8);
+}
+
+.window-header-model-validation {
+	background-color: rgba(0, 145, 0, 0.8);
+}
+
+.window-header-open {
+	border-radius: 10px 10px 0 0;
+}
+
+.window-header-closed {
+	border-radius: 10px;
+}
+
+.window-title {
+	color: white;
+	font-weight: bold;
+	margin-left: 1px;
+}
+
+.min-max-button {
+	margin-right: 1px;
+	align-self: right;
+}

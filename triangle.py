@@ -1,4 +1,4 @@
-    """
+"""
 This module implements the Triangle class, which is used to store and manipulate
 triangle data.
 
@@ -555,7 +555,7 @@ class Triangle:
 
             # set the column names as the first row
             df.columns = df.iloc[0]
-            df.columns.name=None
+            df.columns.name = None
 
             # # drop the first row
             df.drop(df.index[0], inplace=True)
