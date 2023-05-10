@@ -7,16 +7,26 @@ const Accordion = ({
 	isSidebarExpanded,
 	isActive,
 	onToggleAccordion,
+	onClickItem,
+	onClickNew,
 }) => {
 	return (
 		<div className="accordion">
-			<button className="accordion-title" onClick={onToggleAccordion}>
+			<button
+				className="accordion-title"
+				onClick={title === 'New' ? onClickNew : onToggleAccordion}
+			>
 				{isSidebarExpanded ? title : itemIcon}
 			</button>
 			{isActive && (
 				<ul className="accordion-content">
 					{items.map((item, index) => (
-						<li key={index}>{item}</li>
+						<li
+							key={index}
+							onClick={() => (item === 'New' ? onClickNew : onClickItem(item))}
+						>
+							{item}
+						</li>
 					))}
 				</ul>
 			)}
@@ -30,6 +40,8 @@ Accordion.propTypes = {
 	isSidebarExpanded: PropTypes.bool,
 	isActive: PropTypes.bool,
 	onToggleAccordion: PropTypes.func,
+	onClickItem: PropTypes.func,
+	onClickNew: PropTypes.func,
 };
 
 export default Accordion;

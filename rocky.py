@@ -85,30 +85,34 @@ from typing import Any, Optional
 from tkinter import filedialog
 from openpyxl import load_workbook
 from warnings import filterwarnings
+
 filterwarnings("ignore", category=UserWarning, module="openpyxl")
 
 
 # add all implemented model types to this list
-all_models = 'Poisson Gamma'.split()
+all_models = "Poisson Gamma".split()
 
 from dataclasses import dataclass, is_dataclass
+
 
 @dataclass
 class rockyObj:
     id: str = None
     obj: object = None
 
+
 @dataclass
 class rockyContainer:
     def __repr__(self) -> str:
         # only show comma-separated list of ids if there are any objects in the container
         if len(self.__dict__) > 0:
-            return ', '.join([f'"{k}"' for k in self.__dict__.keys()])
+            return ", ".join([f'"{k}"' for k in self.__dict__.keys()])
         else:
-            return '()'
-        
+            return "()"
+
     def add(self, _obj) -> None:
         setattr(self, _obj.id, _obj)
+
 
 @dataclass
 class ROCKY:
@@ -126,19 +130,16 @@ class ROCKY:
         """
         # check that the id is a string
         if not isinstance(id, str):
-            raise TypeError('The id must be a string.')
-        
+            raise TypeError("The id must be a string.")
+
         # check that the id is unique
         if id in self.__dict__.keys():
             raise ValueError(f'The id "{id}" is not unique.')
-        
+
         # set the id
         self.id = id
 
-    def tri_from_clipboard(self,
-                           id: str,
-                           origin_columns: int = 1
-                           ) -> None:
+    def tri_from_clipboard(self, id: str, origin_columns: int = 1) -> None:
         """
         Create a triangle from the clipboard. Calls the `from_clipboard` method of the
         `Triangle` class.
@@ -149,7 +150,7 @@ class ROCKY:
             The id of the triangle.
         origin_columns : int, optional
             The number of origin columns in the triangle. The default is 1,
-            which means that the first column is the the origin (eg accident 
+            which means that the first column is the the origin (eg accident
             year) and the remaining columns are the development periods.
 
         Returns
@@ -162,11 +163,7 @@ class ROCKY:
         # add the triangle to the model
         self.add_triangle(tri)
 
-    def tri_from_csv(self,
-                     id: str,
-                     file_path: str,
-                     origin_columns: int = 1
-                     ) -> None:
+    def tri_from_csv(self, id: str, file_path: str, origin_columns: int = 1) -> None:
         """
         Create a triangle from a csv file. Calls the `from_csv` method of the
         `Triangle` class.
@@ -187,18 +184,21 @@ class ROCKY:
         No return value. The triangle is added to the model.
         """
         # create the triangle
-        tri = Triangle.from_csv(id=id, filename=file_path, origin_columns=origin_columns)
+        tri = Triangle.from_csv(
+            id=id, filename=file_path, origin_columns=origin_columns
+        )
 
         # add the triangle to the model
         self.add_triangle(tri)
 
-    def tri_from_excel(self,
-                       filename: str = None,
-                       id: str = None,
-                       origin_columns: int = 1,
-                       sheet_name: str = None,
-                       sheet_range: Optional[str] = None,
-                       ) -> None:
+    def tri_from_excel(
+        self,
+        filename: str = None,
+        id: str = None,
+        origin_columns: int = 1,
+        sheet_name: str = None,
+        sheet_range: Optional[str] = None,
+    ) -> None:
         """
         Create a triangle from an excel file. Calls the `from_excel` method of the
         `Triangle` class.
@@ -217,7 +217,7 @@ class ROCKY:
             year) and the remaining columns are the development periods.
         sheet_name : str, optional
             The name of the sheet in the excel file. The default is None,
-            which will prompt the user to select a sheet from a list of 
+            which will prompt the user to select a sheet from a list of
             sheet names loaded from the excel file.
         sheet_range : str, optional
             The range of cells in the sheet to load. The default is None,
@@ -228,49 +228,50 @@ class ROCKY:
         No return value. The triangle is added to the model.
         """
         # if filename is None, prompt the user to select a file
-        if filename is None or filename == '':
-            filename = filedialog.askopenfilename(title='Select a file',
-                                                  filetypes=[('Excel files', '*.xlsx *.xls')])
-        
+        if filename is None or filename == "":
+            filename = filedialog.askopenfilename(
+                title="Select a file", filetypes=[("Excel files", "*.xlsx *.xls")]
+            )
+
         # if id is None, prompt the user to enter an id
-        if id is None or id == '':
+        if id is None or id == "":
             print("You must enter a triangle id.")
-            id = input('Enter the id of the triangle: ')
+            id = input("Enter the id of the triangle: ")
 
         # if sheet_name is None, prompt the user to select a sheet
-        if sheet_name is None or sheet_name == '':
+        if sheet_name is None or sheet_name == "":
             sheet_name = self._select_sheet_from_excel(filename)
 
         # check that the sheet name is a string
         if not isinstance(sheet_name, str):
-            raise TypeError('The sheet name must be a string.')
-        
+            raise TypeError("The sheet name must be a string.")
+
         # check that the sheet name is a valid sheet name
         if sheet_name not in load_workbook(filename).sheetnames:
             print("The sheets in this workbook are:")
             for sht in load_workbook(filename).sheetnames:
-                print(f'  {sht}')
+                print(f"  {sht}")
             print("")
             raise ValueError(f'The sheet name "{sheet_name}" is not valid.')
-        
+
         # check that the sheet range is a string in the "A1:B2" format
         if sheet_range is not None:
             if not isinstance(sheet_range, str):
-                raise TypeError('The sheet range must be passed as a string.')
-            if not re.match(r'^[A-Z]+[0-9]+:[A-Z]+[0-9]+$', sheet_range):
+                raise TypeError("The sheet range must be passed as a string.")
+            if not re.match(r"^[A-Z]+[0-9]+:[A-Z]+[0-9]+$", sheet_range):
                 raise ValueError('The sheet range must be in the "A1:B2" format.')
 
         # create the triangle
-        tri = Triangle.from_excel(filename=filename,
-                                  id=id,
-                                  origin_columns=origin_columns,
-                                  sheet_name=sheet_name,
-                                  sheet_range=sheet_range)
-        
+        tri = Triangle.from_excel(
+            filename=filename,
+            id=id,
+            origin_columns=origin_columns,
+            sheet_name=sheet_name,
+            sheet_range=sheet_range,
+        )
+
         # add the triangle to the model
         self.add_triangle(tri)
-        
-
 
     def add_triangle(self, triangle: Triangle) -> None:
         """
@@ -278,18 +279,18 @@ class ROCKY:
         """
         # check that the triangle is a Triangle object
         if not isinstance(triangle, Triangle):
-            raise TypeError('The triangle must be a Triangle object.')
-        
+            raise TypeError("The triangle must be a Triangle object.")
+
         # check that the triangle has a unique id
         if triangle.id in self.tri.__dict__.keys():
             raise ValueError(f'The triangle id "{triangle.id}" is not unique.')
-        
+
         # add the triangle to the model
         self.tri.add(triangle)
 
     # def add_model(self, model: object) -> None:
 
-    def _select_sheet_from_excel(filename : str) -> str:
+    def _select_sheet_from_excel(filename: str) -> str:
         """
         Select a sheet from an excel file.
         """
@@ -300,9 +301,9 @@ class ROCKY:
         sheet_names = wb.sheetnames
 
         # prompt the user to select a sheet
-        print('Select a sheet from the following list:')
+        print("Select a sheet from the following list:")
         for i, sheet_name in enumerate(sheet_names):
-            print(f'{i+1}. {sheet_name}')
-        sheet_name = sheet_names[int(input('Enter the number of the sheet: ')) - 1]
+            print(f"{i+1}. {sheet_name}")
+        sheet_name = sheet_names[int(input("Enter the number of the sheet: ")) - 1]
 
         return sheet_name

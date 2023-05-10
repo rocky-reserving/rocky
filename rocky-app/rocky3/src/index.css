@@ -31,17 +31,20 @@ body {
 	place-items: center;
 	min-width: 320px;
 	min-height: 100vh;
+	font-family: 'Lora', serif;
 }
 
 h1 {
-	font-size: 3.2em;
+	font-size: 4em;
+	font-family: 'Cabin Sketch', cursive;
 	line-height: 1.1;
 }
 
 button {
 	border-radius: 8px;
-	border: 1px solid transparent;
-	padding: 0.6em 1.2em;
+	border: 1px solid black;
+	padding: 0.4em 0.8em;
+	margin: 1em 0.5em;
 	font-size: 1em;
 	font-weight: 500;
 	font-family: inherit;
@@ -55,8 +58,19 @@ button:hover {
 /* button:active {
 	background-color: #535bf2;
 } */
-button:focus-visible {
+button:active {
 	outline: 4px auto -webkit-focus-ring-color;
+}
+
+select {
+	border-radius: 8px;
+	border: 1px solid black;
+	padding: 0.6em 1.2em;
+	font-size: 1em;
+	font-weight: 400;
+	font-family: inherit;
+	cursor: pointer;
+	/* transition: border-color 0.25s; */
 }
 
 @media (prefers-color-scheme: light) {

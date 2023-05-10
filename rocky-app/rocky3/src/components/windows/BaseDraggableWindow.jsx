@@ -10,25 +10,34 @@ const windowTypes = {
 	modelValidation: 'window-header-model-validation',
 };
 
-const DraggableWindow = ({
+const BaseDraggableWindow = ({
 	children,
 	title,
 	defautWidth,
 	defaultHeight,
 	windowType,
-	startMinimized = false,
+	startMinimized,
 }) => {
+	// state vars
 	const [isMinimized, setIsMinimized] = useState(startMinimized);
+	const [isFullScreen, setIsFullScreen] = useState(false);
+	const [isVisable, setIsVisable] = useState(true);
 
 	const handleMinimize = () => {
 		setIsMinimized(!isMinimized);
+		setIsFullScreen(false);
+	};
+
+	const handleFullScreen = () => {
+		setIsFullScreen(!isFullScreen);
+		setIsMinimized(false);
+	};
+
+	const handleClose = () => {
+		setIsVisable(false);
 	};
 
 	const renderContent = () => {
-		// if (isMinimized) {
-		// 	return null;
-		// }
-
 		return (
 			<Resizable
 				defaultSize={{
@@ -38,10 +47,18 @@ const DraggableWindow = ({
 				minWidth={300}
 				minHeight={200}
 			>
-				<div className="window-content">{isMinimized && children}</div>
+				<div className="window-content">
+					{!isMinimized && children}{' '}
+					{/* Show content when the window is not minimized */}
+				</div>
 			</Resizable>
 		);
 	};
+
+	// if the window is not visable, return null instead of the window
+	if (!isVisable) {
+		return null;
+	}
 
 	return (
 		<Draggable handle=".window-header">
@@ -62,13 +79,19 @@ const DraggableWindow = ({
 					<button className="min-max-button" onClick={handleMinimize}>
 						{isMinimized ? '+' : '-'}
 					</button>
+					<button className="fullscreen-button" onClick={handleFullScreen}>
+						{isFullScreen ? '↙' : '⤢'}
+					</button>
+					<button className="close-button" onClick={handleClose}>
+						{'×'}
+					</button>
 				</div>
 				{renderContent()}
 			</div>
 		</Draggable>
 	);
 };
-DraggableWindow.propTypes = {
+BaseDraggableWindow.propTypes = {
 	children: PropTypes.node,
 	title: PropTypes.string,
 	defautWidth: PropTypes.number,
@@ -77,4 +100,4 @@ DraggableWindow.propTypes = {
 	windowType: PropTypes.string,
 };
 
-export default DraggableWindow;
+export default BaseDraggableWindow;

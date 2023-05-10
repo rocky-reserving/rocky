@@ -1,12 +1,43 @@
-// import { useState } from 'react';
+import { useState } from 'react';
 import reactLogo from './assets/react.svg';
 import viteLogo from '/vite.svg';
 import './App.css';
-import DraggableWindow from './components/DraggableWindow';
+// import BaseDraggableWindow from './components/windows/BaseDraggableWindow';
 import Sidebar from './components/Sidebar';
+import MainWorkspace from './components/MainWorkspace';
 
 function App() {
-	// const [count, setCount] = useState(0);
+	const [isFreshlyLoaded, setIsFreshlyLoaded] = useState(true);
+	const [loadDataWindows, setLoadDataWindows] = useState({});
+	// const [modelSelectionWindows, setModelSelectionWindows] = useState({});
+	// const [modelValidationWindows, setModelValidationWindows] = useState({});
+	// const [visualizationWindows, setVisualizationWindows] = useState({});
+	const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
+
+	function onClickNew() {
+		setLoadDataWindows({});
+		setIsFreshlyLoaded(true);
+	}
+
+	function onAddLoadDataWindow(title) {
+		const id = Math.random().toString(36).substr(2, 9);
+		setLoadDataWindows({
+			...loadDataWindows,
+			[id]: {
+				title: title,
+				defautWidth: 150,
+				defaultHeight: 300,
+				windowType: 'loadData',
+				startMinimized: false,
+			},
+		});
+		setIsFreshlyLoaded(false);
+	}
+
+	function onClickLoadButton() {
+		setIsFreshlyLoaded(false);
+		setIsSidebarExpanded(true);
+	}
 
 	return (
 		<>
@@ -18,53 +49,25 @@ function App() {
 					<img src={reactLogo} className="logo react" alt="React logo" />
 				</a>
 			</div>
-			<h1>rocky</h1>
+			<h1 className="main-title">rocky</h1>
 			<div className="card">
 				{/* <button onClick={() => setCount((count) => count + 1)}>
 					count is {count}
 				</button> */}
 				<div id="sidebar">
-					<Sidebar />
+					<Sidebar
+						isSidebarExpanded={isSidebarExpanded}
+						setIsSidebarExpanded={setIsSidebarExpanded}
+						onClickNew={onClickNew}
+						onAddLoadDataWindow={onAddLoadDataWindow}
+					/>
 				</div>
-				<div id="main-workspace">
-					{/* <DraggableWindow
-						title="Default"
-						defautWidth={400}
-						defaultHeight={300}
-						windowType={'default'}
-						startMinimized={true}
-					></DraggableWindow> */}
-					<div id="load-data">
-						<section>
-							<h2>Load Data</h2>
-							<DraggableWindow
-								title="Load Data"
-								defautWidth={400}
-								defaultHeight={300}
-								windowType={'loadData'}
-								startMinimized={false}
-							></DraggableWindow>
-						</section>
-					</div>
-					<section id="model-selection">
-						<DraggableWindow
-							title="Model Selection"
-							defautWidth={400}
-							defaultHeight={300}
-							windowType={'modelSelection'}
-							startMinimized={true}
-						></DraggableWindow>
-					</section>
-					<section id="model-validation">
-						<DraggableWindow
-							title="Model Validation"
-							defautWidth={400}
-							defaultHeight={300}
-							windowType={'modelValidation'}
-							startMinimized={true}
-						></DraggableWindow>
-					</section>
-				</div>
+
+				<MainWorkspace
+					loadDataWindows={loadDataWindows}
+					isFreshlyLoaded={isFreshlyLoaded}
+					onClickLoadButton={onClickLoadButton}
+				/>
 			</div>
 		</>
 	);
