@@ -3,7 +3,6 @@
 	margin: auto;
 	padding: auto;
 	align-items: center;
-	/* align: center; */
 }
 
 /* #load-data {
@@ -88,6 +87,10 @@
 .window-header {
 	height: 45px;
 	text-align: left;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 0.5em;
 }
 .window-header-default {
 	background-color: grey;
@@ -122,4 +125,82 @@
 .min-max-button {
 	margin-right: 1px;
 	align-self: right;
+}
+
+/* ACCORDION COMPONENT 
+-------------------------------------------------------------*/
+.accordion {
+	margin-bottom: 1rem;
+}
+
+.accordion-title {
+	display: block;
+	background-color: #e9ecef;
+	padding: 8px 16px;
+	cursor: pointer;
+	font-size: 16px;
+	border: none;
+	text-align: left;
+	width: 100%;
+	outline: black;
+	margin: 1rem 0 0 0;
+}
+
+.accordion-title:hover {
+	background-color: #f1f1f1;
+}
+
+.accordion-content {
+	list-style-type: none;
+	padding: 0;
+	margin: 8px 0 0 0;
+	background-color: #ffffff;
+	border: 1px solid #dee2e6;
+}
+
+.accordion-content li {
+	padding: 8px 16px;
+	border-top: 1px solid #dee2e6;
+}
+
+.accordion-content li:hover {
+	background-color: #f1f1f1;
+}
+
+.accordion-content li:first-child {
+	border-top: none;
+}
+
+/* SIDEBAR COMPONENT
+---------------------------------------------------------- */
+.sidebar {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 20%;
+	height: 100%;
+	background-color: rgba(248, 249, 250, 0.8);
+	padding: 1rem;
+	overflow-y: auto;
+	transition: all 0.15s ease-in-out;
+}
+
+.sidebar.collapsed {
+	width: 4%;
+	overflow: hidden;
+}
+
+.sidebar-toggle {
+	border-color: black;
+}
+
+.toggle-btn {
+	display: block;
+	margin-bottom: 1rem;
+	background-color: #007bff;
+	color: #ffffff;
+	border: none;
+	padding: 8px 16px;
+	cursor: pointer;
+	font-size: 14px;
 }

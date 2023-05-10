@@ -1,5 +1,5 @@
 import pymc
-from pymc import HalfCauchy, Normal, LogNormal, Deterministic
+from pymc import HalfCauchy, Normal, LogNormal, Exponential, Deterministic
 import pytensor
 from pytensor.tensor.nlinalg import matrix_dot
 
@@ -94,6 +94,10 @@ class HalfMegaModel:
             index=self.rpt_loss_tri.tri.index,
             columns=self.rpt_loss_tri.tri.columns,
         )
+
+        # 1D arrays of rpt and paid loss
+        self.rpt_loss_1d = self.rpt_loss[self.tri_mask]
+        self.paid_loss_1d = self.paid_loss[self.tri_mask]
 
         # triangle stats
         self.n_rows = self.rpt_loss_tri.tri.shape[0]
@@ -204,7 +208,7 @@ class HalfMegaModel:
         return beta_rpt_loss, beta_paid_loss
 
     def prior_sigma_distributions(
-        self, name: str = "sigma", beta: float = 2.5, standalone: bool = True
+        self, name: str = "sigma", standalone: bool = True
     ) -> Tuple:
         """
         Define noninformative prior distributions for the standard deviations of the
@@ -212,19 +216,37 @@ class HalfMegaModel:
         scale parameter of 2.5. The standard deviations vary by the type of triangle
         and the development period.
         """
+        rpt_loss_mean = self.rpt_loss_tri.tri.mean(skipna=True).values
+        paid_loss_mean = self.paid_loss_tri.tri.mean(skipna=True).values
         # variance of each of the triangles
         if standalone:
-            sigma_rpt_loss = HalfCauchy.dist(beta=beta, size=self.dev.shape[0])
-            sigma_paid_loss = HalfCauchy.dist(beta=beta, size=self.dev.shape[0])
-        else:
-            sigma_rpt_loss = HalfCauchy(
-                "sigma-rpt-loss", beta=beta, size=self.dev.shape[0]
+            sigma_rpt_loss = Exponential.dist(lam=rpt_loss_mean, size=self.dev.shape[0])
+            sigma_paid_loss = Exponential.dist(
+                lam=paid_loss_mean, size=self.dev.shape[0]
             )
-            sigma_paid_loss = HalfCauchy(
-                "sigma-paid-loss", beta=beta, size=self.dev.shape[0]
+        else:
+            sigma_rpt_loss = Exponential(
+                "sigma-rpt-loss", lam=rpt_loss_mean, size=self.dev.shape[0]
+            )
+            sigma_paid_loss = Exponential(
+                "sigma-paid-loss", lam=paid_loss_mean, size=self.dev.shape[0]
             )
 
         return sigma_rpt_loss, sigma_paid_loss
+
+    # def _E(self, alpha=None, beta=None):
+    #     """
+    #     Helper function for defining the expected value of a cell in the triangle.
+    #     The expected value is the product of the ultimate and the development factor.
+    #     """
+    #     assert alpha is not None, "`alpha` must be passed to _E"
+    #     assert beta is not None, "`beta` must be passed to _E"
+    #     # out = np.matmul(
+    #     #     alpha.eval().reshape(self.n_rows, 1), beta.eval().reshape(1, self.n_cols)
+    #     # )
+    #     # out = out[self.tri_mask]
+    #     return pytensor.tensor.dot(alpha, beta)[self.tri_mask.values.nonzero()]
+    #     # return pytensor.tensor.as_tensor_variable(out)
 
     def _E(self, alpha=None, beta=None):
         """
@@ -233,11 +255,11 @@ class HalfMegaModel:
         """
         assert alpha is not None, "`alpha` must be passed to _E"
         assert beta is not None, "`beta` must be passed to _E"
-        out = np.matmul(
-            alpha.eval().reshape(self.n_rows, 1), beta.eval().reshape(1, self.n_cols)
-        )
-        out = out[self.tri_mask]
-        return pytensor.tensor.as_tensor_variable(out)
+        alpha_expanded = pytensor.tensor.reshape(alpha, (self.n_rows, 1))
+        beta_expanded = pytensor.tensor.reshape(beta, (1, self.n_cols))
+        product = pytensor.tensor.dot(alpha_expanded, beta_expanded)
+        product_masked = pytensor.tensor.where(self.tri_mask.values, product, 0)
+        return product_masked
 
     def chain_ladder_model(self):
         with pymc.Model() as model:
@@ -270,90 +292,105 @@ class HalfMegaModel:
                 "loglik-rpt-loss",
                 mu=E_rpt_loss,
                 sigma=sigma_rpt,
-                observed=self.rpt_loss[self.tri_mask],
+                observed=self.rpt_loss_1d,
             )
             loglik_paid_loss = Normal(
                 "loglik-paid-loss",
                 mu=E_paid_loss,
                 sigma=sigma_paid,
-                observed=self.paid_loss[self.tri_mask],
+                observed=self.paid_loss_1d,
             )
         self.model = model
         return model
 
-    # def chain_ladder_model2(self):
-    #     with pymc.Model() as model:
-    #         # prior distributions for the ultimate parameters
-    #         ult_ln_prior = stats.lognorm.fit(self.loss_ult_prior)
-    #         alpha_loss = LogNormal(
-    #             "alpha-loss", mu=np.log(ult_ln_prior[2]), sigma=ult_ln_prior[0]
-    #         )
+    def chain_ladder_model2(self):
+        with pymc.Model() as model:
+            # prior distributions for the ultimate parameters
+            s, _, m = stats.lognorm.fit(self.dev, floc=0)
+            alpha_loss = LogNormal(
+                "alpha-loss", mu=np.exp(m), sigma=s, shape=(self.n_rows, 1)
+            )
 
-    #         # prior distributions for the development parameters
-    #         beta_rpt_loss = Normal(
-    #             "beta-rpt-loss",
-    #             mu=self.prior_beta_mean["rpt_loss"],
-    #             sigma=np.power(self.prior_beta_mean["rpt_loss"], 1 / 3),
-    #             size=self.dev.shape[0],
-    #         )
-    #         beta_paid_loss = Normal(
-    #             "beta-paid-loss",
-    #             mu=self.prior_beta_mean["paid_loss"],
-    #             sigma=np.power(self.prior_beta_mean["paid_loss"], 1 / 3),
-    #             size=self.dev.shape[0],
-    #         )
+            # prior distributions for the development parameters
+            beta_rpt_loss = Normal(
+                "beta-rpt-loss",
+                mu=self.prior_beta_mean["rpt_loss"].values,
+                sigma=np.power(self.prior_beta_mean["rpt_loss"].values, 1 / 3),
+                size=(1, self.n_cols),
+            )
+            beta_paid_loss = Normal(
+                "beta-paid-loss",
+                mu=self.prior_beta_mean["paid_loss"].values,
+                sigma=np.power(self.prior_beta_mean["paid_loss"].values, 1 / 3),
+                size=(1, self.n_cols),
+            )
 
-    #         # prior distributions for the standard deviations
-    #         # sigma_rpt_loss, sigma_paid_loss = self.prior_sigma_distributions(
-    #         #     standalone=False
-    #         # )
-    #         sigma_rpt_loss = HalfCauchy(
-    #             "sigma-rpt-loss", beta=10, size=self.dev.shape[0]
-    #         )
-    #         sigma_paid_loss = HalfCauchy(
-    #             "sigma-paid-loss", beta=10, size=self.dev.shape[0]
-    #         )
-    #         # sigma_rpt = np.array([sigma_rpt_loss.eval() for _ in range(self.n_rows)])[
-    #         #     self.tri_mask
-    #         # ]
-    #         # sigma_paid = np.array([sigma_paid_loss.eval() for _ in range(self.n_rows)])[
-    #         #     self.tri_mask
-    #         # ]
+            # prior distributions for the standard deviations
+            rpt_loss_mean = self.rpt_loss_tri.tri.mean(skipna=True).values
+            paid_loss_mean = self.paid_loss_tri.tri.mean(skipna=True).values
+            sigma_rpt = Exponential(
+                "sigma-rpt-loss", lam=rpt_loss_mean, size=self.dev.shape[0]
+            )
+            sigma_paid = Exponential(
+                "sigma-paid-loss", lam=paid_loss_mean, size=self.dev.shape[0]
+            )
 
-    #         # expected values for the triangles
+            # build data for likelihood functions
+            E_r = pytensor.tensor.math.matmul(alpha_loss, beta_rpt_loss)
+            E_p = pytensor.tensor.math.matmul(alpha_loss, beta_paid_loss)
+            E_rpt_loss, E_paid_loss = [], []
+            sigma_rpt_loss, sigma_paid_loss = [], []
+            rpt, paid = [], []
 
-    #         E_rpt_loss, E_paid_loss = [], []
-    #         for row in self.rpt_loss_tri.shape[0]:
-    #             E_rpt_loss.append(
-    #                 [
-    #                     (
-    #                         (alpha_loss[row] * beta)
-    #                         if ~self.rpt_loss_tri.tri.iloc[row, i].isna()
-    #                         else np.nan
-    #                     )
-    #                     for i, beta in enumerate(beta_rpt_loss)
-    #                 ]
-    #             )
-    #             E_paid_loss.append(alpha_loss[row] * beta_paid_loss)
+            for r in range(self.n_rows):
+                for c in range(self.n_cols):
+                    if self.tri_mask.iloc[r, c]:
+                        E_rpt_loss.append(E_r[r, c])
+                        E_paid_loss.append(E_p[r, c])
+                        sigma_rpt_loss.append(sigma_rpt[c])
+                        sigma_paid_loss.append(sigma_paid[c])
+                        rpt.append(self.rpt_loss_tri.tri.iloc[r, c])
+                        paid.append(self.paid_loss_tri.tri.iloc[r, c])
 
-    #         # E_rpt_loss = self._E(alpha_loss, beta_rpt_loss)[self.tri_mask]
-    #         # E_paid_loss = self._E(alpha_loss, beta_paid_loss)[self.tri_mask]
+            # print(f"rpt: {len(rpt)}")
+            # print(f"paid: {len(paid)}")
+            # print(f"E_rpt_loss: {len(E_rpt_loss)}")
+            # print(f"E_paid_loss: {len(E_paid_loss)}")
+            # print(f"sigma_rpt_loss: {len(sigma_rpt_loss)}")
+            # print(f"sigma_paid_loss: {len(sigma_paid_loss)}")
 
-    #         # likelihood functions
-    #         loglik_rpt_loss = Normal(
-    #             "loglik-rpt-loss",
-    #             mu=E_rpt_loss,
-    #             sigma=sigma_rpt_loss,
-    #             observed=self.rpt_loss[self.tri_mask],
-    #         )
-    #         loglik_paid_loss = Normal(
-    #             "loglik-paid-loss",
-    #             mu=E_paid_loss,
-    #             sigma=sigma_paid_loss,
-    #             observed=self.paid_loss[self.tri_mask],
-    #         )
-    #     self.model = model
-    #     return model
+            # recast as numpy arrays and then as tensors
+            E_rpt_loss = pytensor.tensor.as_tensor_variable(E_rpt_loss)
+            E_paid_loss = pytensor.tensor.as_tensor_variable(E_paid_loss)
+            sigma_rpt_loss = pytensor.tensor.as_tensor_variable(sigma_rpt_loss)
+            sigma_paid_loss = pytensor.tensor.as_tensor_variable(sigma_paid_loss)
+            rpt = pytensor.tensor.as_tensor_variable(rpt)
+            paid = pytensor.tensor.as_tensor_variable(paid)
+
+            # print(f"rpt: {rpt.shape}")
+            # print(f"paid: {paid.shape}")
+            # print(f"E_rpt_loss: {E_rpt_loss.shape}")
+            # print(f"E_paid_loss: {E_paid_loss.shape}")
+            # print(f"sigma_rpt_loss: {sigma_rpt_loss.shape}")
+            # print(f"sigma_paid_loss: {sigma_paid_loss.shape}")
+
+            # return E_rpt_loss, E_paid_loss, sigma_rpt_loss, sigma_paid_loss, rpt, paid
+
+            # likelihood functions
+            loglik_rpt_loss = Normal(
+                "loglik-rpt-loss",
+                mu=E_rpt_loss,
+                sigma=sigma_rpt_loss,
+                observed=rpt,
+            )
+            loglik_paid_loss = Normal(
+                "loglik-paid-loss",
+                mu=E_paid_loss,
+                sigma=sigma_paid_loss,
+                observed=paid,
+            )
+        self.model = model
+        return model
 
     def fit(self, samples=None, burnin=None, chains=None):
         if samples is None:
