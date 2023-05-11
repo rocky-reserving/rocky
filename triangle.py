@@ -20,13 +20,14 @@ from typing import Optional, Any
 
 from openpyxl.utils import range_to_tuple
 
-from utils import get_allowed_triangle_types
+# from utils import get_allowed_triangle_types
 
 # from chainladder import ChainLadder
 # from model.LossTriangleClassifier import LossTriangleClassifier
 
 # get the aliases for the triangle types
-triangle_type_aliases = get_allowed_triangle_types()
+# triangle_type_aliases = get_allowed_triangle_types()
+triangle_type_aliases = ["paid", "reported", "case", "incurred"]
 
 
 @dataclass

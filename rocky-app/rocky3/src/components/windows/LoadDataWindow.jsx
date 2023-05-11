@@ -1,6 +1,7 @@
 import BaseDraggableWindow from './BaseDraggableWindow';
 import PropTypes from 'prop-types';
 import appData from '../../appdata';
+import SampleDataButton from '../buttons/SampleDataButton';
 
 // console.log(appData);
 
@@ -19,6 +20,7 @@ const SampleDataDropdown = () => {
 				<option value="dahms-rpt">Dahms Reported Loss</option>
 				<option value="dahms-paid">Dahms Paid Loss</option> */}
 			</select>
+			<SampleDataButton />
 		</div>
 	);
 };

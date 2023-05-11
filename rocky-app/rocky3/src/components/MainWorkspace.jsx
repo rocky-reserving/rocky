@@ -1,4 +1,4 @@
-import LoadDataButton from './LoadDataButton';
+import LoadDataButton from './buttons/LoadDataButton';
 import LoadDataWindow from './windows/LoadDataWindow';
 import PropTypes from 'prop-types';
 
