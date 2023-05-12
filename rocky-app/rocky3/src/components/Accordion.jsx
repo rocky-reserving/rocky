@@ -23,9 +23,11 @@ const Accordion = ({
 					{items.map((item, index) => (
 						<li
 							key={index}
-							onClick={() => (item === 'New' ? onClickNew : onClickItem(item))}
+							onClick={() =>
+								item.id === 'new' ? onClickNew : onClickItem(item.title)
+							}
 						>
-							{item}
+							{item.title}
 						</li>
 					))}
 				</ul>
@@ -35,7 +37,14 @@ const Accordion = ({
 };
 Accordion.propTypes = {
 	title: PropTypes.string,
-	items: PropTypes.arrayOf(PropTypes.string),
+	items: PropTypes.arrayOf(
+		PropTypes.shape({
+			id: PropTypes.string,
+			title: PropTypes.string,
+			headerText: PropTypes.string,
+			divClassName: PropTypes.string,
+		}),
+	),
 	itemIcon: PropTypes.node,
 	isSidebarExpanded: PropTypes.bool,
 	isActive: PropTypes.bool,

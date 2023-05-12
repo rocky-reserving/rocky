@@ -1,46 +1,43 @@
-import BaseDraggableWindow from './BaseDraggableWindow';
+import { useState } from 'react';
 import PropTypes from 'prop-types';
+
+import BaseDraggableWindow from './BaseDraggableWindow';
 import appData from '../../appdata';
 import SampleDataButton from '../buttons/SampleDataButton';
+import TriangleTable from '../data-components/TriangleTable';
 
 // console.log(appData);
 
-const SampleDataDropdown = () => {
+const SampleDataDropdown = ({ isDataLoaded, setIsDataLoaded }) => {
 	let sampleData = appData.sampleData;
 	return (
 		<div className="sample-triangle-dropdown">
-			<p>Select sample triangle:</p>
-			<select>
-				{sampleData.map((sample, index) => (
-					<option key={index} value={sample.id}>
-						{sample.name}
-					</option>
-				))}
-				{/* <option value="taylor-ashe">Taylor-Ashe Paid Loss</option>
-				<option value="dahms-rpt">Dahms Reported Loss</option>
-				<option value="dahms-paid">Dahms Paid Loss</option> */}
-			</select>
-			<SampleDataButton />
+			{!isDataLoaded && (
+				<>
+					<p>Select sample triangle:</p>
+					<select>
+						{sampleData.map((sample, index) => (
+							<option key={index} value={sample.id}>
+								{sample.name}
+							</option>
+						))}
+					</select>
+
+					<SampleDataButton setIsDataLoaded={setIsDataLoaded} />
+				</>
+			)}
+			;
 		</div>
 	);
 };
+SampleDataDropdown.propTypes = {
+	isDataLoaded: PropTypes.bool,
+	setIsDataLoaded: PropTypes.func,
+};
 
-const LoadDataWindow = ({
-	title,
-	// defautWidth,
-	// defaultHeight,
-	// windowType,
-	// startMinimized = false,
-}) => {
-	// // function to get the items for the load data window
-	// const getLoadDataItems = () => {
-	// 	appData.sidebarItems.forEach((item) => {
-	// 		if (item.id === 'load-data') {
-	// 			return item.items;
-	// 		}
-	// 	});
-	// };
-	// const load = getLoadDataItems();
+const LoadDataWindow = ({ title, triangleParentSize, triangleRef }) => {
+	const [isDataLoaded, setIsDataLoaded] = useState(false);
+	const [result, setResult] = useState(null);
 
 	return (
 		<>
@@ -54,7 +51,20 @@ const LoadDataWindow = ({
 				{(title === 'Sample Data' && (
 					<div className="load-sample-data-window load-data-window">
 						<h2>Sample data</h2>
-						<SampleDataDropdown />
+						<SampleDataDropdown
+							triangleParentSize={triangleParentSize}
+							triangleRef={triangleRef}
+							isDataLoaded={isDataLoaded}
+							setIsDataLoaded={setIsDataLoaded}
+							result={result}
+							setResult={setResult}
+						/>
+						{isDataLoaded && (
+							<TriangleTable
+								triangleParentSize={triangleParentSize}
+								triangleRef={triangleRef}
+							/>
+						)}
 					</div>
 				)) ||
 					(title === 'Clipboard' && (
@@ -85,10 +95,8 @@ const LoadDataWindow = ({
 };
 LoadDataWindow.propTypes = {
 	title: PropTypes.string,
-	// defautWidth: PropTypes.number,
-	// defaultHeight: PropTypes.number,
-	// windowType: PropTypes.string,
-	// startMinimized: PropTypes.bool,
+	triangleParentSize: PropTypes.object,
+	triangleRef: PropTypes.object,
 };
 
 export default LoadDataWindow;

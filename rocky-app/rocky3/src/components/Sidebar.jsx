@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import Accordion from './Accordion';
-import { ImFolderUpload } from 'react-icons/im';
-import { BiScatterChart } from 'react-icons/bi';
-import { GrNewWindow } from 'react-icons/gr';
+// import { ImFolderUpload } from 'react-icons/im';
+// import { BiScatterChart } from 'react-icons/bi';
+// import { GrNewWindow } from 'react-icons/gr';
 import PropTypes from 'prop-types';
+import appData from '../appdata';
 
 const Sidebar = ({
 	isSidebarExpanded,
@@ -11,27 +12,13 @@ const Sidebar = ({
 	onAddLoadDataWindow,
 	onClickNew,
 }) => {
-	const accordionItems = [
-		{
-			title: 'New',
-			itemIcon: <GrNewWindow />,
-			items: [],
-		},
-		{
-			title: 'Load Data',
-			itemIcon: <ImFolderUpload />,
-			items: ['Sample Data', 'Clipboard', 'Excel', 'CSV'],
-		},
-		{
-			title: 'Model Selection',
-			itemIcon: <BiScatterChart />,
-			items: ['Chain Ladder', 'GLM', 'MegaModel'],
-		},
-	];
+	// load accordion items from appData
+	const sidebarItems = appData.sidebarItems;
 
 	const [activeAccordion, setActiveAccordion] = useState(null);
 	const [timeoutId, setTimeoutId] = useState(null);
 
+	// when mouse leaves sidebar, start countdown to collapse sidebar
 	const startCountdown = () => {
 		if (isSidebarExpanded) {
 			const id = setTimeout(() => {
@@ -105,7 +92,7 @@ const Sidebar = ({
 			<button className="sidebar-toggle" onClick={toggleSidebar}>
 				{isSidebarExpanded ? '<' : '>'}
 			</button>
-			{accordionItems.map((item, index) => (
+			{sidebarItems.map((item, index) => (
 				<Accordion
 					key={index}
 					title={item.title}

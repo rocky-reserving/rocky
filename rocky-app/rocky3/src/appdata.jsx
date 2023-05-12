@@ -1,24 +1,24 @@
+import { GrNewWindow } from 'react-icons/gr';
+import { BiScatterChart } from 'react-icons/bi';
+import { ImFolderUpload } from 'react-icons/im';
+
 const appData = {
 	// Sidebar top-level items and their sub-items
 	sidebarItems: [
 		{
 			id: 'new',
 			title: 'New',
+			itemIcon: <GrNewWindow />,
 			expands: false,
 			items: [],
 		},
 		{
 			id: 'load-data',
 			title: 'Load Data',
+			itemIcon: <ImFolderUpload />,
 			expands: true,
 			items: [
 				// sub-categories under the load data top-level item
-				{
-					id: 'sample-data',
-					title: 'Sample Data',
-					headerText: 'Load Sample Triangle Data',
-					divClassName: 'load-sample-data-window',
-				},
 				{
 					id: 'clipboard',
 					title: 'Clipboard',
@@ -37,11 +37,18 @@ const appData = {
 					headerText: 'Load Triangle Data from CSV File',
 					divClassName: 'load-csv-window',
 				},
+				{
+					id: 'sample-data',
+					title: 'Sample Data',
+					headerText: 'Load Sample Triangle Data',
+					divClassName: 'load-sample-data-window',
+				},
 			],
 		},
 		{
 			id: 'model-selection',
 			title: 'Model Selection',
+			itemIcon: <BiScatterChart />,
 			expands: true,
 			items: [
 				{
@@ -63,6 +70,24 @@ const appData = {
 		},
 	],
 
+	accordionItems: [
+		{
+			title: 'New',
+			itemIcon: <GrNewWindow />,
+			items: [],
+		},
+		{
+			title: 'Load Data',
+			itemIcon: <ImFolderUpload />,
+			items: ['Sample Data', 'Clipboard', 'Excel', 'CSV'],
+		},
+		{
+			title: 'Model Selection',
+			itemIcon: <BiScatterChart />,
+			items: ['Chain Ladder', 'GLM', 'MegaModel'],
+		},
+	],
+
 	// available sample data sets
 	sampleData: [
 		{
@@ -78,6 +103,11 @@ const appData = {
 			name: 'Dahms Paid Loss',
 		},
 	],
+
+	// api endpoints
+	api: {
+		load_taylor_ashe: 'http://localhost:1234/rockyapi/load-taylor-ashe',
+	},
 
 	// Windows
 	// 'window-types': {

@@ -1,0 +1,19 @@
+.triangle-table {
+	border-collapse: collapse;
+	width: 100%;
+}
+
+.triangle-table th,
+.triangle-table td {
+	border: 1px solid black;
+	padding: 8px;
+	text-align: center;
+}
+
+.triangle-table thead {
+	background-color: #fc8181;
+}
+
+/* .triangle-table td:hover {
+	background-color: #fd7f7fce;
+} */

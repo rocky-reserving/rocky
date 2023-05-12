@@ -6,6 +6,8 @@ const MainWorkspace = ({
 	loadDataWindows,
 	isFreshlyLoaded,
 	onClickLoadButton,
+	triangleParentSize,
+	triangleRef,
 }) => {
 	return (
 		<div id="main-workspace">
@@ -14,7 +16,12 @@ const MainWorkspace = ({
 			</div>
 
 			{Object.entries(loadDataWindows).map(([key, value]) => (
-				<LoadDataWindow key={key} title={value.title} />
+				<LoadDataWindow
+					key={key}
+					title={value.title}
+					triangleParentSize={triangleParentSize}
+					triangleRef={triangleRef}
+				/>
 			))}
 
 			<div id="load-data"></div>
@@ -27,6 +34,8 @@ MainWorkspace.propTypes = {
 	loadDataWindows: PropTypes.object,
 	isFreshlyLoaded: PropTypes.bool,
 	onClickLoadButton: PropTypes.func,
+	triangleParentSize: PropTypes.object,
+	triangleRef: PropTypes.object,
 };
 
 export default MainWorkspace;

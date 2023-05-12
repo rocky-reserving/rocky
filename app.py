@@ -1,5 +1,3 @@
-import os
-
 from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
@@ -27,6 +25,41 @@ class ROCKYState(db.Model):
 
     def __repr__(self):
         return f"<ROCKYState {self.id}>"
+
+
+@app.route(
+    "/rockyapi/get-triangle",
+    methods=["POST"],
+    defaults={"id": None},
+    strict_slashes=False,
+    endpoint="get_triangle",
+    provide_automatic_options=True,
+)
+def get_triangle(id=None):
+    """
+    API endpoint to load triangle data stored in the database. If the triangle
+
+    """
+    user_id = request.get_json()["user_id"]
+
+    # get the instance data from the database
+    rocky_state = ROCKYState.query.get(user_id)
+
+    # if the instance data is not in the database, create it
+    if rocky_state is None:
+        rocky_state = ROCKYState(id=user_id)
+        db.session.add(rocky_state)
+        db.session.commit()
+
+    # update the instance state
+    temp_rocky = ROCKY()
+    temp_rocky.value = rocky_state.value
+    temp_rocky.load_taylor_ashe()
+    result = temp_rocky.t.paid_loss.tri.to_json()
+    print("get_triangle() result:\n", result)
+
+    response = jsonify({"message": "success", "result": result})
+    return response
 
 
 @app.route("/rockyapi/load-taylor-ashe", methods=["POST"])

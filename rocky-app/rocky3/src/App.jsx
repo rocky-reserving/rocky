@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { Triangle } from './classes/Triangle.js';
 import reactLogo from './assets/react.svg';
 import viteLogo from '/vite.svg';
 import './App.css';
@@ -6,20 +7,28 @@ import './App.css';
 import Sidebar from './components/Sidebar';
 import MainWorkspace from './components/MainWorkspace';
 
+let t = new Triangle();
+
 function App() {
 	const [isFreshlyLoaded, setIsFreshlyLoaded] = useState(true);
 	const [loadDataWindows, setLoadDataWindows] = useState({});
 	// const [modelSelectionWindows, setModelSelectionWindows] = useState({});
 	// const [modelValidationWindows, setModelValidationWindows] = useState({});
 	// const [visualizationWindows, setVisualizationWindows] = useState({});
-	const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
+	const [triangleParentSize, setTriangleParentSize] = useState({
+		// width: 'auto',
+		// height: 'auto',
+	});
 
-	function onClickNew() {
+	const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
+	const triangleRef = useRef(null);
+
+	const onClickNew = () => {
 		setLoadDataWindows({});
 		setIsFreshlyLoaded(true);
-	}
+	};
 
-	function onAddLoadDataWindow(title) {
+	const onAddLoadDataWindow = (title) => {
 		const id = Math.random().toString(36).substr(2, 9);
 		setLoadDataWindows({
 			...loadDataWindows,
@@ -32,12 +41,34 @@ function App() {
 			},
 		});
 		setIsFreshlyLoaded(false);
-	}
+	};
 
-	function onClickLoadButton() {
+	const onClickLoadButton = () => {
 		setIsFreshlyLoaded(false);
 		setIsSidebarExpanded(true);
-	}
+	};
+
+	useEffect(() => {
+		if (triangleRef.current) {
+			const resizeObserver = new ResizeObserver((entries) => {
+				const { width, height } = entries[0].contentRect;
+				setTriangleParentSize({ width, height });
+			});
+
+			resizeObserver.observe(triangleRef.current);
+
+			return () => {
+				resizeObserver.disconnect();
+			};
+		}
+	}, [triangleRef]);
+
+	// Set the parent component's size based on the state
+	// const parentStyle = {
+	// 	width: parentSize.width,
+	// 	height: parentSize.height,
+	// 	// ...
+	// };
 
 	return (
 		<>
@@ -65,6 +96,8 @@ function App() {
 
 				<MainWorkspace
 					loadDataWindows={loadDataWindows}
+					triangleParentSize={triangleParentSize}
+					triangleRef={triangleRef}
 					isFreshlyLoaded={isFreshlyLoaded}
 					onClickLoadButton={onClickLoadButton}
 				/>

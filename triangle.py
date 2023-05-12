@@ -7,7 +7,7 @@ the chain ladder method.
 """
 
 import os
-
+import json
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -20,7 +20,7 @@ from typing import Optional, Any
 
 from openpyxl.utils import range_to_tuple
 
-# from utils import get_allowed_triangle_types
+from utils import get_allowed_triangle_types
 
 # from chainladder import ChainLadder
 # from model.LossTriangleClassifier import LossTriangleClassifier
@@ -417,6 +417,67 @@ class Triangle:
             formatted_df.index = self.tri.index.strftime("%Y-%m")
 
         return formatted_df
+
+    def convert_to_json(self):
+        """
+        Converts the triangle object to json, to prepare for an API call
+        """
+        # start from a dictionary
+        out_dict = {
+            "id": self.id if self.id is not None else None,
+            # "tri": self.tri.to_dict() if self.tri is not None else None,
+            # "triangle": self.triangle.to_dict() if self.triangle is not None else None,
+            # "incrTriangle": self.incr_triangle.to_dict()
+            # if self.incr_triangle is not None
+            # else None,
+            "XBase": self.X_base.to_dict() if self.X_base is not None else None,
+            "yBase": self.y_base.tolist() if self.y_base is not None else None,
+            "XBaseTrain": self.X_base_train.to_dict()
+            if self.X_base_train is not None
+            else None,
+            "yBaseTrain": self.y_base_train.tolist()
+            if self.y_base_train is not None
+            else None,
+            "XBaseForecast": self.X_base_forecast.to_dict()
+            if self.X_base_forecast is not None
+            else None,
+            "yBaseForecast": self.y_base_forecast.tolist()
+            if self.y_base_forecast is not None
+            else None,
+            "hasCumModelFile": self.has_cum_model_file
+            if self.has_cum_model_file is not None
+            else None,
+            "isCumModel": self.is_cum_model if self.is_cum_model is not None else None,
+            "nCols": self.n_cols if self.n_cols is not None else None,
+            "nRows": self.n_rows if self.n_rows is not None else None,
+        }
+
+        # convert datetime index to string
+        if self.tri is not None:
+            temp_tri = self.tri.copy()
+            temp_tri.index = temp_tri.index.strftime("%Y-%m")
+            out_dict["tri"] = temp_tri.to_dict() if self.tri is not None else None
+        else:
+            out_dict["tri"] = None
+
+        if self.triangle is not None:
+            temp_triangle = self.triangle.copy()
+            temp_triangle.index = temp_triangle.index.strftime("%Y-%m")
+            out_dict["triangle"] = temp_triangle.to_dict()
+        else:
+            out_dict["triangle"] = None
+
+        if self.incr_triangle is not None:
+            temp_incr_triangle = self.incr_triangle.copy()
+            temp_incr_triangle.index = temp_incr_triangle.index.strftime("%Y-%m")
+            out_dict["incrTriangle"] = temp_incr_triangle.to_dict()
+        else:
+            out_dict["incrTriangle"] = None
+
+        # convert to json
+        out_json = json.dumps(out_dict)
+
+        return out_json
 
     @classmethod
     def from_dataframe(cls, id: str, df: pd.DataFrame) -> "Triangle":
@@ -1643,6 +1704,19 @@ class Triangle:
             return out_dict
         else:
             return scaled
+
+    #     id: str = None
+    # tri: pd.DataFrame = None
+    # triangle: pd.DataFrame = None
+    # incr_triangle: pd.DataFrame = None
+    # X_base: pd.DataFrame = None
+    # y_base: np.ndarray = None
+    # X_base_train: pd.DataFrame = None
+    # y_base_train: np.ndarray = None
+    # X_base_forecast: pd.DataFrame = None
+    # y_base_forecast: np.ndarray = None
+    # has_cum_model_file: bool = False
+    # is_cum_model: Any = None
 
     # def _load_is_cum_model(self, model_file = None):
 

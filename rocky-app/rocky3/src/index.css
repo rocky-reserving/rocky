@@ -73,6 +73,17 @@ select {
 	/* transition: border-color 0.25s; */
 }
 
+table {
+	border: 1px solid black;
+	font-family: monospace;
+	background-color: white;
+}
+
+.triangle-header {
+	background-color: rgba(255, 100, 100, 0.8);
+	font-weight: 1.2em;
+}
+
 @media (prefers-color-scheme: light) {
 	:root {
 		color: #213547;
