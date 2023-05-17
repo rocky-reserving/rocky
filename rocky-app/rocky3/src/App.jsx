@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Triangle } from './classes/Triangle.js';
+// import { Triangle } from './classes/Triangle.js';
 import reactLogo from './assets/react.svg';
 import viteLogo from '/vite.svg';
 import './App.css';
@@ -7,7 +7,7 @@ import './App.css';
 import Sidebar from './components/Sidebar';
 import MainWorkspace from './components/MainWorkspace';
 
-let t = new Triangle();
+// let t = new Triangle();
 
 function App() {
 	const [isFreshlyLoaded, setIsFreshlyLoaded] = useState(true);

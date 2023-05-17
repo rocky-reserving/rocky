@@ -1,20 +1,16 @@
 import { useState } from 'react';
 import PropTypes from 'prop-types';
-import TriangleTable from '../data-components/TriangleTable';
 import appData from '../../appdata';
 
-const SampleDataButton = ({
-	triangleRef,
-	setIsDataLoaded,
-	result,
-	setResult,
-}) => {
+const SampleDataButton = ({ setIsDataLoaded, setResult, sampleTriangle }) => {
 	const [loading, setLoading] = useState(false);
 
 	function handleClick() {
 		setLoading(true);
 
-		fetch(appData.api.load_taylor_ashe, {
+		let apiURL = appData.api[sampleTriangle];
+
+		fetch(apiURL, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
@@ -29,11 +25,12 @@ const SampleDataButton = ({
 				}
 			})
 			.then((data) => {
-				console.log('Data:', data);
+				// console.log('Data:', data);
 				// Parse the JSON string and convert it into an array of objects
 				const parsedData = Object.entries(JSON.parse(data.result)).map(
 					([key, value]) => ({ ...value, id: key }),
 				);
+				// console.log('Parsed Data:', parsedData);
 				setResult(parsedData);
 				setIsDataLoaded(true);
 			})
@@ -51,20 +48,16 @@ const SampleDataButton = ({
 			<button onClick={handleClick} disabled={loading}>
 				{loading ? 'Loading...' : 'Load Taylor Ashe'}
 			</button>
-			{result && (
-				<div>
-					<h3>Result:</h3>
-					<TriangleTable data={result} ref={triangleRef} />
-				</div>
-			)}
 		</div>
 	);
 };
 SampleDataButton.propTypes = {
 	triangleRef: PropTypes.object,
+	// isDataLoaded: PropTypes.bool,
 	setIsDataLoaded: PropTypes.func,
 	result: PropTypes.array,
 	setResult: PropTypes.func,
+	sampleTriangle: PropTypes.string,
 };
 
 export default SampleDataButton;

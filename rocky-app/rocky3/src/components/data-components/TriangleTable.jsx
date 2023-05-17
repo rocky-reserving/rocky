@@ -18,45 +18,42 @@ const formatNumberWithCommas = (number) => {
 };
 
 const TriangleTable = ({ data }) => {
-	if (!data) {
+	if (!data || data.length === 0) {
 		return <div>No data available.</div>;
-	}
+	} else {
+		const rowKeys = data.map((row) => row.id);
+		const colKeys = Object.keys(data[0]).filter((key) => key !== 'id');
+		const formattedColKeys = colKeys.map((colKey) => formatDate(colKey));
 
-	const rowKeys = Object.keys(data);
-	const colKeys = Object.keys(data[rowKeys[0]]);
-
-	const formattedColKeys = colKeys.map((colKey) => formatDate(colKey));
-
-	return (
-		<table className={styles['triangle-table']}>
-			<thead>
-				{/* <span className="triangle-header"> */}
-				<tr>
-					<th></th>
-					{rowKeys.map((rowKey, index) => (
-						<th key={index}>{data[rowKey].id}</th>
-					))}
-				</tr>
-				{/* </span> */}
-			</thead>
-			<tbody>
-				{formattedColKeys.slice(0, -1).map((colKey, colIndex) => (
-					<tr key={colIndex}>
-						<td>{colKey}</td>
-						{rowKeys.map((rowKey, rowIndex) => (
-							<td key={rowIndex}>
-								{formatNumberWithCommas(data[rowKey][colKeys[colIndex]])}
-							</td>
+		return (
+			<table className={styles['triangle-table']}>
+				<thead>
+					<tr>
+						<th></th>
+						{rowKeys.map((rowKey, index) => (
+							<th key={index}>{rowKey}</th>
 						))}
 					</tr>
-				))}
-			</tbody>
-		</table>
-	);
+				</thead>
+				<tbody>
+					{formattedColKeys.slice(0, -1).map((colKey, colIndex) => (
+						<tr key={colIndex}>
+							<td>{colKey}</td>
+							{rowKeys.map((rowKey, rowIndex) => (
+								<td key={rowIndex}>
+									{formatNumberWithCommas(data[rowIndex][colKeys[colIndex]])}
+								</td>
+							))}
+						</tr>
+					))}
+				</tbody>
+			</table>
+		);
+	}
 };
 
 TriangleTable.propTypes = {
-	data: PropTypes.objectOf(PropTypes.object),
+	data: PropTypes.arrayOf(PropTypes.object),
 };
 
 export default TriangleTable;

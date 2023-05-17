@@ -106,7 +106,9 @@ const appData = {
 
 	// api endpoints
 	api: {
-		load_taylor_ashe: 'http://localhost:1234/rockyapi/load-taylor-ashe',
+		'Taylor-Ashe Paid Loss': 'http://localhost:1234/rockyapi/load-taylor-ashe',
+		'Dahms Reported Loss': 'http://localhost:1234/rockyapi/load-dahms-rpt',
+		'Dahms Paid Loss': 'http://localhost:1234/rockyapi/load-dahms-paid',
 	},
 
 	// Windows

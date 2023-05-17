@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import PropTypes from 'prop-types';
 
 import BaseDraggableWindow from './BaseDraggableWindow';
@@ -8,14 +8,32 @@ import TriangleTable from '../data-components/TriangleTable';
 
 // console.log(appData);
 
-const SampleDataDropdown = ({ isDataLoaded, setIsDataLoaded }) => {
+const SampleDataDropdown = ({
+	isDataLoaded,
+	setIsDataLoaded,
+	result,
+	setResult,
+	setTriangleType,
+	setWindowTitle,
+}) => {
+	const [sampleTriangle, setSampleTriangle] = useState(
+		appData.sampleData[0].name,
+	);
+	setWindowTitle(appData.sampleData[0].name);
+
 	let sampleData = appData.sampleData;
+	setTriangleType('sample-data');
+
+	const handleSelectChange = (event) => {
+		setSampleTriangle(event.target.value);
+	};
+
 	return (
 		<div className="sample-triangle-dropdown">
 			{!isDataLoaded && (
 				<>
 					<p>Select sample triangle:</p>
-					<select>
+					<select onSelect={handleSelectChange}>
 						{sampleData.map((sample, index) => (
 							<option key={index} value={sample.id}>
 								{sample.name}
@@ -23,21 +41,38 @@ const SampleDataDropdown = ({ isDataLoaded, setIsDataLoaded }) => {
 						))}
 					</select>
 
-					<SampleDataButton setIsDataLoaded={setIsDataLoaded} />
+					<SampleDataButton
+						// isDataLoaded={isDataLoaded}
+						setIsDataLoaded={setIsDataLoaded}
+						sampleTriangle={sampleTriangle}
+						result={result}
+						setResult={setResult}
+					/>
 				</>
 			)}
-			;
 		</div>
 	);
 };
 SampleDataDropdown.propTypes = {
 	isDataLoaded: PropTypes.bool,
 	setIsDataLoaded: PropTypes.func,
+	result: PropTypes.array,
+	setResult: PropTypes.func,
+	setTriangleType: PropTypes.func,
+	setWindowTitle: PropTypes.func,
 };
 
-const LoadDataWindow = ({ title, triangleParentSize, triangleRef }) => {
+const LoadDataWindow = ({ title }) => {
 	const [isDataLoaded, setIsDataLoaded] = useState(false);
-	const [result, setResult] = useState(null);
+	const [result, setResult] = useState([]);
+	// const [isResult, setIsResult] = useState(false);
+	const [triangleType, setTriangleType] = useState(null);
+	const [windowTitle, setWindowTitle] = useState(title);
+	const [triangleStyle, setTriangleStyle] = useState({
+		// width: 150,
+		// height: 300,
+	});
+	const triangleRef = useRef(null);
 
 	return (
 		<>
@@ -47,22 +82,32 @@ const LoadDataWindow = ({ title, triangleParentSize, triangleRef }) => {
 				defaultHeight={300}
 				windowType={'loadData'}
 				startMinimized={false}
+				triangleRef={triangleRef}
+				triangleStyle={triangleStyle}
+				setTriangleStyle={setTriangleStyle}
 			>
 				{(title === 'Sample Data' && (
 					<div className="load-sample-data-window load-data-window">
-						<h2>Sample data</h2>
+						{!result && <h2>{windowTitle}</h2>}
 						<SampleDataDropdown
-							triangleParentSize={triangleParentSize}
+							triangleStyle={triangleStyle}
+							setTriangleStyle={setTriangleStyle}
 							triangleRef={triangleRef}
 							isDataLoaded={isDataLoaded}
 							setIsDataLoaded={setIsDataLoaded}
 							result={result}
 							setResult={setResult}
+							setWindowTitle={setWindowTitle}
+							triangleType={triangleType}
+							setTriangleType={setTriangleType}
 						/>
-						{isDataLoaded && (
+						{result && (
 							<TriangleTable
-								triangleParentSize={triangleParentSize}
+								data={result}
+								triangleStyle={triangleStyle}
+								setTriangleStyle={setTriangleStyle}
 								triangleRef={triangleRef}
+								setTriangleType={setTriangleType}
 							/>
 						)}
 					</div>
@@ -95,8 +140,6 @@ const LoadDataWindow = ({ title, triangleParentSize, triangleRef }) => {
 };
 LoadDataWindow.propTypes = {
 	title: PropTypes.string,
-	triangleParentSize: PropTypes.object,
-	triangleRef: PropTypes.object,
 };
 
 export default LoadDataWindow;

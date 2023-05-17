@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Draggable from 'react-draggable';
 import { Resizable } from 're-resizable';
 import PropTypes from 'prop-types';
@@ -17,6 +17,7 @@ const BaseDraggableWindow = ({
 	defaultHeight,
 	windowType,
 	startMinimized,
+	setTriangleStyle,
 }) => {
 	// state vars
 	const [isMinimized, setIsMinimized] = useState(startMinimized);
@@ -37,6 +38,12 @@ const BaseDraggableWindow = ({
 		setIsVisable(false);
 	};
 
+	useEffect(() => {
+		if (setTriangleStyle) {
+			setTriangleStyle({ width: defautWidth, height: defaultHeight });
+		}
+	}, [defautWidth, defaultHeight, setTriangleStyle]);
+
 	const renderContent = () => {
 		return (
 			<Resizable
@@ -46,11 +53,17 @@ const BaseDraggableWindow = ({
 				}}
 				minWidth={300}
 				minHeight={200}
+				onResizeStop={(ref) => {
+					if (setTriangleStyle) {
+						setTriangleStyle({
+							width: parseFloat(ref.style.width),
+							height: parseFloat(ref.style.height),
+						});
+					}
+					console.log(ref);
+				}}
 			>
-				<div className="window-content">
-					{!isMinimized && children}{' '}
-					{/* Show content when the window is not minimized */}
-				</div>
+				<div className="window-content">{!isMinimized && children}</div>
 			</Resizable>
 		);
 	};
@@ -98,6 +111,7 @@ BaseDraggableWindow.propTypes = {
 	defaultHeight: PropTypes.number,
 	startMinimized: PropTypes.bool,
 	windowType: PropTypes.string,
+	setTriangleStyle: PropTypes.func,
 };
 
 export default BaseDraggableWindow;
