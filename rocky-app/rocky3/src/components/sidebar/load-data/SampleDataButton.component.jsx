@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import PropTypes from 'prop-types';
-import appData from '../../appdata';
+import appData from '../../../appdata';
 
 const SampleDataButton = ({ setIsDataLoaded, setResult, sampleTriangle }) => {
 	const [loading, setLoading] = useState(false);
@@ -53,7 +53,6 @@ const SampleDataButton = ({ setIsDataLoaded, setResult, sampleTriangle }) => {
 };
 SampleDataButton.propTypes = {
 	triangleRef: PropTypes.object,
-	// isDataLoaded: PropTypes.bool,
 	setIsDataLoaded: PropTypes.func,
 	result: PropTypes.array,
 	setResult: PropTypes.func,

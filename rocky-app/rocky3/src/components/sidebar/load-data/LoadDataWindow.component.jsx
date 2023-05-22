@@ -1,10 +1,10 @@
 import { useState, useRef } from 'react';
 import PropTypes from 'prop-types';
 
-import BaseDraggableWindow from './BaseDraggableWindow';
-import appData from '../../appdata';
-import SampleDataButton from '../buttons/SampleDataButton';
-import TriangleTable from '../data-components/TriangleTable';
+import BaseDraggableWindow from '../../main-window/BaseDraggableWindow.component';
+import appData from '../../../appdata';
+import SampleDataButton from './SampleDataButton.component';
+import TriangleTable from '../../data-components/TriangleTable.component';
 
 // console.log(appData);
 

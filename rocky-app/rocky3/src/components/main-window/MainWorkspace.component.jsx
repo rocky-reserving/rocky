@@ -1,5 +1,5 @@
-import LoadDataButton from './buttons/LoadDataButton';
-import LoadDataWindow from './windows/LoadDataWindow';
+import LoadDataButton from './LoadDataButton.component';
+import LoadDataWindow from '../sidebar/load-data/LoadDataWindow.component';
 import PropTypes from 'prop-types';
 
 const MainWorkspace = ({

@@ -11,6 +11,7 @@ import json
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from datetime import datetime
 
 # import torch
 # from torch.utils.data import DataLoader
@@ -45,11 +46,61 @@ class Triangle:
             2. The development periods set as the column names.
             3. The values set as the values in the DataFrame.
         If any of these conditions are not met, the triangle data will be set to None.
+    triangle : pd.DataFrame, default=None
+        Alias for `tri`.
+    acc : pd.Series, default=None
+        The accident period labels. Default is None, in which case the accident period
+        labels will be set to the index of the triangle data.
+    dev : pd.Series, default=None
+        The development period labels. Default is None, in which case the development
+        period labels will be set to the column names of the triangle data.
+    cal : pd.DataFrame, default=None
+        The calendar period labels. Default is None, in which case the calendar period
+        labels will be calculated from the acc and dev attributes.
+    n_acc : int, default=None
+        The number of accident periods in the triangle data. Default is None, in which
+        case the number of accident periods will be calculated from `tri.shape[0]`.
+    n_dev : int, default=None
+        The number of development periods in the triangle data. Default is None, in
+        which case the number of development periods will be calculated from
+        `tri.shape[1]`.
+    n_cal : int, default=None
+        The number of calendar periods in the triangle data. Default is None, in which
+        case the number of calendar periods will be calculated from the number of unique
+        calendar periods in the `cal` attribute.
+    n_vals : int, default=3
+        The number of diagonals used for time-series validation. Default is 3, which
+        corresponds to the 3 most recent diagonals. If `n_vals` is set to 0 or None, no
+        time-series validation will be performed.
+    incr_triangle : pd.DataFrame, default=None
+        The incremental triangle data. Default is None, in which case the incremental
+        triangle data will be calculated from the triangle data.
+    X_base : pd.DataFrame, default=None
+        The design matrix for the "base" model, eg a model with accident and development
+        periods as features, and no calendar period effect. Default is None, in which
+        case the design matrix will be calculated from the triangle data.
+    y_base : np.ndarray, default=None
+        The response vector for the "base" model.
+    X_base_train : pd.DataFrame, default=None
+        The design matrix for the "base" model.
+    y_base_train : np.ndarray, default=None
+        The response vector for the "base" model.
+    X_base_forecast : pd.DataFrame, default=None
+        The design matrix for the "base" model.
+    y_base_forecast : np.ndarray, default=None
+        The response vector for the "base" model.
     """
 
     id: str = None
     tri: pd.DataFrame = None
     triangle: pd.DataFrame = None
+    acc: np.ndarray = None
+    dev: np.ndarray = None
+    cal: np.ndarray = None
+    n_acc: int = None
+    n_dev: int = None
+    n_cal: int = None
+    n_vals: int = 3
     incr_triangle: pd.DataFrame = None
     X_base: pd.DataFrame = None
     y_base: np.ndarray = None
@@ -70,21 +121,37 @@ class Triangle:
         --------
         None
         """
-        # reformat the id
-        self.id = self.id.lower().replace(" ", "_")
-
-        # reset the id if it is not allowed
-        if self.id not in triangle_type_aliases:
-            self.id = None
-
         # if a triangle was passed in:
         if self.tri is not None:
+            # convert the origin to a datetime object
+            self.convert_origin_to_datetime()
+
+            # set the acc, dev, cal attributes
+            self.acc = self.tri.index.to_series().dt.to_period
+            self.dev = self.tri.columns.values
+            # self.cal = pd.DataFrame(
+            #     self.acc.month.values.reshape(-1, 1) + self.dev.values.reshape(1, -1),
+            #     index=self.acc,
+            #     columns=self.dev,
+            # )
+
             # set the n_rows and n_cols attributes
             self.n_rows = self.tri.shape[0]
             self.n_cols = self.tri.shape[1]
+            self.n_dev = self.n_cols
+            self.n_acc = self.n_rows
+            # self.n_cal = self.cal.nunique().sum()
 
-            # convert the origin to a datetime object
-            self.convert_origin_to_datetime()
+            # set frequency of triangle rows
+            self._set_frequency()
+
+            # set the cal attribute
+            self.cal = self.getCalendarIndex()
+            self.cur_cal = self.getCurCalendarIndex()
+
+            # set the incr_triangle attribute
+            if self.incr_triangle is None:
+                self.incr_triangle = self.cum_to_inc(_return=True)
 
         # convert triangle data to float
         if self.tri is not None:
@@ -114,6 +181,15 @@ class Triangle:
     def __str__(self) -> str:
         return self.tri.__str__()
 
+    def _handle_missing_id(self):
+        """
+        Handle a missing id by assigning a random id.
+        """
+        # If the id is None, assign a random id
+        if self.id is None:
+            # create random triangle id
+            self.id = f"triangle_{np.random.randint(10000, 99999)}"
+
     def set_id(self, id: str) -> None:
         """
         Set the id of the triangle.
@@ -125,19 +201,30 @@ class Triangle:
         --------
         `None`
         """
-        # ensure that the id is a string
-        if not isinstance(id, str):
-            raise TypeError("The id must be a string.")
-
-        # ensure the id is allowed
-        if id.lower().replace(" ", "_") in triangle_type_aliases:
-            self.id = id.lower().replace(" ", "_")
+        if id is None:
+            self._handle_missing_id()
         else:
-            print(f"The id {id} is not allowed. It must be one of the following:")
-            for alias in triangle_type_aliases:
-                print(f"  - {alias}")
-            print()
-            raise ValueError("The id is not allowed.")
+            # ensure that the id is a string
+            if not isinstance(id, str):
+                raise TypeError("The id must be a string.")
+
+            # reformat the id
+            self.id = self.id.lower().replace(" ", "_")
+
+            # reset the id if it is not allowed
+            if self.id not in triangle_type_aliases:
+                self.id = None
+                self._handle_missing_id()
+
+            # ensure the id is allowed
+            if id.lower().replace(" ", "_") in triangle_type_aliases:
+                self.id = id.lower().replace(" ", "_")
+            else:
+                print(f"The id {id} is not allowed. It must be one of the following:")
+                for alias in triangle_type_aliases:
+                    print(f"  - {alias}")
+                print()
+                raise ValueError("The id is not allowed.")
 
     def convert_origin_to_datetime(self) -> None:
         """
@@ -360,7 +447,7 @@ class Triangle:
         # and replace the original index with the new datetime index
         self.tri.index = self.tri.index.map(convert_origin_to_datetime)
 
-    def set_frequency(self) -> None:
+    def _set_frequency(self) -> None:
         """
         Sets the .frequency attribute by checking if the origin column is in
         monthly, quarterly, or annual frequency:
@@ -418,7 +505,7 @@ class Triangle:
 
         return formatted_df
 
-    def convert_to_json(self):
+    def to_json(self):
         """
         Converts the triangle object to json, to prepare for an API call
         """
@@ -480,7 +567,7 @@ class Triangle:
         return out_json
 
     @classmethod
-    def from_dataframe(cls, id: str, df: pd.DataFrame) -> "Triangle":
+    def from_dataframe(cls, df: pd.DataFrame, id: Optional[str] = None) -> "Triangle":
         """
         Create a Triangle object from a pandas DataFrame.
 
@@ -505,7 +592,7 @@ class Triangle:
 
     @classmethod
     def from_clipboard(
-        cls, id: str = None, origin_columns: int = 1, headers: list = None
+        cls, origin_columns: int = 1, headers: list = None, id: Optional[str] = None
     ) -> "Triangle":
         """
         Create a Triangle object from data copied to the clipboard.
@@ -541,27 +628,23 @@ class Triangle:
         or_col = df.columns.tolist()[:origin_columns]
         df.set_index(or_col, inplace=True)
 
-        if id is None:
-            # create random triangle id
-            newid = f"triangle_{np.random.randint(10000, 99999)}"
-        else:
-            newid = id
-
         # Create and return a Triangle object
-        return cls(id=newid, tri=df, triangle=df)
+        return cls(id=id, tri=df, triangle=df)
 
     @classmethod
-    def from_csv(cls, filename: str, id: str, origin_columns: int) -> "Triangle":
+    def from_csv(
+        cls, filename: str, origin_columns: int = 1, id: Optional[str] = None
+    ) -> "Triangle":
         """
         Create a Triangle object from data in a CSV file.
         Parameters:
         -----------
         filename : str
             The name of the CSV file containing the triangle data.
-        id : str
+        id : str, optional
             The id of the triangle.
         origin_columns : int
-            The number of columns used for the origin period.
+            The number of columns used for the origin period. Default is 1.
         Returns:
         --------
         Triangle
@@ -579,8 +662,8 @@ class Triangle:
     def from_excel(
         cls,
         filename: str,
-        id: str,
         origin_columns: int,
+        id: Optional[str] = None,
         sheet_name: Optional[str] = None,
         sheet_range: Optional[str] = None,
     ) -> "Triangle":
@@ -633,12 +716,6 @@ class Triangle:
 
         # re-sort the columns
         df.sort_index(axis=1, inplace=True)
-
-        # If there are rows with all zeros, or all NaNs, drop them
-        # df.dropna(axis=0, how='all', inplace=True)
-
-        # If there are any remaining columns with all zeros, or all NaNs, drop them
-        # df.dropna(axis=1, how='all', inplace=True)
 
         # Create and return a Triangle object
         return cls(id=id, tri=df.round(1), triangle=df.round(1))
@@ -728,7 +805,7 @@ class Triangle:
 
         # return the triangle, formatted as a dataframe with the origin period
         # formatting applied
-        return self.tri.get_formatted_dataframe()
+        return self.get_formatted_dataframe()
 
     def getCalendarIndex(self) -> pd.DataFrame:
         """
@@ -760,124 +837,6 @@ class Triangle:
         cur_calendar_index = col1.max()
 
         return cur_calendar_index
-
-    def setColumns(self, new_columns: list = None) -> None:
-        """
-        Sets the columns to the list provided in `new_columns`.
-
-        If no list is provided, sets the columns to 12 * their current value
-        """
-        if new_columns is None:
-            new_columns = self.tri.columns.to_series() * 12
-
-        # triangle
-        self.tri.columns = new_columns
-        self.triangle.columns = new_columns
-
-    # return a data frame formatted with a background color gradient for the columns
-    def col_gradient(
-        self,
-        cmap: str = "RdYlGn",
-        vmin: Optional[float] = None,
-        vmax: Optional[float] = None,
-    ) -> pd.DataFrame:
-        """
-        Return a data frame formatted with a background color gradient for the columns.
-        Parameters:
-        -----------
-        cmap : str, default='RdYlGn'
-            The name of the matplotlib colormap to use. Popular options include:
-            1. 'RdYlGn'
-            2. 'RdBu'
-            3. 'PuOr'
-            4. 'RdYlBu'
-            5. 'RdGy'
-            6. 'RdPu'
-        vmin : float, optional
-            The minimum value to use for the colormap. If not provided, the minimum
-            value in the triangle will be used.
-        vmax : float, optional
-            The maximum value to use for the colormap. If not provided, the maximum
-            value in the triangle will be used.
-        Returns:
-        --------
-        pd.DataFrame
-            A data frame formatted with a background color gradient for the columns.
-        """
-        # Get the minimum and maximum values
-        # if vmin is None:
-        #     vmin = self.tri.min().min()
-        # if vmax is None:
-        #     vmax = self.tri.max().max()
-
-        # Get the colormap
-        cmap = plt.get_cmap(cmap)
-
-        # Get the normalized values
-        # norm = plt.Normalize(vmin=vmin, vmax=vmax)
-
-        # # Get the colors
-        # colors = [cmap(norm(value)) for value in self.tri.values.flatten()]
-
-        # # Get the number of columns
-        # n_cols = self.tri.shape[1]
-
-        # # Get the number of rows
-        # n_rows = self.tri.shape[0]
-
-        # # Reshape the colors
-        # colors = np.array(colors).reshape(n_rows, n_cols, 4)
-
-        # # create a data frame with the color gradient
-        # df = pd.DataFrame(colors[:2], index=self.tri.index, columns=self.tri.columns)
-
-        # Return the data frame
-        return self.tri.style.background_gradient(cmap=cmap, vmin=vmin, vmax=vmax)
-
-    # Data loading methods
-
-    # def from_dataframe(self,
-    #                    df: pd.DataFrame,
-    #                    use_index: bool = True,
-    #                    use_columns: bool = True,
-    #                    origin_col: str = 'ay',
-    #                    development_col: str = 'dev_month',
-    #                    loss_col: str = 'loss',
-    #                    return_df: bool = False
-    #                    ) -> None:
-    #     """
-    #     Create a `Triangle` object from a pandas dataframe.
-    #     Parameters:
-    #     -----------
-    #     df: `pd.DataFrame`
-    #         The triangle data.
-    #     use_index: `bool`, default=`True`
-    #         If `True`, use the dataframe index as the origin period.
-    #     use_columns: `bool`, default=`True`
-    #         If `True`, use the dataframe columns as the development period.
-    #     origin_col: `str`, default=`'ay'`
-    #         The column name to use for the origin period. Only used
-    #         if `use_index` is `False`.
-    #     development_col: `str`, default=`'dev_month'`
-    #         The column name to use for the development period. Only
-    #         used if `use_columns` is `False`.
-    #     return_df: `bool`, default=`False`
-    #         If `True`, return the triangle data as a pandas dataframe.
-    #     Returns:
-    #     --------
-    #     `None`
-    #     """
-    #     # if use_index is True, use the dataframe index as the origin period
-    #     if use_index:
-    #         origin_col = df.index.name
-
-    #     # if use_columns is True, use the dataframe columns as the development period
-    #     if use_columns:
-    #         development_col = df.columns.name
-
-    #     # pivot the dataframe to get the triangle data
-    #     self.triangle.tri = df.pivot_table(
-    #         index=origin_col, columns=development_col, values=loss_col)
 
     def cum_to_inc(
         self, cum_tri: pd.DataFrame = None, _return: bool = False
@@ -1346,7 +1305,10 @@ class Triangle:
         ).transpose()
 
         out = (
-            pd.concat([ata_tri.drop(index=10), vol_wtd, simple, medial], axis=0)
+            pd.concat(
+                [ata_tri.drop(index=ata_tri.index[-1]), vol_wtd, simple, medial],
+                axis=0,
+            )
             .drop(columns=self.tri.columns[-1])
             .fillna("")
         )
@@ -1355,13 +1317,18 @@ class Triangle:
         if out.iloc[:, -1].str.contains("").all():
             out = out.drop(columns=out.columns[-1])
 
+        # try to reformat the index
+        out.index = [
+            i.strftime("%Y") if isinstance(i, datetime) else i for i in out.index
+        ]
+
         return out
 
     def melt_triangle(
         self,
         id_cols: list = None,
         var_name: str = "dev",
-        value_name: str = None,
+        value_name: str = "triangle",
         _return: bool = True,
         incr_tri: bool = True,
     ) -> pd.DataFrame:
@@ -1405,6 +1372,8 @@ class Triangle:
         else:
             tri = self.triangle
 
+        tri.index = self.get_formatted_dataframe().index
+
         # melt the triangle data
         melted = tri.reset_index().melt(
             id_vars=id_cols, var_name=var_name, value_name=value_name
@@ -1414,61 +1383,11 @@ class Triangle:
         if _return:
             return melted
 
-    # def melt(self
-    #          , value_col : str = None
-    #          , origin_col : str = None
-    #          , dev_col : str = None
-    #          ) -> pd.DataFrame:
-    #     """
-    #     This is a convenience function to use when the triangle data is formatted
-    #     properly, meaning the index is the origin period and the columns are the
-    #     development periods.
-
-    #     Parameters:
-    #     -----------
-    #     value_col: str
-    #         The name of the value column. Default is None, in which case the
-    #         value column is set equal to the triangle ID.
-    #     origin_col: str
-    #         The name of the origin column. Default is None, in which case the
-    #         origin column is set equal to the index name.
-    #     dev_col: str
-    #         The name of the development column. Default is None, in which case
-    #         the development column is set equal to the column names.
-
-    #     Returns:
-    #     --------
-    #     melted: pd.DataFrame
-    #         The melted triangle data.
-    #     """
-    #     # if value_col is None, use the triangle ID
-    #     if value_col is None:
-    #         value_col = self.id
-
-    #     # if origin_col is None, use the index name
-    #     if origin_col is None:
-    #         origin_col = self.triangle.index.name
-
-    #     # if dev_col is None, use the column names
-    #     if dev_col is None:
-    #         dev_col = self.triangle.columns
-
-    #     # melt the triangle data
-    #     melted = self.melt_triangle(self,
-    #                   id_cols = origin_col,
-    #                   var_name = dev_col,
-    #                   value_name = value_col,
-    #                   _return = True,
-    #                   incr_tri = False
-    #                   )
-
-    #     return melted
-
     def base_design_matrix(
         self,
         id_cols: list = None,
         var_name: str = "dev",
-        value_name: str = None,
+        value_name: str = "tri",
         trends: bool = True,
         _return: bool = True,
         incr_tri: bool = True,
@@ -1514,8 +1433,12 @@ class Triangle:
         if id_cols is None:
             id_cols = self.triangle.index.name
 
+        print(value_name)
+
         if value_name is None:
             value_name = self.id
+
+        print(value_name)
 
         # melt the triangle data
         melted = self.melt_triangle(
@@ -1526,18 +1449,29 @@ class Triangle:
             incr_tri=incr_tri,
         )
 
+        df = self.get_formatted_dataframe()
+
+        _acc = df.index.name if df.index.name is not None else "AY"
+        _dev = df.columns.name if df.columns.name is not None else "dev"
+
+        acc = _acc.lower().replace(" ", "_").replace(".", "")
+        dev = _dev.lower().replace(" ", "_").replace(".", "")
+
+        melted.rename(columns={f"{_acc}": acc, f"{_dev}": dev}, inplace=True)
+        # melted[acc]
+
         # convert the origin and development periods to zero-padded categorical variables
-        melted["AY"] = melted["AY"].astype(str).str.zfill(4).astype("category")
-        melted["dev"] = melted["dev"].astype(str).str.zfill(4).astype("category")
+        melted[acc] = melted[acc].astype(str).str.zfill(4).astype("category")
+        melted[dev] = melted[dev].astype(str).str.zfill(4).astype("category")
 
         # create the design matrix
-        dm_total = pd.get_dummies(melted, columns=["AY", "dev"], drop_first=True)
+        dm_total = pd.get_dummies(melted, columns=[acc, dev], drop_first=True)
 
         # if trends is True, add linear trends to the design matrix
         if trends:
             # create dummy variables for the origin and development periods
-            dm_ay = pd.get_dummies(melted[["AY"]], drop_first=True)
-            dm_dev = pd.get_dummies(melted[["dev"]], drop_first=True)
+            dm_ay = pd.get_dummies(melted[[acc]], drop_first=True)
+            dm_dev = pd.get_dummies(melted[[dev]], drop_first=True)
 
             # ay dm columns
             cols = dm_ay.columns.tolist()
@@ -1569,6 +1503,10 @@ class Triangle:
             observed_col = dm_total[value_name].notnull().astype(int)
             dm_total.insert(0, "is_observed", observed_col)
 
+        for c in dm_total.columns:
+            if dm_total[c] is bool:
+                dm_total[c] = dm_total[c].astype(int)
+
         # if _return is True, return the design matrix
         if _return:
             return dm_total
@@ -1578,12 +1516,12 @@ class Triangle:
 
         # ay/dev id for each row
         self.X_id = pd.DataFrame(
-            dict(
-                ay=melted["AY"].astype(int).values, dev=melted["dev"].astype(int).values
-            )
+            dict(ay=melted[acc].astype(int).values, dev=melted[dev].astype(int).values)
         )
         self.X_id["cal"] = self.X_id.ay + self.X_id.dev - 1
         self.X_id.index = self.X_base.index
+
+        
 
     def base_linear_model(
         self,

@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import Accordion from './Accordion';
+import Accordion from './Accordion.component';
 // import { ImFolderUpload } from 'react-icons/im';
 // import { BiScatterChart } from 'react-icons/bi';
 // import { GrNewWindow } from 'react-icons/gr';
 import PropTypes from 'prop-types';
-import appData from '../appdata';
+import appData from '../../appdata';
 
 const Sidebar = ({
 	isSidebarExpanded,
