@@ -2,13 +2,15 @@ import { useState } from 'react';
 import PropTypes from 'prop-types';
 import appData from '../../../appdata';
 
-const SampleDataButton = ({ setIsDataLoaded, setResult, sampleTriangle }) => {
+const SampleDataButton = ({ setResult, sampleTriangle, setSampleTriangle }) => {
 	const [loading, setLoading] = useState(false);
 
-	function handleClick() {
+	const handleClick = () => {
 		setLoading(true);
 
+		console.log('sampleTriangle:', sampleTriangle);
 		let apiURL = appData.api[sampleTriangle];
+		console.log('apiURL:', apiURL);
 
 		fetch(apiURL, {
 			method: 'POST',
@@ -18,9 +20,11 @@ const SampleDataButton = ({ setIsDataLoaded, setResult, sampleTriangle }) => {
 			body: JSON.stringify({ user_id: 'your_user_id' }),
 		})
 			.then((response) => {
+				console.log('response:', response);
 				if (response.ok) {
 					return response.json();
 				} else {
+					setSampleTriangle('');
 					throw new Error('Error fetching data: ' + response.statusText);
 				}
 			})
@@ -32,16 +36,16 @@ const SampleDataButton = ({ setIsDataLoaded, setResult, sampleTriangle }) => {
 				);
 				// console.log('Parsed Data:', parsedData);
 				setResult(parsedData);
-				setIsDataLoaded(true);
+				setSampleTriangle(sampleTriangle);
 			})
 			.catch((error) => {
 				console.error('Error:', error);
-				setIsDataLoaded(false);
+				setSampleTriangle('');
 			})
 			.finally(() => {
 				setLoading(false);
 			});
-	}
+	};
 
 	return (
 		<div>
@@ -52,11 +56,12 @@ const SampleDataButton = ({ setIsDataLoaded, setResult, sampleTriangle }) => {
 	);
 };
 SampleDataButton.propTypes = {
-	triangleRef: PropTypes.object,
-	setIsDataLoaded: PropTypes.func,
-	result: PropTypes.array,
+	// triangleRef: PropTypes.object,
+	// setIsDataLoaded: PropTypes.func,
+	// result: PropTypes.array,
 	setResult: PropTypes.func,
 	sampleTriangle: PropTypes.string,
+	setSampleTriangle: PropTypes.func,
 };
 
 export default SampleDataButton;

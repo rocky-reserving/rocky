@@ -3,7 +3,6 @@ import { useState, useRef, useEffect } from 'react';
 import reactLogo from './assets/react.svg';
 import viteLogo from '/vite.svg';
 import './App.css';
-// import BaseDraggableWindow from './components/windows/BaseDraggableWindow';
 import Sidebar from './components/sidebar/Sidebar.component';
 import MainWorkspace from './components/main-window/MainWorkspace.component';
 

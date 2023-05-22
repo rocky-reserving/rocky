@@ -2,6 +2,14 @@ import { GrNewWindow } from 'react-icons/gr';
 import { BiScatterChart } from 'react-icons/bi';
 import { ImFolderUpload } from 'react-icons/im';
 
+// const port = 5000;
+const api_url = (func) => {
+	let url = `http://0.0.0.0:5000/rockyapi/${func}`;
+	return url;
+	// console.log('func:', func);
+	// console.log('url:', url);
+};
+
 const appData = {
 	// Sidebar top-level items and their sub-items
 	sidebarItems: [
@@ -106,9 +114,9 @@ const appData = {
 
 	// api endpoints
 	api: {
-		'Taylor-Ashe Paid Loss': 'http://localhost:1234/rockyapi/load-taylor-ashe',
-		'Dahms Reported Loss': 'http://localhost:1234/rockyapi/load-dahms-rpt',
-		'Dahms Paid Loss': 'http://localhost:1234/rockyapi/load-dahms-paid',
+		'Taylor-Ashe Paid Loss': api_url('load-taylor-ashe'),
+		'Dahms Reported Loss': api_url('load-dahms-rpt'),
+		'Dahms Paid Loss': api_url('load-dahms-paid'),
 	},
 
 	// Windows

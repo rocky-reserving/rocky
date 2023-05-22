@@ -13,34 +13,40 @@ sample triangle names are displayed in the dropdown menu.
 import PropTypes from 'prop-types';
 
 import appData from '../../../appdata';
+// import { useEffect } from 'react';
 
-const SampleDataDropdown = ({ result, setTriangleType, setSampleTriangle }) => {
+const SampleDataDropdown = ({
+	// result,
+	// triangleType,
+	setTriangleType,
+	setSampleTriangle,
+}) => {
 	let sampleData = appData.sampleData;
-	setTriangleType('sample-data');
+
+	// useEffect(() => {
+	// 	console.log('triangleType: ', triangleType);
+	// }, [triangleType]);
 
 	const handleSelectChange = (event) => {
 		setSampleTriangle(event.target.value);
+		setTriangleType('sample-data');
 	};
 
 	return (
 		<div className="sample-triangle-dropdown">
-			{!result && (
-				<>
-					<p>Select sample triangle:</p>
-					<select onSelect={handleSelectChange}>
-						{sampleData.map((sample, index) => (
-							<option key={index} value={sample.id}>
-								{sample.name}
-							</option>
-						))}
-					</select>
-				</>
-			)}
+			<select onChange={handleSelectChange}>
+				{sampleData.map((sample, index) => (
+					<option key={index} value={sample.id}>
+						{sample.name}
+					</option>
+				))}
+			</select>
 		</div>
 	);
 };
 SampleDataDropdown.propTypes = {
-	result: PropTypes.array,
+	// result: PropTypes.array,
+	triangleType: PropTypes.string,
 	setTriangleType: PropTypes.func,
 	setSampleTriangle: PropTypes.func,
 };

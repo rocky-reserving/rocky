@@ -1,31 +1,35 @@
 import { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 
-import BaseDraggableWindow from '../../main-window/BaseDraggableWindow.component';
+import BaseDraggableWindow from '../BaseDraggableWindow.component';
 import SampleDataDropdown from './SampleDataDropdown.component';
 import SampleDataButton from './SampleDataButton.component';
 import TriangleTable from '../../data-components/TriangleTable.component';
 
-import appData from '../../../appdata';
+// import appData from '../../../appdata';
 
 const LoadDataWindow = ({ title }) => {
-	// const [isDataLoaded, setIsDataLoaded] = useState(false);
+	const [isDataLoaded, setIsDataLoaded] = useState(false);
 	const [result, setResult] = useState([]);
 	const [triangleType, setTriangleType] = useState(null);
 	const [windowTitle, setWindowTitle] = useState(title);
-	const [triangleStyle, setTriangleStyle] = useState({
-		// width: 150,
-		// height: 300,
-	});
 	const triangleRef = useRef(null);
 
-	const defaultTriangle = appData.sampleData[0].name;
-	const [sampleTriangle, setSampleTriangle] = useState(defaultTriangle);
+	// const defaultTriangle = appData.sampleData[0].name;
+	const [sampleTriangle, setSampleTriangle] = useState('');
 
 	// when the sample triangle changes, update the window title to match
 	useEffect(() => {
-		setWindowTitle(sampleTriangle);
+		setWindowTitle(windowTitle);
 	}, [sampleTriangle]);
+
+	useEffect(() => {
+		if (result.length !== 0) {
+			setIsDataLoaded(true);
+		} else {
+			setIsDataLoaded(false);
+		}
+	}, [result]);
 
 	return (
 		<>
@@ -36,38 +40,34 @@ const LoadDataWindow = ({ title }) => {
 				windowType={'loadData'}
 				startMinimized={false}
 				triangleRef={triangleRef}
-				triangleStyle={triangleStyle}
-				setTriangleStyle={setTriangleStyle}
+				// triangleStyle={triangleStyle}
+				// setTriangleStyle={setTriangleStyle}
 			>
 				{(title === 'Sample Data' && (
 					<div className="load-sample-data-window load-data-window">
-						{!result && <h2>{windowTitle}</h2>}
-						<SampleDataDropdown
-							triangleStyle={triangleStyle}
-							setTriangleStyle={setTriangleStyle}
-							triangleRef={triangleRef}
-							// isDataLoaded={isDataLoaded}
-							// setIsDataLoaded={setIsDataLoaded}
-							result={result}
-							setResult={setResult}
-							setWindowTitle={setWindowTitle}
-							triangleType={triangleType}
-							setTriangleType={setTriangleType}
-							setSampleTriangle={setSampleTriangle}
-						/>
-						<SampleDataButton
-							// setIsDataLoaded={setIsDataLoaded}
-							sampleTriangle={sampleTriangle}
-							result={result}
-							setResult={setResult}
-						/>
-						{result && (
+						{!isDataLoaded && <h2>{windowTitle}</h2>}
+						{!isDataLoaded && (
+							<SampleDataDropdown
+								result={result}
+								triangleType={triangleType}
+								setTriangleType={setTriangleType}
+							/>
+						)}
+						{!isDataLoaded && (
+							<SampleDataButton
+								sampleTriangle={sampleTriangle}
+								result={result}
+								setResult={setResult}
+								setSampleTriangle={setSampleTriangle}
+							/>
+						)}
+						{isDataLoaded && (
 							<TriangleTable
 								data={result}
-								triangleStyle={triangleStyle}
-								setTriangleStyle={setTriangleStyle}
-								triangleRef={triangleRef}
-								setTriangleType={setTriangleType}
+								// triangleStyle={triangleStyle}
+								// setTriangleStyle={setTriangleStyle}
+								// triangleRef={triangleRef}
+								// setTriangleType={setTriangleType}
 							/>
 						)}
 					</div>

@@ -1,5 +1,5 @@
 import PropTypes from 'prop-types';
-import styles from './TriangleTable.styles.css';
+import styles from './TriangleTable.styles.css?inline';
 
 const formatDate = (timestamp) => {
 	if (isNaN(timestamp)) {
