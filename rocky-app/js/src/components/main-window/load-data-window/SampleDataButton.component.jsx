@@ -2,10 +2,11 @@ import { useState } from 'react';
 import PropTypes from 'prop-types';
 import appData from '../../../appdata';
 
-const SampleDataButton = ({ setResult, sampleTriangle, setSampleTriangle }) => {
+const SampleDataButton = ({ setResult, sampleTriangle }) => {
 	const [loading, setLoading] = useState(false);
 
 	const handleClick = () => {
+		console.log('Current sampleTriangle: ', sampleTriangle);
 		setLoading(true);
 
 		console.log('sampleTriangle:', sampleTriangle);
@@ -24,7 +25,7 @@ const SampleDataButton = ({ setResult, sampleTriangle, setSampleTriangle }) => {
 				if (response.ok) {
 					return response.json();
 				} else {
-					setSampleTriangle('');
+					// setSampleTriangle('');
 					throw new Error('Error fetching data: ' + response.statusText);
 				}
 			})
@@ -36,11 +37,11 @@ const SampleDataButton = ({ setResult, sampleTriangle, setSampleTriangle }) => {
 				);
 				// console.log('Parsed Data:', parsedData);
 				setResult(parsedData);
-				setSampleTriangle(sampleTriangle);
+				// setSampleTriangle(sampleTriangle);
 			})
 			.catch((error) => {
 				console.error('Error:', error);
-				setSampleTriangle('');
+				// setSampleTriangle('');
 			})
 			.finally(() => {
 				setLoading(false);

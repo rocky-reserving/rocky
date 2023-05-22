@@ -6,7 +6,7 @@ import SampleDataDropdown from './SampleDataDropdown.component';
 import SampleDataButton from './SampleDataButton.component';
 import TriangleTable from '../../data-components/TriangleTable.component';
 
-// import appData from '../../../appdata';
+import appData from '../../../appdata';
 
 const LoadDataWindow = ({ title }) => {
 	const [isDataLoaded, setIsDataLoaded] = useState(false);
@@ -15,8 +15,8 @@ const LoadDataWindow = ({ title }) => {
 	const [windowTitle, setWindowTitle] = useState(title);
 	const triangleRef = useRef(null);
 
-	// const defaultTriangle = appData.sampleData[0].name;
-	const [sampleTriangle, setSampleTriangle] = useState('');
+	const defaultTriangle = appData.sampleData[0].name;
+	const [sampleTriangle, setSampleTriangle] = useState(defaultTriangle);
 
 	// when the sample triangle changes, update the window title to match
 	useEffect(() => {
@@ -45,31 +45,29 @@ const LoadDataWindow = ({ title }) => {
 			>
 				{(title === 'Sample Data' && (
 					<div className="load-sample-data-window load-data-window">
+						{/* Sample Data heading */}
 						{!isDataLoaded && <h2>{windowTitle}</h2>}
+
+						{/* Sample data dropdown */}
 						{!isDataLoaded && (
 							<SampleDataDropdown
 								result={result}
+								setSampleTriangle={setSampleTriangle}
 								triangleType={triangleType}
 								setTriangleType={setTriangleType}
 							/>
 						)}
+
+						{/* Sample data button */}
 						{!isDataLoaded && (
 							<SampleDataButton
 								sampleTriangle={sampleTriangle}
-								result={result}
 								setResult={setResult}
-								setSampleTriangle={setSampleTriangle}
 							/>
 						)}
-						{isDataLoaded && (
-							<TriangleTable
-								data={result}
-								// triangleStyle={triangleStyle}
-								// setTriangleStyle={setTriangleStyle}
-								// triangleRef={triangleRef}
-								// setTriangleType={setTriangleType}
-							/>
-						)}
+
+						{/* Triangle table */}
+						{isDataLoaded && <TriangleTable data={result} />}
 					</div>
 				)) ||
 					(title === 'Clipboard' && (

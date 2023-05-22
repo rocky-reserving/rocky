@@ -9,23 +9,12 @@ The list of sample triangles is generated from the appData file. The
 sample triangle names are displayed in the dropdown menu.
 
 */
-
 import PropTypes from 'prop-types';
 
 import appData from '../../../appdata';
-// import { useEffect } from 'react';
 
-const SampleDataDropdown = ({
-	// result,
-	// triangleType,
-	setTriangleType,
-	setSampleTriangle,
-}) => {
+const SampleDataDropdown = ({ setTriangleType, setSampleTriangle }) => {
 	let sampleData = appData.sampleData;
-
-	// useEffect(() => {
-	// 	console.log('triangleType: ', triangleType);
-	// }, [triangleType]);
 
 	const handleSelectChange = (event) => {
 		setSampleTriangle(event.target.value);
@@ -36,7 +25,7 @@ const SampleDataDropdown = ({
 		<div className="sample-triangle-dropdown">
 			<select onChange={handleSelectChange}>
 				{sampleData.map((sample, index) => (
-					<option key={index} value={sample.id}>
+					<option key={index} value={sample.name}>
 						{sample.name}
 					</option>
 				))}
@@ -45,7 +34,6 @@ const SampleDataDropdown = ({
 	);
 };
 SampleDataDropdown.propTypes = {
-	// result: PropTypes.array,
 	triangleType: PropTypes.string,
 	setTriangleType: PropTypes.func,
 	setSampleTriangle: PropTypes.func,

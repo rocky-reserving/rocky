@@ -4,7 +4,7 @@ import { ImFolderUpload } from 'react-icons/im';
 
 // const port = 5000;
 const api_url = (func) => {
-	let url = `http://0.0.0.0:5000/rockyapi/${func}`;
+	let url = `http://localhost:5000/rockyapi/${func}`;
 	return url;
 	// console.log('func:', func);
 	// console.log('url:', url);
