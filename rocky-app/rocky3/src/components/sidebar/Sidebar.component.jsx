@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
 import Accordion from './Accordion.component';
-// import { ImFolderUpload } from 'react-icons/im';
-// import { BiScatterChart } from 'react-icons/bi';
-// import { GrNewWindow } from 'react-icons/gr';
 import PropTypes from 'prop-types';
 import appData from '../../appdata';
+
+const MOUSE_EXIT_TIMEOUT = 750;
 
 const Sidebar = ({
 	isSidebarExpanded,
@@ -12,11 +11,16 @@ const Sidebar = ({
 	onAddLoadDataWindow,
 	onClickNew,
 }) => {
+	const [activeAccordion, setActiveAccordion] = useState(null);
+	const [timeoutId, setTimeoutId] = useState(null);
+
 	// load accordion items from appData
 	const sidebarItems = appData.sidebarItems;
 
-	const [activeAccordion, setActiveAccordion] = useState(null);
-	const [timeoutId, setTimeoutId] = useState(null);
+	// when mouse enters sidebar, if it is collapsed, expand it
+	const expandSidebar = () => {
+		setIsSidebarExpanded(true);
+	};
 
 	// when mouse leaves sidebar, start countdown to collapse sidebar
 	const startCountdown = () => {
@@ -24,11 +28,12 @@ const Sidebar = ({
 			const id = setTimeout(() => {
 				setIsSidebarExpanded(false);
 				setActiveAccordion(null);
-			}, 2000);
+			}, MOUSE_EXIT_TIMEOUT);
 			setTimeoutId(id);
 		}
 	};
 
+	// if mouse re-enters sidebar, cancel countdown
 	const cancelCountdown = () => {
 		if (timeoutId) {
 			clearTimeout(timeoutId);
@@ -36,6 +41,8 @@ const Sidebar = ({
 		}
 	};
 
+	// check timeoutId each time it changes, and if it equals
+	// MOUSE_EXIT_TIMEOUT, clear it
 	useEffect(() => {
 		return () => {
 			if (timeoutId) {
@@ -44,11 +51,13 @@ const Sidebar = ({
 		};
 	}, [timeoutId]);
 
+	// toggle sidebar between expanded and collapsed
 	const toggleSidebar = () => {
 		setIsSidebarExpanded(!isSidebarExpanded);
 		setActiveAccordion(null);
 	};
 
+	// toggle accordion between expanded and collapsed
 	const toggleAccordion = (index) => {
 		if (activeAccordion === index) {
 			setActiveAccordion(null);
@@ -58,6 +67,7 @@ const Sidebar = ({
 		}
 	};
 
+	// handle click on accordion item
 	const handleClickItem = (item) => {
 		// NEW
 		if (item === 'New') {
@@ -83,11 +93,20 @@ const Sidebar = ({
 		// Add conditions for other items here
 	};
 
+	// if mouse enters sidebar, expand it if needed, and cancel
+	// countdown if it is going
+	const handleMouseEnter = () => {
+		if (!isSidebarExpanded) {
+			expandSidebar();
+		}
+		cancelCountdown();
+	};
+
 	return (
 		<div
 			className={`sidebar ${isSidebarExpanded ? 'expanded' : 'collapsed'}`}
 			onMouseLeave={startCountdown}
-			onMouseEnter={cancelCountdown}
+			onMouseEnter={handleMouseEnter}
 		>
 			<button className="sidebar-toggle" onClick={toggleSidebar}>
 				{isSidebarExpanded ? '<' : '>'}

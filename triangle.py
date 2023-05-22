@@ -21,7 +21,7 @@ from typing import Optional, Any
 
 from openpyxl.utils import range_to_tuple
 
-from utils import get_allowed_triangle_types
+from .utils import get_allowed_triangle_types
 
 # from chainladder import ChainLadder
 # from model.LossTriangleClassifier import LossTriangleClassifier

@@ -51,7 +51,6 @@ const TriangleTable = ({ data }) => {
 		);
 	}
 };
-
 TriangleTable.propTypes = {
 	data: PropTypes.arrayOf(PropTypes.object),
 };

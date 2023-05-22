@@ -1,5 +1,5 @@
 # from forecast import Forecast
-from triangle import Triangle
+from .triangle import Triangle
 
 from dataclasses import dataclass
 from typing import Any, Optional
