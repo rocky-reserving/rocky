@@ -1,0 +1,76 @@
+C:\Users\AndyW\OneDrive\Documents\GitHub\rocky
+|--.prettierrc
+|--BaseEstimator.py
+|--build_directory.py
+|--chainladder.py
+|--ChainLadder_MCMC.py
+|--create_environment.bat
+|--create_environment.sh
+|--create_table.py
+|--\func\
+|  |--deviance_residuals.py
+|  |--hat_matrix.py
+|  |--pearson_residuals.py
+|  |--standardized_pearson_residuals.py
+|  |--__init__.py
+|--glm_model_eval.md
+|--LICENSE
+|--megamodel.py
+|--\model\
+|  |--LossTriangleClassifier.py
+|--paid.csv
+|--PaidIncurredChain.py
+|--plot.py
+|--pymc.yaml
+|--README.md
+|--\rocky-app\
+|  |--\server\
+|  |  |--.flaskenv
+|  |  |--app.db
+|  |  |--app.py
+|  |--\src\
+|  |  |--\py\
+|  |  |  |--HalfMegaModel.py
+|  |  |  |--rockycore.py
+|  |  |  |--triangle.py
+|  |  |  |--triangle_type_aliases.py
+|  |  |  |--utils.py
+|  |  |  |--__init__.py
+|  |  |--__init__.py
+|  |--ui prompt
+|  |--\web\
+|  |  |--.eslintrc.cjs
+|  |  |--index.html
+|  |  |--package-lock.json
+|  |  |--package.json
+|  |  |--\public\
+|  |  |  |--vite.svg
+|  |  |--\src\
+|  |  |  |--App.css
+|  |  |  |--App.jsx
+|  |  |  |--\assets\
+|  |  |  |  |--react.svg
+|  |  |  |--\classes\
+|  |  |  |  |--luxon.min.js
+|  |  |  |  |--Triangle.js
+|  |  |  |--\components\
+|  |  |  |  |--\main-window\
+|  |  |  |  |  |--BaseDraggableWindow.component.jsx
+|  |  |  |  |  |--LoadDataButton.component.jsx
+|  |  |  |  |  |--MainWorkspace.component.jsx
+|  |  |  |  |--\sidebar\
+|  |  |  |  |  |--Accordion.component.jsx
+|  |  |  |  |  |--Sidebar.component.jsx
+|  |  |  |--index.css
+|  |  |  |--main.jsx
+|  |  |--vite.config.js
+|  |--__init__.py
+|--rocky3.yaml
+|--rocky_structure_map.txt
+|--rocky_tree_structure.txt
+|--rpt.csv
+|--test pymc.ipynb
+|--testrocky.ipynb
+|--test_chainladder.py
+|--test_pic_model.ipynb
+|--__init__.py

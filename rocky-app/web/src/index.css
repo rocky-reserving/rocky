@@ -32,12 +32,28 @@ body {
 	min-width: 320px;
 	min-height: 100vh;
 	font-family: 'Lora', serif;
+	width: 100%;
+	height: max-content;
+	/* }
+
+#root { */
+	background: rgb(49, 93, 56);
+	background: linear-gradient(
+		30deg,
+		rgba(49, 93, 56, 1) 9%,
+		rgba(255, 255, 255, 1) 100%
+	);
+	color: whitesmoke;
+	justify-items: center;
+	width: 100%;
 }
 
 h1 {
 	font-size: 4em;
 	font-family: 'Cabin Sketch', cursive;
 	line-height: 1.1;
+
+	/* color: whitesmoke; */
 }
 
 button {
