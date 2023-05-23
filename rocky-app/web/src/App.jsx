@@ -1,14 +1,34 @@
 import { useState, useRef, useEffect } from 'react';
-// import { Triangle } from './classes/Triangle.js';
+
+// import { initializeApp } from 'firebase/app';
+// import { getFirestore } from 'firebase/firestore';
+
 import reactLogo from './assets/react.svg';
 import viteLogo from '/vite.svg';
 import './App.css';
+import Navbar from './components/Navbar.component';
+import LandingButton from './components/LandingButton.component';
 import Sidebar from './components/sidebar/Sidebar.component';
 import MainWorkspace from './components/main-window/MainWorkspace.component';
+// import LandingButton from './components/LandingButton.component';
 
-// let t = new Triangle();
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+// const firebaseConfig = {
+// 	apiKey: 'AIzaSyB-nbq5C6-Nlbi6SzYlcsU15ZWntHlRB5Y',
+// 	authDomain: 'rocky-dev-1.firebaseapp.com',
+// 	projectId: 'rocky-dev-1',
+// 	storageBucket: 'rocky-dev-1.appspot.com',
+// 	messagingSenderId: '580547406823',
+// 	appId: '1:580547406823:web:713c737b33d77f51bc6b42',
+// 	measurementId: 'G-ER1N4ERGW0',
+// };
 
-function App() {
+// Initialize Firebase
+// const firebaseApp = initializeApp(firebaseConfig);
+// const db = getFirestore(firebaseApp);
+
+const App = () => {
 	const [isFreshlyLoaded, setIsFreshlyLoaded] = useState(true);
 	const [loadDataWindows, setLoadDataWindows] = useState({});
 	// const [modelSelectionWindows, setModelSelectionWindows] = useState({});
@@ -71,41 +91,49 @@ function App() {
 
 	return (
 		<>
-			<div id="app">
-				<div className="landing-header">
-					<a href="#" target="_blank">
-						<img src={viteLogo} className="logo" alt="Vite logo" />
-					</a>
-					<a href="#" target="_blank">
-						<img src={reactLogo} className="logo react" alt="React logo" />
-					</a>
+			<Navbar />
+			<div id="app" className="landing-header">
+				<div className="landing-above-button">
+					<div className="logo-container">
+						<a className="logo" href="#" target="_blank">
+							<img src={viteLogo} alt="Vite logo" />
+						</a>
+						<a className="logo" href="#" target="_blank">
+							<img src={reactLogo} alt="React logo" />
+						</a>
+					</div>
 
-					<h1 className="main-title">rocky</h1>
-					<div className="card">
-						{/* <button onClick={() => setCount((count) => count + 1)}>
+					<h1 className="heading-h1">rocky</h1>
+
+					{isFreshlyLoaded && (
+						<LandingButton onClickLoadButton={onClickLoadButton} />
+					)}
+				</div>
+				{/* <div className="landing-image-section"></div> */}
+				<div className="card">
+					{/* <button onClick={() => setCount((count) => count + 1)}>
 					count is {count}
 				</button> */}
-						<div id="sidebar">
-							<Sidebar
-								isSidebarExpanded={isSidebarExpanded}
-								setIsSidebarExpanded={setIsSidebarExpanded}
-								onClickNew={onClickNew}
-								onAddLoadDataWindow={onAddLoadDataWindow}
-							/>
-						</div>
-
-						<MainWorkspace
-							loadDataWindows={loadDataWindows}
-							triangleParentSize={triangleParentSize}
-							triangleRef={triangleRef}
-							isFreshlyLoaded={isFreshlyLoaded}
-							onClickLoadButton={onClickLoadButton}
+					<div id="sidebar">
+						<Sidebar
+							isSidebarExpanded={isSidebarExpanded}
+							setIsSidebarExpanded={setIsSidebarExpanded}
+							onClickNew={onClickNew}
+							onAddLoadDataWindow={onAddLoadDataWindow}
 						/>
 					</div>
+
+					<MainWorkspace
+						loadDataWindows={loadDataWindows}
+						triangleParentSize={triangleParentSize}
+						triangleRef={triangleRef}
+						isFreshlyLoaded={isFreshlyLoaded}
+						onClickLoadButton={onClickLoadButton}
+					/>
 				</div>
 			</div>
 		</>
 	);
-}
+};
 
 export default App;

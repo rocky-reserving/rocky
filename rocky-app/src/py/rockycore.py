@@ -4,7 +4,6 @@ from .triangle import Triangle
 from dataclasses import dataclass
 from typing import Any, Optional
 
-from tkinter import filedialog
 from warnings import filterwarnings
 
 filterwarnings("ignore", category=UserWarning, module="openpyxl")

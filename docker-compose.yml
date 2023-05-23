@@ -1,0 +1,15 @@
+version: '3'
+services:
+  web:
+    build: ./rocky-app/web
+    ports:
+      - 3000:3000
+    volumes:
+      - ./rocky-app/web:/app
+      - /app/node_modules
+  server:
+    build: ./rocky-app/server
+    ports:
+      - 5000:5000
+    volumes:
+      - ./rocky-app/server:/app

@@ -1,20 +1,13 @@
-import LoadDataButton from './LoadDataButton.component';
 import LoadDataWindow from './load-data-window/LoadDataWindow.component';
 import PropTypes from 'prop-types';
 
 const MainWorkspace = ({
 	loadDataWindows,
-	isFreshlyLoaded,
-	onClickLoadButton,
 	triangleParentSize,
 	triangleRef,
 }) => {
 	return (
 		<div id="main-workspace">
-			<div id="load-data-buttons">
-				{isFreshlyLoaded && <LoadDataButton onClick={onClickLoadButton} />}
-			</div>
-
 			{Object.entries(loadDataWindows).map(([key, value]) => (
 				<LoadDataWindow
 					key={key}
@@ -32,8 +25,6 @@ const MainWorkspace = ({
 };
 MainWorkspace.propTypes = {
 	loadDataWindows: PropTypes.object,
-	isFreshlyLoaded: PropTypes.bool,
-	onClickLoadButton: PropTypes.func,
 	triangleParentSize: PropTypes.object,
 	triangleRef: PropTypes.object,
 };

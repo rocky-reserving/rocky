@@ -11,6 +11,20 @@ const api_url = (func) => {
 };
 
 const appData = {
+	// Navbar items
+	navbar: [
+		{
+			id: 1,
+			name: 'Documentation',
+			url: '/documentation',
+		},
+		{
+			id: 2,
+			name: 'About',
+			url: '/about',
+		},
+	],
+
 	// Sidebar top-level items and their sub-items
 	sidebarItems: [
 		{

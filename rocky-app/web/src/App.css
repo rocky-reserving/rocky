@@ -1,10 +1,97 @@
-#root {
-	/* max-width: 1280px; */
+/* #root {
 	margin: auto;
 	padding: auto;
-	/* width: 100%;
-	height: 100%; */
 	align-items: center;
+} */
+
+.navbar {
+	background: linear-gradient(to bottom, rgb(42, 68, 49), 90%, #000);
+	position: fixed;
+	top: 0;
+	width: 100%;
+	z-index: 100;
+	height: 5vh;
+	display: flex;
+	/* box-shadow: 3px 3px 5px #000, -3px -3px 5px #fff; */
+	border-radius: 1;
+	padding-left: 0;
+}
+
+.navbar-logo {
+	display: flex;
+	color: whitesmoke;
+	align-content: center;
+	justify-self: center;
+	align-self: center;
+	padding-left: 10px;
+}
+
+.navbar-separator {
+	margin: 1px;
+	padding: 1px;
+	font-size: 28px;
+}
+
+.navbar-menu {
+	display: flex;
+	/* justify-content: left; */
+	align-items: center;
+}
+
+.navbar-menu-item {
+	color: black;
+	margin: 1px;
+	top: -2px;
+	list-style-type: none;
+	flex-grow: 1;
+}
+
+.navbar-menu-item button {
+	height: 100%;
+}
+
+.landing-header {
+	background: rgb(111, 173, 128);
+	background: linear-gradient(
+		135deg,
+		rgba(111, 173, 128, 1) 10%,
+		rgba(49, 93, 61, 1) 19%,
+		rgba(111, 173, 128, 1) 28%
+	);
+
+	width: 100vw;
+	height: 60vh;
+	display: grid;
+	grid: auto-flow / 1fr 3fr;
+	justify-items: center;
+	margin: 0;
+	padding: 0;
+	place-items: center;
+	min-width: 320px;
+	/* min-height: 100vh; */
+	top: 5vh;
+}
+
+.landing-above-button {
+	display: grid;
+	justify-content: center;
+	align-items: center;
+	grid: 1fr / 1fr;
+}
+
+.heading-h1 {
+	color: whitesmoke;
+	font-size: 4.5em;
+	font-family: 'Cabin Sketch', cursive;
+	/* line-height: 1.1; */
+	margin-bottom: 0;
+	margin-top: 0;
+	padding: 0;
+}
+
+.logo-container {
+	/* 2 cols / 1 row */
+	grid: 1fr 1fr / 1fr;
 }
 
 .load-data-button {
@@ -14,15 +101,9 @@
 	font-size: 1.5em;
 	font-weight: 500;
 	font-family: inherit;
-	/* background-color: #1a1a1a; */
 	cursor: pointer;
 	transition: border-color 0.25s;
 }
-
-/* #load-data {
-	background-color: rgb(254, 105, 105);
-	width: 100%;
-} */
 
 .logo {
 	height: 6em;
@@ -185,6 +266,7 @@
 .accordion-content li {
 	padding: 8px 16px;
 	border-top: 1px solid #dee2e6;
+	color: black;
 }
 
 .accordion-content li:hover {
@@ -199,12 +281,13 @@
 ---------------------------------------------------------- */
 .sidebar {
 	position: fixed;
-	top: 0;
+	top: 5vh;
 	left: 0;
 	width: 20%;
 	height: 100%;
 	background-color: rgba(248, 249, 250, 0.8);
 	padding: 1rem;
+	padding-left: 0;
 	overflow-y: auto;
 	transition: all 0.15s ease-in-out;
 }
@@ -233,10 +316,9 @@
 	text-align: center;
 }
 
-/* .sample-triangle-dropdown h2 {
-	margin: 0.5em;
-	line`
-} */
+.load-data-window h2 {
+	color: black;
+}
 
 .sample-triangle-dropdown {
 	line-height: 50%;
