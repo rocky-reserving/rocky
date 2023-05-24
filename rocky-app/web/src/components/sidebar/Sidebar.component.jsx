@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import Accordion from './Accordion.component';
 import PropTypes from 'prop-types';
-import appData from '../../appdata';
 
-const MOUSE_EXIT_TIMEOUT = 750;
+import SidebarToggle from './sub-components/SidebarToggle.component';
+import SidebarMenu from './sub-components/SidebarMenu.component';
+
+const MOUSE_EXIT_TIMEOUT = 10000;
 
 const Sidebar = ({
 	isSidebarExpanded,
@@ -13,9 +14,6 @@ const Sidebar = ({
 }) => {
 	const [activeAccordion, setActiveAccordion] = useState(null);
 	const [timeoutId, setTimeoutId] = useState(null);
-
-	// load accordion items from appData
-	const sidebarItems = appData.sidebarItems;
 
 	// when mouse enters sidebar, if it is collapsed, expand it
 	const expandSidebar = () => {
@@ -108,23 +106,18 @@ const Sidebar = ({
 			onMouseLeave={startCountdown}
 			onMouseEnter={handleMouseEnter}
 		>
-			<button className="sidebar-toggle" onClick={toggleSidebar}>
-				{isSidebarExpanded ? '<' : '>'}
-			</button>
-			{sidebarItems.map((item, index) => (
-				<Accordion
-					key={index}
-					title={item.title}
-					itemIcon={item.itemIcon}
-					items={item.items}
-					isSidebarExpanded={isSidebarExpanded}
-					isActive={activeAccordion === index}
-					onToggleAccordion={() => toggleAccordion(index)}
-					onAddLoadDataWindow={onAddLoadDataWindow}
-					onClickNew={onClickNew}
-					onClickItem={handleClickItem}
-				/>
-			))}
+			<SidebarToggle
+				isSidebarExpanded={isSidebarExpanded}
+				toggleSidebar={toggleSidebar}
+			/>
+			<SidebarMenu
+				activeAccordion={activeAccordion}
+				toggleAccordion={toggleAccordion}
+				handleClickItem={handleClickItem}
+				isSidebarExpanded={isSidebarExpanded}
+				onAddLoadDataWindow={onAddLoadDataWindow}
+				onClickNew={onClickNew}
+			/>
 		</div>
 	);
 };

@@ -1,15 +1,14 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 
 // import { initializeApp } from 'firebase/app';
 // import { getFirestore } from 'firebase/firestore';
 
-import reactLogo from './assets/react.svg';
-import viteLogo from '/vite.svg';
 import './App.css';
-import Navbar from './components/Navbar.component';
-import LandingButton from './components/LandingButton.component';
+import Navbar from './components/navbar/Navbar.component';
+import Landing from './components/landing/Landing.component';
 import Sidebar from './components/sidebar/Sidebar.component';
 import MainWorkspace from './components/main-window/MainWorkspace.component';
+import Footer from './components/footer/Footer.component';
 // import LandingButton from './components/LandingButton.component';
 
 // Your web app's Firebase configuration
@@ -34,10 +33,10 @@ const App = () => {
 	// const [modelSelectionWindows, setModelSelectionWindows] = useState({});
 	// const [modelValidationWindows, setModelValidationWindows] = useState({});
 	// const [visualizationWindows, setVisualizationWindows] = useState({});
-	const [triangleParentSize, setTriangleParentSize] = useState({
-		// width: 'auto',
-		// height: 'auto',
-	});
+	// const [triangleParentSize, setTriangleParentSize] = useState({
+	// width: 'auto',
+	// height: 'auto',
+	// });
 
 	const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
 	const triangleRef = useRef(null);
@@ -67,72 +66,46 @@ const App = () => {
 		setIsSidebarExpanded(true);
 	};
 
-	useEffect(() => {
-		if (triangleRef.current) {
-			const resizeObserver = new ResizeObserver((entries) => {
-				const { width, height } = entries[0].contentRect;
-				setTriangleParentSize({ width, height });
-			});
-
-			resizeObserver.observe(triangleRef.current);
-
-			return () => {
-				resizeObserver.disconnect();
-			};
-		}
-	}, [triangleRef]);
-
-	// Set the parent component's size based on the state
-	// const parentStyle = {
-	// 	width: parentSize.width,
-	// 	height: parentSize.height,
-	// 	// ...
-	// };
-
 	return (
-		<>
+		<div
+			className={`app-main ${
+				isSidebarExpanded ? 'sidebar-expanded' : 'sidebar-collapsed'
+			}`}
+		>
 			<Navbar />
-			<div id="app" className="landing-header">
-				<div className="landing-above-button">
-					<div className="logo-container">
-						<a className="logo" href="#" target="_blank">
-							<img src={viteLogo} alt="Vite logo" />
-						</a>
-						<a className="logo" href="#" target="_blank">
-							<img src={reactLogo} alt="React logo" />
-						</a>
-					</div>
+			<Landing
+				isFreshlyLoaded={isFreshlyLoaded}
+				onClickLoadButton={onClickLoadButton}
+				isSidebarExpanded={isSidebarExpanded}
+			/>
+			{/* <div id="app" className="landing-header"> */}
+			{/* <div className="landing-above-button"> */}
+			{/* <div className="logo-container"></div> */}
 
-					<h1 className="heading-h1">rocky</h1>
-
-					{isFreshlyLoaded && (
+			{/* {isFreshlyLoaded && (
 						<LandingButton onClickLoadButton={onClickLoadButton} />
-					)}
-				</div>
-				{/* <div className="landing-image-section"></div> */}
-				<div className="card">
-					{/* <button onClick={() => setCount((count) => count + 1)}>
-					count is {count}
-				</button> */}
-					<div id="sidebar">
-						<Sidebar
-							isSidebarExpanded={isSidebarExpanded}
-							setIsSidebarExpanded={setIsSidebarExpanded}
-							onClickNew={onClickNew}
-							onAddLoadDataWindow={onAddLoadDataWindow}
-						/>
-					</div>
+					)} */}
+			{/* </div> */}
+			{/* <div className="landing-image-section"></div> */}
+			{/* </div> */}
 
-					<MainWorkspace
-						loadDataWindows={loadDataWindows}
-						triangleParentSize={triangleParentSize}
-						triangleRef={triangleRef}
-						isFreshlyLoaded={isFreshlyLoaded}
-						onClickLoadButton={onClickLoadButton}
-					/>
-				</div>
-			</div>
-		</>
+			<Sidebar
+				isSidebarExpanded={isSidebarExpanded}
+				setIsSidebarExpanded={setIsSidebarExpanded}
+				onClickNew={onClickNew}
+				onAddLoadDataWindow={onAddLoadDataWindow}
+			/>
+
+			<MainWorkspace
+				loadDataWindows={loadDataWindows}
+				// triangleParentSize={triangleParentSize}
+				triangleRef={triangleRef}
+				isFreshlyLoaded={isFreshlyLoaded}
+				onClickLoadButton={onClickLoadButton}
+			/>
+
+			<Footer />
+		</div>
 	);
 };
 

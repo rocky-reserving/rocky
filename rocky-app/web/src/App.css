@@ -1,56 +1,29 @@
-/* #root {
-	margin: auto;
-	padding: auto;
-	align-items: center;
-} */
+@import 'style-grid.css';
 
 .navbar {
 	background: linear-gradient(to bottom, rgb(42, 68, 49), 90%, #000);
-	position: fixed;
-	top: 0;
-	width: 100%;
-	z-index: 100;
-	height: 5vh;
-	display: flex;
-	/* box-shadow: 3px 3px 5px #000, -3px -3px 5px #fff; */
 	border-radius: 1;
-	padding-left: 0;
 }
 
 .navbar-logo {
-	display: flex;
 	color: whitesmoke;
-	align-content: center;
-	justify-self: center;
-	align-self: center;
-	padding-left: 10px;
-}
-
-.navbar-separator {
-	margin: 1px;
-	padding: 1px;
-	font-size: 28px;
-}
-
-.navbar-menu {
-	display: flex;
-	/* justify-content: left; */
-	align-items: center;
 }
 
 .navbar-menu-item {
-	color: black;
-	margin: 1px;
-	top: -2px;
+	color: whitesmoke;
 	list-style-type: none;
-	flex-grow: 1;
 }
 
-.navbar-menu-item button {
-	height: 100%;
+.navbar-menu-item:hover {
+	color: #646cff;
 }
 
-.landing-header {
+.navbar-menu-item a {
+	color: inherit;
+	text-decoration: none;
+}
+
+.landing {
 	background: rgb(111, 173, 128);
 	background: linear-gradient(
 		135deg,
@@ -58,46 +31,24 @@
 		rgba(49, 93, 61, 1) 19%,
 		rgba(111, 173, 128, 1) 28%
 	);
+}
 
-	width: 100vw;
-	height: 60vh;
-	display: grid;
-	grid: auto-flow / 1fr 3fr;
-	justify-items: center;
+.landing-logos {
+	margin: 0;
+}
+
+.landing-header {
+	color: whitesmoke;
+	font-size: 36px;
 	margin: 0;
 	padding: 0;
-	place-items: center;
-	min-width: 320px;
-	/* min-height: 100vh; */
-	top: 5vh;
-}
-
-.landing-above-button {
-	display: grid;
-	justify-content: center;
-	align-items: center;
-	grid: 1fr / 1fr;
-}
-
-.heading-h1 {
-	color: whitesmoke;
-	font-size: 4.5em;
+	line-height: 0;
 	font-family: 'Cabin Sketch', cursive;
-	/* line-height: 1.1; */
-	margin-bottom: 0;
-	margin-top: 0;
-	padding: 0;
-}
-
-.logo-container {
-	/* 2 cols / 1 row */
-	grid: 1fr 1fr / 1fr;
 }
 
 .load-data-button {
 	border-radius: 8px;
 	border: 1px solid black;
-	padding: 0.6em 1.2em;
 	font-size: 1.5em;
 	font-weight: 500;
 	font-family: inherit;
@@ -106,8 +57,6 @@
 }
 
 .logo {
-	height: 6em;
-	padding: 1.5em;
 	will-change: filter;
 	transition: filter 300ms;
 }
@@ -131,14 +80,6 @@
 	a:nth-of-type(2) .logo {
 		animation: logo-spin infinite 20s linear;
 	}
-}
-
-.card {
-	padding: 2em;
-}
-
-.read-the-docs {
-	color: #888;
 }
 
 /* DRAGGABLE WINDOW COMPONENT 
@@ -177,11 +118,6 @@
 
 .window-header {
 	height: 25px;
-	text-align: left;
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
-	padding: 0.5em;
 }
 .window-header-default {
 	background-color: grey;
@@ -210,16 +146,6 @@
 .window-title {
 	color: white;
 	font-weight: bold;
-	margin-left: 1px;
-}
-
-.window-fullscreen {
-	position: fixed;
-	top: 0;
-	left: 0;
-	width: 100%;
-	height: 100%;
-	z-index: 1000;
 }
 
 .min-max-button,
@@ -229,26 +155,15 @@
 	border-style: solid;
 	border-color: black;
 }
-.fullscreen-button,
-.close-button
 
 /* ACCORDION COMPONENT 
 -------------------------------------------------------------*/
-.accordion {
-	margin-bottom: 1rem;
-}
-
 .accordion-title {
-	display: block;
 	background-color: #e9ecef;
-	padding: 8px 16px;
 	cursor: pointer;
 	font-size: 16px;
 	border: none;
-	text-align: left;
-	width: 100%;
 	outline: black;
-	margin: 1rem 0 0 0;
 }
 
 .accordion-title:hover {
@@ -257,14 +172,11 @@
 
 .accordion-content {
 	list-style-type: none;
-	padding: 0;
-	margin: 8px 0 0 0;
 	background-color: #ffffff;
 	border: 1px solid #dee2e6;
 }
 
 .accordion-content li {
-	padding: 8px 16px;
 	border-top: 1px solid #dee2e6;
 	color: black;
 }
@@ -280,20 +192,20 @@
 /* SIDEBAR COMPONENT
 ---------------------------------------------------------- */
 .sidebar {
-	position: fixed;
-	top: 5vh;
+	/* position: fixed; */
+	/* top: 5vh;
 	left: 0;
 	width: 20%;
-	height: 100%;
+	height: 100%; */
 	background-color: rgba(248, 249, 250, 0.8);
-	padding: 1rem;
+	/* padding: 1rem;
 	padding-left: 0;
-	overflow-y: auto;
+	overflow-y: auto; */
 	transition: all 0.15s ease-in-out;
 }
 
 .sidebar.collapsed {
-	width: 4%;
+	/* width: 4%; */
 	overflow: hidden;
 }
 
@@ -302,12 +214,9 @@
 }
 
 .toggle-btn {
-	display: block;
-	margin-bottom: 1rem;
 	background-color: #007bff;
 	color: #ffffff;
 	border: none;
-	padding: 8px 16px;
 	cursor: pointer;
 	font-size: 14px;
 }
@@ -322,5 +231,4 @@
 
 .sample-triangle-dropdown {
 	line-height: 50%;
-	margin: 0.5em;
 }
