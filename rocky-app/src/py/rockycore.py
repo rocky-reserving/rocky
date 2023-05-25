@@ -1,5 +1,8 @@
 # from forecast import Forecast
-from .triangle import Triangle
+try:
+    from .triangle import Triangle
+except ImportError:
+    from triangle import Triangle
 
 from dataclasses import dataclass
 from typing import Any, Optional
@@ -44,13 +47,64 @@ class ROCKY:
     plot: Any = rockyContainer()  # plots
     t: Any = rockyContainer()  # triangles
 
-    def load_taylor_ashe(self):
+    def load_taylor_ashe(self, id=None) -> None:
         tri = Triangle.from_taylor_ashe()
-        # set the triangle as an attribute of the ROCKY object
-        self.t.add(tri, "paid_loss")
-        # setattr(self, tri.id, tri)
+        tri.base_linear_model()
 
-    def load_dahms(self, tri_type="rpt"):
+        if id is None:
+            id = "paid_loss"
+        self.t.add(tri, id)
+        setattr(self, f"{id}", tri)
+
+    def load_dahms(self, id="rpt_loss") -> None:
         d = {}
-        d["rpt"], d["paid"] = Triangle.from_dahms()
-        self.t.add(d[tri_type], f"{tri_type}_loss")
+        d["rpt_loss"], d["paid_loss"] = Triangle.from_dahms()
+        for id in d.keys():
+            d[id].base_linear_model()
+            self.t.add(d[id], f"{id}")
+            setattr(self, f"{id}", d[id])
+
+    def tri_from_sample(self, sample, id=None) -> None:
+        if sample.lower() == "taylor_ashe":
+            if id is None:
+                id = "paid_loss"
+            self.load_taylor_ashe(id=id)
+            getattr(self, f"{id}").base_linear_model()
+        # elif sample.lower() == "dahms":
+        #     self.load_dahms(id=id)
+        #     for id in ["rpt_loss", "paid_loss"]:
+        #         getattr(self, f"{id}").base_linear_model()
+
+        # self.t.add(tri, f"{id}")
+        # setattr(self, f"{id}", tri)
+
+    def tri_from_csv(self, filename, origin_columns=1, id="rpt_loss") -> None:
+        tri = Triangle.from_csv(filename=filename, origin_columns=origin_columns, id=id)
+        tri.base_linear_model()
+        self.t.add(tri, f"{id}")
+        setattr(self, f"{id}", tri)
+
+    def tri_from_excel(
+        self,
+        filename,
+        origin_columns=1,
+        id="rpt_loss",
+        sheet_name=None,
+        sheet_range=None,
+    ) -> None:
+        tri = Triangle.from_excel(
+            filename=filename,
+            origin_columns=origin_columns,
+            id=id,
+            sheet_name=sheet_name,
+            sheet_range=sheet_range,
+        )
+        tri.base_linear_model()
+        self.t.add(tri, f"{id}")
+        setattr(self, f"{id}", tri)
+
+    def tri_from_df(self, df, id="rpt_loss") -> None:
+        tri = Triangle.from_df(df=df, id=id)
+        tri.base_linear_model()
+        self.t.add(tri, f"{id}")
+        setattr(self, f"{id}", tri)

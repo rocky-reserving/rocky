@@ -21,7 +21,13 @@ from typing import Optional, Any
 
 from openpyxl.utils import range_to_tuple
 
-from .utils import get_allowed_triangle_types
+try:
+    from .utils import get_allowed_triangle_types
+except ImportError:
+    from utils import get_allowed_triangle_types
+
+from math import gcd
+from functools import reduce
 
 # from chainladder import ChainLadder
 # from model.LossTriangleClassifier import LossTriangleClassifier
@@ -189,6 +195,34 @@ class Triangle:
         if self.id is None:
             # create random triangle id
             self.id = f"triangle_{np.random.randint(10000, 99999)}"
+
+    # def _find_multiples(self, series: pd.Series) -> pd.Series:
+    #     # Remove duplicates and sort the series
+    #     series = (
+    #         pd.Series(series.unique()).sort_values().reset_index(drop=True).astype(int)
+    #     )
+
+    #     # Find the difference between successive numbers
+    #     diffs = series.diff().dropna().astype(int)
+
+    #     # Find the greatest common divisor of the differences
+    #     common_multiple = reduce(gcd, diffs)
+
+    #     # If the common multiple is 1 or all the diffs are not multiple of common_multiple, there is no pattern
+    #     if common_multiple == 1 or not all(diffs % common_multiple == 0):
+    #         return None
+
+    #     multiples = []
+
+    #     # Check if other multiples exist
+    #     for num in range(2, common_multiple + 1):
+    #         if all(diffs % num == 0):
+    #             multiples.append(num)
+
+    #     if not multiples:
+    #         return common_multiple
+    #     else:
+    #         return multiples
 
     def set_id(self, id: str) -> None:
         """
@@ -696,7 +730,6 @@ class Triangle:
             df = pd.read_excel(filename, header=None, sheet_name=sheet_name).iloc[
                 (r1 - 1) : (r2), (c1 - 1) : (c2)
             ]
-            # print(df)
 
             # set the column names as the first row
             df.columns = df.iloc[0]
@@ -817,11 +850,12 @@ class Triangle:
 
         # start by setting each cell equal to the number of months since year 0
         for c in cal.columns.tolist():
-            cal[c] = 12 * cal.index.year.astype(int) + cal.index.month.astype(int)
+            cal[c] = cal.index.year.astype(int) - cal.index.year.astype(int).min()
+            +(cal.index.month.astype(int) - cal.index.month.astype(int).min())
             # then add the column name as an integer
-            cal[c] += int(c)
+            cal[c] += int(c) / cal.columns.to_series().astype(int).min()
 
-        return cal
+        return cal.astype(int)
 
     def getCurCalendarIndex(self) -> int:
         """
@@ -1433,12 +1467,8 @@ class Triangle:
         if id_cols is None:
             id_cols = self.triangle.index.name
 
-        print(value_name)
-
         if value_name is None:
             value_name = self.id
-
-        print(value_name)
 
         # melt the triangle data
         melted = self.melt_triangle(
@@ -1511,17 +1541,19 @@ class Triangle:
         if _return:
             return dm_total
 
-        self.X_base = dm_total.drop(columns=value_name)
+        self.X_base = dm_total.drop(columns=value_name).astype(int)
         self.y_base = dm_total[value_name]
 
         # ay/dev id for each row
         self.X_id = pd.DataFrame(
             dict(ay=melted[acc].astype(int).values, dev=melted[dev].astype(int).values)
         )
-        self.X_id["cal"] = self.X_id.ay + self.X_id.dev - 1
+        self.X_id["cal"] = (
+            (self.X_id.ay - self.X_id.ay.min())
+            + (self.X_id.dev / self.X_id.dev.min())
+        )
+        self.X_id["cal"] = self.X_id["cal"].astype(int)
         self.X_id.index = self.X_base.index
-
-        
 
     def base_linear_model(
         self,
@@ -1578,6 +1610,101 @@ class Triangle:
         if not intercept_:
             self.X_base_train = self.X_base_train.drop(columns="intercept")
             self.X_base_forecast = self.X_base_forecast.drop(columns="intercept")
+
+    def get_X_cal(self, split=None):
+        """
+        Returns the calendar design matrix
+        """
+        df = self.get_X_id(split=split)
+        df["cal"] = df["cal"].astype(str).str.pad(4, fillchar="0")
+        df["cal"] = df.cal.apply(lambda x: f"{x}")
+        df_cal = pd.get_dummies(df[["cal"]], drop_first=True)
+        out = df_cal.copy()
+
+        # ay dm columns
+        cols = df_cal.columns.tolist()
+
+        # reverse the order of the columns (to loop backwards)
+        cols.reverse()
+
+        # loop backwards through the columns
+        for i, c in enumerate(cols):
+            # if i==0, set the column equal to itself
+            if i == 0:
+                out[c] = df_cal[c]
+
+            # otherwise, add the column to the previous column
+            else:
+                out[c] = df_cal[c] + out[cols[i - 1]]
+
+        out = out.reset_index(drop=True).astype(int)
+
+        idx = self.get_X_id(split=split).index
+        return out.loc[idx]
+
+    def get_X_base(self, split=None, cal=False):
+        """
+        Returns the base design matrix
+        """
+        if cal:
+            df_cal = self.get_X_cal(split=None)
+            df = pd.concat([self.X_base, df_cal], axis=1)
+        else:
+            df = self.X_base
+
+        if split == "train":
+            df = df.loc[self.X_base_train.index]
+        elif split == "forecast":
+            df = df.loc[self.X_base_forecast.index]
+        else:
+            df = df
+
+        return df.reset_index(drop=True).drop(columns="is_observed")
+
+    def get_y_base(self, split=None):
+        """
+        Returns the labels for the base design matrix
+        """
+        if split is None:
+            df = self.y_base
+        elif split == "train":
+            df = self.y_base_train
+        elif split == "forecast":
+            df = self.y_base_forecast
+        else:
+            df = self.y_base
+
+        return df.reset_index(drop=True)
+
+    def get_X_id(self, split=None):
+        """
+        Returns the labels for the base design matrix
+        """
+        if split is None:
+            df = self.X_id
+        elif split == "train":
+            df = self.X_id_train
+        elif split == "forecast":
+            df = self.X_id_forecast
+        else:
+            df = self.X_id
+
+        return df.reset_index(drop=True)
+
+    def get_y_id(self, split=None):
+        """
+        Returns the labels for the base design matrix
+        """
+        if split is None:
+            df = self.y_id
+        elif split == "train":
+            df = self.y_id_train
+        elif split == "forecast":
+            df = self.y_id_forecast
+        else:
+            df = self.y_id
+
+        return df.reset_index(drop=True)
 
     def prep_for_cnn(self, steps=False) -> pd.DataFrame:
         """
