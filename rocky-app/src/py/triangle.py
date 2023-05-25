@@ -133,8 +133,26 @@ class Triangle:
             self.convert_origin_to_datetime()
 
             # set the acc, dev, cal attributes
-            self.acc = self.tri.index.to_series().dt.to_period
-            self.dev = self.tri.columns.values
+            self.acc = self.tri.index.to_series().reset_index(drop=True)
+            self.dev = self.tri.columns.to_series().reset_index(drop=True)
+            self.acc.name = "accident_period"
+            self.dev.name = "development_period"
+
+            self.tri.index = self.acc
+            self.tri.columns = self.dev
+            self.tri.index.name = "accident_period"
+            self.tri.columns.name = "development_period"
+            self.triangle = self.tri
+
+            self.ay = self.acc.dt.year.astype(int)
+            self.ay.name = "accident_year"
+
+            self.aq = self.acc.dt.quarter.astype(int)
+            self.aq.name = "accident_quarter"
+
+            self.am = self.acc.dt.month.astype(int)
+            self.am.name = "accident_month"
+
             # self.cal = pd.DataFrame(
             #     self.acc.month.values.reshape(-1, 1) + self.dev.values.reshape(1, -1),
             #     index=self.acc,
@@ -146,7 +164,7 @@ class Triangle:
             self.n_cols = self.tri.shape[1]
             self.n_dev = self.n_cols
             self.n_acc = self.n_rows
-            # self.n_cal = self.cal.nunique().sum()
+            
 
             # set frequency of triangle rows
             self._set_frequency()
@@ -154,6 +172,9 @@ class Triangle:
             # set the cal attribute
             self.cal = self.getCalendarIndex()
             self.cur_cal = self.getCurCalendarIndex()
+
+            # set the n_cal attribute
+            self.n_cal = self.cal.max().max() - self.cal.min().min() + 1
 
             # set the incr_triangle attribute
             if self.incr_triangle is None:
@@ -195,34 +216,6 @@ class Triangle:
         if self.id is None:
             # create random triangle id
             self.id = f"triangle_{np.random.randint(10000, 99999)}"
-
-    # def _find_multiples(self, series: pd.Series) -> pd.Series:
-    #     # Remove duplicates and sort the series
-    #     series = (
-    #         pd.Series(series.unique()).sort_values().reset_index(drop=True).astype(int)
-    #     )
-
-    #     # Find the difference between successive numbers
-    #     diffs = series.diff().dropna().astype(int)
-
-    #     # Find the greatest common divisor of the differences
-    #     common_multiple = reduce(gcd, diffs)
-
-    #     # If the common multiple is 1 or all the diffs are not multiple of common_multiple, there is no pattern
-    #     if common_multiple == 1 or not all(diffs % common_multiple == 0):
-    #         return None
-
-    #     multiples = []
-
-    #     # Check if other multiples exist
-    #     for num in range(2, common_multiple + 1):
-    #         if all(diffs % num == 0):
-    #             multiples.append(num)
-
-    #     if not multiples:
-    #         return common_multiple
-    #     else:
-    #         return multiples
 
     def set_id(self, id: str) -> None:
         """
@@ -1361,7 +1354,7 @@ class Triangle:
     def melt_triangle(
         self,
         id_cols: list = None,
-        var_name: str = "dev",
+        var_name: str = "development_period",
         value_name: str = "triangle",
         _return: bool = True,
         incr_tri: bool = True,
@@ -1420,7 +1413,7 @@ class Triangle:
     def base_design_matrix(
         self,
         id_cols: list = None,
-        var_name: str = "dev",
+        var_name: str = "development_period",
         value_name: str = "tri",
         trends: bool = True,
         _return: bool = True,
@@ -1481,8 +1474,8 @@ class Triangle:
 
         df = self.get_formatted_dataframe()
 
-        _acc = df.index.name if df.index.name is not None else "AY"
-        _dev = df.columns.name if df.columns.name is not None else "dev"
+        _acc = df.index.name if df.index.name is not None else "accident_period"
+        _dev = df.columns.name if df.columns.name is not None else "development_period"
 
         acc = _acc.lower().replace(" ", "_").replace(".", "")
         dev = _dev.lower().replace(" ", "_").replace(".", "")
@@ -1546,19 +1539,21 @@ class Triangle:
 
         # ay/dev id for each row
         self.X_id = pd.DataFrame(
-            dict(ay=melted[acc].astype(int).values, dev=melted[dev].astype(int).values)
+            dict(
+                accident_period=melted[acc].astype(int).values,
+                development_period=melted[dev].astype(int).values,
+            )
         )
         self.X_id["cal"] = (
-            (self.X_id.ay - self.X_id.ay.min())
-            + (self.X_id.dev / self.X_id.dev.min())
-        )
+            self.X_id.accident_period - self.X_id.accident_period.min()
+        ) + (self.X_id.development_period / self.X_id.development_period.min())
         self.X_id["cal"] = self.X_id["cal"].astype(int)
         self.X_id.index = self.X_base.index
 
     def base_linear_model(
         self,
         id_cols: list = None,
-        var_name: str = "dev",
+        var_name: str = "development_period",
         value_name: str = None,
         trends: bool = True,
         incr_tri: bool = True,

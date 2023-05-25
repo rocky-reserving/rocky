@@ -1,13 +1,26 @@
-# from forecast import Forecast
 try:
     from .triangle import Triangle
 except ImportError:
     from triangle import Triangle
 
+try:
+    from .TriangleTimeSeriesSplit import TriangleTimeSeriesSplit
+except ImportError:
+    from TriangleTimeSeriesSplit import TriangleTimeSeriesSplit
+
+try:
+    from .GLM import glm
+except ImportError:
+    from GLM import glm
+
+
 from dataclasses import dataclass
 from typing import Any, Optional
 
 from warnings import filterwarnings
+
+import numpy as np
+import pandas as pd
 
 filterwarnings("ignore", category=UserWarning, module="openpyxl")
 
@@ -64,7 +77,7 @@ class ROCKY:
             self.t.add(d[id], f"{id}")
             setattr(self, f"{id}", d[id])
 
-    def tri_from_sample(self, sample, id=None) -> None:
+    def SampleTri(self, sample, id=None) -> None:
         if sample.lower() == "taylor_ashe":
             if id is None:
                 id = "paid_loss"
@@ -78,13 +91,13 @@ class ROCKY:
         # self.t.add(tri, f"{id}")
         # setattr(self, f"{id}", tri)
 
-    def tri_from_csv(self, filename, origin_columns=1, id="rpt_loss") -> None:
+    def FromCSV(self, filename, origin_columns=1, id="rpt_loss") -> None:
         tri = Triangle.from_csv(filename=filename, origin_columns=origin_columns, id=id)
         tri.base_linear_model()
         self.t.add(tri, f"{id}")
         setattr(self, f"{id}", tri)
 
-    def tri_from_excel(
+    def FromExcel(
         self,
         filename,
         origin_columns=1,
@@ -103,8 +116,75 @@ class ROCKY:
         self.t.add(tri, f"{id}")
         setattr(self, f"{id}", tri)
 
-    def tri_from_df(self, df, id="rpt_loss") -> None:
+    def FromDF(self, df, id="rpt_loss") -> None:
         tri = Triangle.from_df(df=df, id=id)
         tri.base_linear_model()
         self.t.add(tri, f"{id}")
         setattr(self, f"{id}", tri)
+
+    def TweedieGLM(
+        self,
+        id: str = None,
+        model_class: str = "tweedie",
+        tri: Triangle = None,
+        cal=False,
+        n_validation=5,
+    ):
+        if id is None:
+            id = "PaidLossGLM" + ("_Cal" if cal else "")
+        if tri is None:
+            raise ValueError("Triangle object must be provided")
+
+        # add the model to the model container
+        self.mod.add(
+            glm(
+                id=id,
+                model_class=model_class,
+                tri=tri,
+                cal=cal,
+                n_validation=n_validation,
+            ),
+            f"{id}",
+        )
+
+        # add the model directly to the ROCKY object
+        if getattr(self, f"{id}") is None:
+            setattr(self, f"{id}", getattr(self.mod, f"{id}"))
+        else:
+            raise ValueError(
+                f"{id} already exists in ROCKY object. Please pass a different id."
+            )
+
+    def ForecastScenario(
+        self,
+        id: str = None,
+        model: glm = None,
+        cal: bool = False
+        #  , forecast:
+    ) -> None:
+        # must provide an id and model object
+        if id is None:
+            raise ValueError("id must be provided")
+        if model is None:
+            raise ValueError(
+                "Fitted model object must be provided. Run `TweedieGLM` first."
+            )
+
+        # check that model is a GLM object
+        if not isinstance(model, glm):
+            raise ValueError(
+                "Model object must be a GLM object. Run `TweedieGLM` or create a custom `GLM.glm`."
+            )
+
+        # extract the triangle from the model object
+        tri = model.tri
+
+        # get the current calendar index and calendar index from the triangle
+        cur_cal = tri.getCurCalendarIndex()
+        cal_idx = tri.getCalendarIndex()
+
+        # calculate future calendar periods (that the forecast applies to)
+        future_cal = cal_idx[cal_idx > cur_cal].values
+
+        # drop na, flatten, and convert to list
+        future_cal = future_cal[~pd.isna(future_cal)].flatten().tolist()
