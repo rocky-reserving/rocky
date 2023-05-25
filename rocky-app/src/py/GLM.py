@@ -158,8 +158,9 @@ class glm:
         opt_tweedie = cv.OptimalTweedie(measures=measures, tie_criterion=tie_criterion)
 
         # set the optimal hyperparameters
-        self.opt_alpha = opt_tweedie["alpha"]
-        self.opt_p = opt_tweedie["p"]
+        self.opt_alpha = opt_tweedie.alpha
+        self.opt_p = opt_tweedie.power
+        self.opt_link = opt_tweedie.link
 
         # save cv object
         self.cv = cv

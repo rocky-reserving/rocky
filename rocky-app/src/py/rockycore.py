@@ -148,12 +148,14 @@ class ROCKY:
         )
 
         # add the model directly to the ROCKY object
-        if getattr(self, f"{id}") is None:
-            setattr(self, f"{id}", getattr(self.mod, f"{id}"))
-        else:
-            raise ValueError(
+        try:
+            getattr(self, f"{id}")
+            UserWarning(
                 f"{id} already exists in ROCKY object. Please pass a different id."
             )
+            exit()
+        except AttributeError:
+            setattr(self, f"{id}", getattr(self.mod, f"{id}"))
 
     def ForecastScenario(
         self,
