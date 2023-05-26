@@ -24,69 +24,52 @@ class Plot:
     def SetXLabels(self, X):
         self.X_id = X
 
-    def ResidualPlot(
+    def residual(
         self,
         residuals,
         plot_by,
-        boxpoints="all",
-        jitter=0.5,
-        pointpos=0,
-        scatter_mode="markers",
-        scatterpoint_outline_color=(0, 0, 0, 0),
+        scatterpoint_outline_color=(0, 0, 0),
         scatterpoint_outline_width=1,
         scatterpoint_fill_color=(0, 0, 0, 0.5),
+        plot_title=None,
         y_axis_title="resid",
         x_axis_title="",
     ):
         outline_color = "rgba" + str(scatterpoint_outline_color)
         fill_color = "rgba" + str(scatterpoint_fill_color)
+        point_marker = dict(
+            color=fill_color,
+            line=dict(width=scatterpoint_outline_width, color=outline_color),
+            size=6,
+            opacity=0.5,
+        )
+
+        if plot_title is None:
+            plot_title = "Pearson Residuals vs. " + plot_by.name
+
+        df = pd.DataFrame({plot_by.name: plot_by, "resid": residuals})
 
         fig = go.Figure()
 
-        by = plot_by.name
-        df = pd.DataFrame({"resid": residuals})
-        df[by] = plot_by
-
-        categories = df[by].unique()
-
-        for category in categories:
-            df_category = df[df[by] == category]
-            # Invisible box plot just for jitter effect
+        for category, df_category in df.groupby(plot_by.name):
             fig.add_trace(
-                go.Box(
-                    x=df_category[by],
+                go.Violin(
+                    x=df_category[plot_by.name],
                     y=df_category["resid"],
                     name=category,
-                    marker=dict(
-                        color="rgba(0,0,0,0)",  # Invisible
-                    ),
-                    boxpoints=boxpoints,  # To show all points
-                    jitter=jitter,  # Add jitter for better visibility
-                    pointpos=pointpos,  # Position of points relative to box
-                )
-            )
-
-            # Actual scatter plot
-            fig.add_trace(
-                go.Scatter(
-                    x=df_category[by],
-                    y=df_category["resid"],
-                    mode=scatter_mode,
-                    name=category,
-                    marker=dict(
-                        color=fill_color,  # Partially transparent fill
-                        line=dict(
-                            width=scatterpoint_outline_width, color=outline_color
-                        ),  # Black outline
-                    ),
-                    hoverinfo="skip",  # No hover info for this trace
+                    points="all",
+                    pointpos=0,
+                    jitter=0.05,
+                    marker=point_marker,
+                    box_visible=False,
+                    line_color="black",
+                    meanline_visible=False,
                 )
             )
 
         fig.update_layout(
             xaxis=dict(type="category", title=x_axis_title),
             yaxis=dict(title=y_axis_title),
-            boxmode="group",  # Group together boxes for the same x location
         )
 
         fig.show()

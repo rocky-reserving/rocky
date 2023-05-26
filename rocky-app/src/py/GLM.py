@@ -310,7 +310,7 @@ class glm:
         self._update_plot_attributes(
             X_train=self.GetX("train"),
             y_train=self.GetY("train"),
-            X_test=self.GetX("forecast"),
+            X_forecast=self.GetX("forecast"),
             X_id=self.tri.get_X_id("train"),
         )
 
@@ -359,8 +359,13 @@ class glm:
     def RawResiduals(self):
         return self.GetY() - self.GetYhat()
 
-    def PearsonResiduals(self):
-        return self.RawResiduals() / np.sqrt(self.Predict())
+    def PearsonResiduals(self, show_plot=False, by=None, **kwargs):
+        res = self.RawResiduals() / np.sqrt(self.Predict())
+
+        if show_plot:
+            self.plot.residual(res, by=by, **kwargs)
+        else:
+            return res
 
     def PearsonResidualPlot(self, by=None):
         if by is None:
