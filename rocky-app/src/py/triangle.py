@@ -10,7 +10,6 @@ import os
 import json
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 from datetime import datetime
 
 # import torch
@@ -21,13 +20,13 @@ from typing import Optional, Any
 
 from openpyxl.utils import range_to_tuple
 
-try:
-    from ._util.utils import get_allowed_triangle_types
-except ImportError:
-    from _util.utils import get_allowed_triangle_types
+# try:
+#     from ._util.utils import get_allowed_triangle_types
+# except ImportError:
+#     from _util.utils import get_allowed_triangle_types
 
-from math import gcd
-from functools import reduce
+# from math import gcd
+# from functools import reduce
 
 # from chainladder import ChainLadder
 # from model.LossTriangleClassifier import LossTriangleClassifier
@@ -1652,6 +1651,8 @@ class Triangle:
             df = df.loc[self.X_base_forecast.index]
         else:
             df = df
+
+        df["intercept"] = 1
 
         return df.reset_index(drop=True).drop(columns="is_observed")
 

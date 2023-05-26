@@ -37,9 +37,8 @@ class glm:
     model: object = None
     tri: Triangle = None
     intercept: float = None
-    coef: np.ndarray = None
+    coef: np.ndarray[float] = None
     is_fitted: bool = False
-    cal: bool = False
     n_validation: int = 0
     saturated_model = None
     weights: pd.Series = None
@@ -53,6 +52,9 @@ class glm:
     X_forecast: pd.DataFrame = None
     y_train: pd.Series = None
     plot: Plot = None
+    acc: pd.Series = None
+    dev: pd.Series = None
+    cal: pd.Series = None
 
     def __post_init__(self):
         if self.weights is None:
@@ -66,6 +68,11 @@ class glm:
         # initialize the plotting object
         self.plot = Plot()
 
+        # initialize the acc, dev, cal attributes
+        self.acc = self.tri.get_X_id("train")["accident_period"]
+        self.dev = self.tri.get_X_id("train")["development_period"]
+        self.cal = self.tri.get_X_id("train")["cal"]
+
     def _update_attributes(self, after="fit", **kwargs):
         """
         Update the model's attributes after fitting.
@@ -74,6 +81,14 @@ class glm:
             self.intercept = self.model.intercept_
             self.coef = self.model.coef_
             self.is_fitted = True
+            # self.plot.X_train = self.GetX("train")
+            # self.plot.X_id = self.tri.get_X_id("train")
+            # self.plot.X_forecast = self.GetX("forecast")
+            # self.plot.y_train = self.GetY("train")
+            # self.plot.yhat = self.GetYhat()
+            # self.plot.acc = self.acc
+            # self.plot.dev = self.dev
+            # self.plot.cal = self.cal
         elif after.lower() == "x":
             self.X_train = kwargs.get("X_train", None)
             self.X_forecast = kwargs.get("X_forecast", None)
@@ -161,23 +176,40 @@ class glm:
         self.link = link
 
     def TuneFitHyperparameters(
-        self, n_splits=5, param_grid=None, measures=None, tie_criterion="ave_mse_test"
+        self,
+        n_splits=5,
+        param_grid=None,
+        measures=None,
+        tie_criterion="ave_mse_test",
+        **kwargs,
     ):
-        # set the cross-validation object
-        cv = TriangleTimeSeriesSplit(self.tri, n_splits=n_splits)
-
         # set the parameter grid to default if none is provided
         if param_grid is None:
-            grid = {
+            param_grid = {
                 "alpha": np.arange(0, 3.1, 0.1),
-                "p": np.array([0]) + np.arange(1, 3.1, 0.1),
+                "power": np.array([0]) + np.arange(1, 3.1, 0.1),
                 "max_iter": 100000,
             }
-        else:
-            grid = param_grid
+
+        # if kwargs for alpha, p and max_iter are provided, use those
+        if "alpha" in kwargs:
+            param_grid["alpha"] = kwargs["alpha"]
+        if "power" in kwargs:
+            param_grid["power"] = kwargs["power"]
+        if "max_iter" in kwargs:
+            param_grid["max_iter"] = kwargs["max_iter"]
+
+        # set the cross-validation object
+        cv = TriangleTimeSeriesSplit(
+            self.tri, n_splits=n_splits, tweedie_grid=param_grid
+        )
 
         # set the parameter search grid
-        cv.GridTweedie(alpha=grid["alpha"], p=grid["p"], max_iter=grid["max_iter"])
+        cv.GridTweedie(
+            alpha=param_grid["alpha"],
+            power=param_grid["power"],
+            max_iter=param_grid["max_iter"],
+        )
 
         # grid search & return the optimal model
         opt_tweedie = cv.OptimalTweedie(measures=measures, tie_criterion=tie_criterion)
@@ -312,6 +344,10 @@ class glm:
             y_train=self.GetY("train"),
             X_forecast=self.GetX("forecast"),
             X_id=self.tri.get_X_id("train"),
+            yhat=self.GetYhat(),
+            acc=self.acc,
+            dev=self.dev,
+            cal=self.cal,
         )
 
     def Predict(self, kind: str = "train", X: pd.DataFrame = None) -> pd.Series:
@@ -360,10 +396,23 @@ class glm:
         return self.GetY() - self.GetYhat()
 
     def PearsonResiduals(self, show_plot=False, by=None, **kwargs):
-        res = self.RawResiduals() / np.sqrt(self.Predict())
+        res = np.divide(
+            self.RawResiduals(),
+        )
 
         if show_plot:
-            self.plot.residual(res, by=by, **kwargs)
+            df = pd.DataFrame(dict(resid=res))
+            if by is None:
+                df["y"] = self.GetY()
+            else:
+                try:
+                    df[by] = getattr(self.tri, by)
+                except AttributeError:
+                    raise ValueError(
+                        f"""by={by} must be a valid attribute of the triangle object.
+                        Try `ay` or `dev` instead."""
+                    )
+            self.plot.residual(df, plot_by=by, **kwargs)
         else:
             return res
 

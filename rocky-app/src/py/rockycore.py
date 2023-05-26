@@ -3,10 +3,10 @@ try:
 except ImportError:
     from triangle import Triangle
 
-try:
-    from .TriangleTimeSeriesSplit import TriangleTimeSeriesSplit
-except ImportError:
-    from TriangleTimeSeriesSplit import TriangleTimeSeriesSplit
+# try:
+#     from .TriangleTimeSeriesSplit import TriangleTimeSeriesSplit
+# except ImportError:
+#     from TriangleTimeSeriesSplit import TriangleTimeSeriesSplit
 
 try:
     from .GLM import glm
@@ -15,7 +15,7 @@ except ImportError:
 
 
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 from warnings import filterwarnings
 
@@ -37,7 +37,8 @@ class rockyObj:
 @dataclass
 class rockyContainer:
     def __repr__(self) -> str:
-        # only show comma-separated list of ids if there are any objects in the container
+        # only show comma-separated list of ids if there are any objects in
+        # the container
         if len(self.__dict__) > 0:
             return ", ".join([f'"{k}"' for k in self.__dict__.keys()])
         else:
