@@ -32,7 +32,7 @@ class glm:
     GLMs. The GLM models are fit using the scikit-learn TweedieRegressor class.
     """
 
-    id: str = None
+    id: str
     model_class: str = None
     model: object = None
     tri: Triangle = None
