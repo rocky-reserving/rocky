@@ -22,9 +22,9 @@ from typing import Optional, Any
 from openpyxl.utils import range_to_tuple
 
 try:
-    from .utils import get_allowed_triangle_types
+    from ._util.utils import get_allowed_triangle_types
 except ImportError:
-    from utils import get_allowed_triangle_types
+    from _util.utils import get_allowed_triangle_types
 
 from math import gcd
 from functools import reduce
@@ -164,7 +164,6 @@ class Triangle:
             self.n_cols = self.tri.shape[1]
             self.n_dev = self.n_cols
             self.n_acc = self.n_rows
-            
 
             # set frequency of triangle rows
             self._set_frequency()

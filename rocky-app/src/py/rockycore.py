@@ -25,7 +25,7 @@ import pandas as pd
 filterwarnings("ignore", category=UserWarning, module="openpyxl")
 
 # add all implemented model types to this list
-all_models = "Poisson Gamma".split()
+all_models = "tweedie glm".split()
 
 
 @dataclass
@@ -69,7 +69,7 @@ class ROCKY:
         self.t.add(tri, id)
         setattr(self, f"{id}", tri)
 
-    def load_dahms(self, id="rpt_loss") -> None:
+    def load_dahms(self, id: str = "rpt_loss") -> None:
         d = {}
         d["rpt_loss"], d["paid_loss"] = Triangle.from_dahms()
         for id in d.keys():
@@ -77,21 +77,22 @@ class ROCKY:
             self.t.add(d[id], f"{id}")
             setattr(self, f"{id}", d[id])
 
-    def SampleTri(self, sample, id=None) -> None:
+    def SampleTri(self, sample: str, id: str = None) -> None:
         if sample.lower() == "taylor_ashe":
             if id is None:
                 id = "paid_loss"
             self.load_taylor_ashe(id=id)
             getattr(self, f"{id}").base_linear_model()
-        # elif sample.lower() == "dahms":
-        #     self.load_dahms(id=id)
-        #     for id in ["rpt_loss", "paid_loss"]:
-        #         getattr(self, f"{id}").base_linear_model()
 
-        # self.t.add(tri, f"{id}")
-        # setattr(self, f"{id}", tri)
+    def FromClipboard(self, id: str = "rpt_loss") -> None:
+        tri = Triangle.from_clipboard(id=id)
+        tri.base_linear_model()
+        self.t.add(tri, f"{id}")
+        setattr(self, f"{id}", tri)
 
-    def FromCSV(self, filename, origin_columns=1, id="rpt_loss") -> None:
+    def FromCSV(
+        self, filename: str, origin_columns: int = 1, id: str = "rpt_loss"
+    ) -> None:
         tri = Triangle.from_csv(filename=filename, origin_columns=origin_columns, id=id)
         tri.base_linear_model()
         self.t.add(tri, f"{id}")
@@ -122,7 +123,7 @@ class ROCKY:
         self.t.add(tri, f"{id}")
         setattr(self, f"{id}", tri)
 
-    def TweedieGLM(
+    def AddModel(
         self,
         id: str = None,
         model_class: str = "tweedie",
@@ -131,7 +132,12 @@ class ROCKY:
         n_validation=5,
     ):
         if id is None:
-            id = "PaidLossGLM" + ("_Cal" if cal else "")
+            if model_class.lower() in ["tweedie", "glm"]:
+                id = "PaidLossGLM" + ("_Cal" if cal else "")
+            else:
+                raise ValueError(
+                    f"Model class {model_class} not recognized. Please choose from {all_models}"
+                )
         if tri is None:
             raise ValueError("Triangle object must be provided")
 
