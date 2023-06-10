@@ -116,10 +116,10 @@ class glm:
         """
         if self.plot is not None:
             for arg in kwargs:
-                if hasattr(self.plot, arg):
-                    setattr(self.plot, arg, kwargs[arg])
-                else:
-                    warnings.warn(f"Attribute {arg} not found in plot attribute.")
+                # if hasattr(self.plot, arg):
+                setattr(self.plot, arg, kwargs[arg])
+                # else:
+                #     warnings.warn(f"Attribute {arg} not found in plot attribute.")
         else:
             raise AttributeError(f"{self.id} model object has no plot attribute.")
 
@@ -146,7 +146,12 @@ class glm:
         created as the design matrix of the combined parameters.
         """
         if kind is None:
-            return self.tri.X_base
+            return pd.concat(
+                [
+                    self.tri.get_X_base("train"),
+                    self.tri.get_X_base("forecast"),
+                ]
+            )
         else:
             if kind.lower() in ["train", "forecast"]:
                 if kind.lower() == "train":
@@ -155,6 +160,12 @@ class glm:
                     return self.X_forecast
             else:
                 raise ValueError("kind must be 'train' or 'forecast'")
+
+    def GetParameterNames(self):
+        """
+        Getter for the model's parameter names.
+        """
+        return self.GetX().columns.tolist()
 
     def GetY(self, kind="train"):
         """
@@ -364,13 +375,13 @@ class glm:
             y_train=self.GetY("train"),
             X_forecast=self.GetX("forecast"),
             X_id=self.tri.get_X_id("train"),
-            yhat=self.GetYhat(),
+            yhat=self.GetYhat("train"),
             acc=self.acc,
             dev=self.dev,
             cal=self.cal,
         )
 
-    def Predict(self, kind: str = "train", X: pd.DataFrame = None) -> pd.Series:
+    def Predict(self, kind: str = None, X: pd.DataFrame = None) -> pd.Series:
         if self.model is None:
             raise ValueError("Model has not been fit")
 
@@ -378,13 +389,45 @@ class glm:
             X = self.GetX(kind=kind)
 
         yhat = self.model.predict(X)
-        return yhat
+        return pd.Series(yhat)
 
-    def GetYhat(self):
-        return self.Predict()
+    def GetYhat(self, kind: str = None) -> pd.Series:
+        return self.Predict(kind=kind)
+
+    def GetParameters(self) -> pd.DataFrame:
+        """
+        Get the parameters of the model.
+
+        Returns
+        -------
+        pd.DataFrame
+            The parameters of the model.
+        """
+        if self.model is None:
+            raise ValueError("Model has not been fit")
+
+        params = pd.DataFrame(
+            dict(
+                parameter=self.GetParameterNames(),
+                value=self.model.coef_,
+            )
+        )
+
+        # group parameter by variable
+        params["var_gp"] = params["parameter"].str.split("_").str[0]
+
+        # cumulative sum of parameters by variable
+        params["cumsum"] = params.groupby("var_gp")["value"].cumsum()
+
+        # get the parameters for the intercept
+        params["intercept"] = params["cumsum"].shift(1).fillna(0)
+
+        return params
 
     def PredictTriangle(self):
-        raise NotImplementedError
+        yhat = pd.DataFrame(dict(yhat=self.Predict()))
+        _ids = self.tri.get_X_id()
+        return pd.concat([_ids, yhat], axis=1)
 
     def GetSaturatedModel(self):
         y = self.GetY("train")

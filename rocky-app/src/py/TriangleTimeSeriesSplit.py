@@ -18,6 +18,19 @@ from tqdm.notebook import tqdm as tqdm
 
 
 class TriangleTimeSeriesSplit:
+    """
+    Class for splitting a triangle into training and validation sets.
+
+    Methods
+    -------
+    - GetSplit()
+    - GridTweedie()
+    - TuneTweedie()
+    - GetBestModel()
+    - TweedieParetoFront()
+    - OptimalTweedie()
+    """
+
     def __init__(
         self,
         triangle: Triangle = None,
@@ -51,6 +64,7 @@ class TriangleTimeSeriesSplit:
         self.tie_criterion = tie_criterion
 
     def GetSplit(self):
+        """Yields the indices for the training and validation sets."""
         X_id = self.tri.get_X_id().reset_index(drop=True)
 
         # current calendar period
@@ -69,6 +83,26 @@ class TriangleTimeSeriesSplit:
             yield train_indices, test_indices
 
     def GridTweedie(self, alpha=None, power=None, max_iter=None):
+        """
+        Sets the grid for the hyperparameters of the Tweedie models.
+
+        Default values for the seach are:
+        alpha = [0, 0.1, 0.2, ..., 3]
+        power = [0, 1, 1.1, 1.2, ..., 3] (does not include (0, 1) interval)
+        max_iter = 100000
+
+        Parameters
+        ----------
+        alpha : array-like, default=None
+            The alpha values to use in the grid. If None, the default values
+            will be used.
+        power : array-like, default=None
+            The power values to use in the grid. If None, the default values
+            will be used.
+        max_iter : int, default=None
+            The maximum number of iterations for the Tweedie models. If None,
+            the default value will be used.
+        """
         if alpha is not None:
             self.tweedie_grid["alpha"] = alpha
 
@@ -79,12 +113,45 @@ class TriangleTimeSeriesSplit:
             self.tweedie_grid["max_iter"] = max_iter
 
     def TuneTweedie(self):
-        """Trains a set of Tweedie models with different hyperparameters,
+        """
+        Trains a set of Tweedie models with different hyperparameters,
         and stores the result.
 
         This method will fit a Tweedie model for each combination of hyperparameters
-        (alpha, power), and each split of the data. The MSE and d2 score will be
-        computed for each model and stored.
+        (alpha, power), for each split of the data. The models are then evaluated
+        on the validation set, and the results are stored in the self.split list.
+
+        The results for each are stored in a dictionary with the following
+        structure:
+        {
+            "alpha_0.0_power_1.0": {
+                "train": {
+                    "mse": 0.0,
+                    "mae": 0.0,
+                    "d2": 0.0
+                },
+                "test": {
+                    "mse": 0.0,
+                    "mae": 0.0,
+                    "d2": 0.0
+                }
+            },
+            "alpha_0.0_power_1.1": {
+                "train": {
+                    "mse": 0.0,
+                    "mae": 0.0,
+                    "d2": 0.0
+                },
+                "test": {
+                    "mse": 0.0,
+                    "mae": 0.0,
+                    "d2": 0.0
+                }
+            },
+            ...
+        }
+
+        The results are stored in the self.split list, which is a list of dictionaries
         """
         first_ay = self.tri.ay.min()
 

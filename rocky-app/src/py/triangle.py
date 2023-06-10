@@ -1590,14 +1590,10 @@ class Triangle:
 
         # create the train/forecast data split based on whether or not the
         # target variable is null
-        self.X_base_train = self.X_base[self.X_base.is_observed.eq(1)].rename(
-            columns={"is_observed": "intercept"}
-        )
+        self.X_base_train = self.X_base[self.X_base.is_observed.eq(1)]
         self.y_base_train = self.y_base[self.X_base.is_observed.eq(1)]
-        self.X_base_forecast = (
-            self.X_base[self.X_base.is_observed.eq(0)]
-            .rename(columns={"is_observed": "intercept"})
-            .assign(intercept=1)
+        self.X_base_forecast = self.X_base[self.X_base.is_observed.eq(0)].assign(
+            intercept=1
         )
 
         self.X_id_train = self.X_id[self.X_base.is_observed.eq(1)]
@@ -1658,7 +1654,7 @@ class Triangle:
 
         df["intercept"] = 1
 
-        return df.reset_index(drop=True).drop(columns="is_observed")
+        return df.reset_index(drop=True)
 
     def get_y_base(self, split=None):
         """
