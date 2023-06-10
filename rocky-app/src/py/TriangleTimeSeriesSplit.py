@@ -14,7 +14,7 @@ from sklearn.exceptions import ConvergenceWarning
 import warnings
 
 import itertools
-from tqdm import tqdm
+from tqdm.notebook import tqdm as tqdm
 
 
 class TriangleTimeSeriesSplit:

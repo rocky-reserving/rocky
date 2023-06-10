@@ -75,6 +75,21 @@ class glm:
         self.dev = self.tri.get_X_id("train")["development_period"]
         self.cal = self.tri.get_X_id("train")["cal"]
 
+    def __repr__(self):
+        if self.alpha is None:
+            a = ""
+        else:
+            a = f"alpha={self.alpha}"
+
+        if self.power is None:
+            p = ""
+        else:
+            if self.alpha is None:
+                p = f"power={self.power}"
+            else:
+                p = f", power={self.power}"
+        return f"tweedieGLM({a}{p})"
+
     def _update_attributes(self, after="fit", **kwargs):
         """
         Update the model's attributes after fitting.
@@ -124,19 +139,22 @@ class glm:
         """
         return self.tri.get_y_base(kind)
 
-    def GetX(self, kind="train"):
+    def GetX(self, kind=None):
         """
         Getter for the model's X data. If there is no X data, take the base design
         matrix directly from the triangle. When parameters are combined, X is
         created as the design matrix of the combined parameters.
         """
-        if kind.lower() in ["train", "forecast"]:
-            if kind.lower() == "train":
-                return self.X_train
-            elif kind.lower() == "forecast":
-                return self.X_forecast
+        if kind is None:
+            return self.tri.X_base
         else:
-            raise ValueError("kind must be 'train' or 'forecast'")
+            if kind.lower() in ["train", "forecast"]:
+                if kind.lower() == "train":
+                    return self.X_train
+                elif kind.lower() == "forecast":
+                    return self.X_forecast
+            else:
+                raise ValueError("kind must be 'train' or 'forecast'")
 
     def GetY(self, kind="train"):
         """

@@ -1,3 +1,16 @@
+import sys
+import os
+
+curdir = os.path.abspath(os.path.dirname("."))
+sys.path.append(curdir)
+
+# function to count the number of objects in a container
+try:
+    from .util import count_rocky
+except ImportError:
+    from util import count_rocky
+
+# triangle data type
 try:
     from .triangle import Triangle
 except ImportError:
@@ -8,6 +21,7 @@ except ImportError:
 # except ImportError:
 #     from TriangleTimeSeriesSplit import TriangleTimeSeriesSplit
 
+# GLM model
 try:
     from .GLM import glm
 except ImportError:
@@ -19,7 +33,6 @@ from typing import Any
 
 from warnings import filterwarnings
 
-import numpy as np
 import pandas as pd
 
 filterwarnings("ignore", category=UserWarning, module="openpyxl")
@@ -53,6 +66,11 @@ class rockyContainer:
 
 @dataclass
 class rocky:
+    """
+    A rocky object is a container for triangles, models, forecasts, and plots. A rocky
+    object is also the main interface for the rocky package.
+    """
+
     # initialize the model attribute, triangle attribute, forecast attribute,
     # validation attribute, and plotting attribute
     id: str = None
@@ -60,8 +78,39 @@ class rocky:
     f: Any = rockyContainer()  # forecasts
     plot: Any = rockyContainer()  # plots
     t: Any = rockyContainer()  # triangles
+    rockylog: Any = None  # rockylog -- not implemented yet
+
+    def __post_init__(self) -> None:
+        if self.id is None:
+            rockies = count_rocky()
+            self.id = f"rocky{rockies}"
+
+    def rename(self, id: str = None, obj: str = None) -> None:
+        """
+        Rename the rocky object or a rocky object attribute.
+
+        Parameters
+        ----------
+        id : str, optional
+            The new name for the rocky object.
+            Default is None.
+        obj : str, optional
+            The name of the rocky object attribute to rename.
+            Default is None.
+        """
+        if obj is None:
+            obj = self
+        if id is None:
+            id = obj.id
+        setattr(self, "id", id)
 
     def load_taylor_ashe(self, id=None) -> None:
+        """
+        Load the Taylor-Ashe triangle data set. This is the set of triangles
+        used in the Mack paper from 1994.
+
+        A paid loss triangle is created and added to the rocky object.
+        """
         tri = Triangle.from_taylor_ashe()
         tri.base_linear_model()
 
@@ -70,7 +119,14 @@ class rocky:
         self.t.add(tri, id)
         setattr(self, f"{id}", tri)
 
-    def load_dahms(self, id: str = "rpt_loss") -> None:
+    def load_dahms(self) -> None:
+        """
+        Load the Dahms triangle data set. This is the set of triangles used in
+        the Paid-Incurred Chain method paper by Merz and Wüthrich.
+
+        A reported loss triangle and a paid loss triangle are created and added
+        to the rocky object.
+        """
         d = {}
         d["rpt_loss"], d["paid_loss"] = Triangle.from_dahms()
         for id in d.keys():
@@ -79,6 +135,19 @@ class rocky:
             setattr(self, f"{id}", d[id])
 
     def SampleTri(self, sample: str, id: str = None) -> None:
+        """
+        Load a sample triangle data set.
+
+        Parameters
+        ----------
+        sample : str
+            The name of the sample triangle data set to load.
+            Currently, the only available sample triangle data set is
+            "taylor_ashe".
+        id : str, optional
+            The name to assign to the triangle object.
+            Default is None.
+        """
         if sample.lower() == "taylor_ashe":
             if id is None:
                 id = "paid_loss"
@@ -86,6 +155,22 @@ class rocky:
             getattr(self, f"{id}").base_linear_model()
 
     def FromClipboard(self, id: str = "rpt_loss") -> None:
+        """
+        Load a triangle from the clipboard. The triangle must include the accident
+        years in the first column and the development years in the first row.
+
+        This method will not work if either the origin periods or the development
+        periods take up more than one column or row. If you have a triangle that
+        does not meet these requirements, please try one of the following methods:
+         - `.FromCSV()`
+         - `.FromExcel()`
+         - `.FromDF()`
+
+        Parameters
+        ----------
+        id : str, optional
+            The name to assign to the triangle object.
+        """
         tri = Triangle.from_clipboard(id=id)
         tri.base_linear_model()
         self.t.add(tri, f"{id}")
@@ -94,6 +179,22 @@ class rocky:
     def FromCSV(
         self, filename: str, origin_columns: int = 1, id: str = "rpt_loss"
     ) -> None:
+        """
+        Load a triangle from a CSV file. The triangle must include the origin periods
+        starting in the first column, but allows for multiple columns to be used for
+        the origin periods. The development periods must be in the first row.
+
+        Parameters
+        ----------
+        filename : str
+            The name of the CSV file to load.
+        origin_columns : int, optional
+            The number of columns used for the origin periods.
+            Default is 1, and this is (by far) the most common.
+        id : str, optional
+            The name to assign to the triangle object.
+            Default is "rpt_loss".
+        """
         tri = Triangle.from_csv(filename=filename, origin_columns=origin_columns, id=id)
         tri.base_linear_model()
         self.t.add(tri, f"{id}")
@@ -107,18 +208,54 @@ class rocky:
         sheet_name=None,
         sheet_range=None,
     ) -> None:
-        tri = Triangle.from_excel(
-            filename=filename,
-            origin_columns=origin_columns,
-            id=id,
-            sheet_name=sheet_name,
-            sheet_range=sheet_range,
-        )
-        tri.base_linear_model()
-        self.t.add(tri, f"{id}")
-        setattr(self, f"{id}", tri)
+        """
+        Load a triangle from an Excel file. The triangle must include the origin periods
+        starting in the first column, but allows for multiple columns to be used for
+        the origin periods. The development periods must be in the first row.
+
+        Parameters
+        ----------
+        filename : str
+            The name of the Excel file to load.
+        origin_columns : int, optional
+            The number of columns used for the origin periods.
+            Default is 1, and this is (by far) the most common.
+        id : str, optional
+            The name to assign to the triangle object.
+            Default is "rpt_loss".
+        sheet_name : str, optional
+            The name of the sheet to load.
+            Default is None, which will load the first sheet.
+        sheet_range : str, optional
+            The range of cells to load.
+            Default is None, which will load all cells.
+        """
+        raise NotImplementedError
+        # tri = Triangle.from_excel(
+        #     filename=filename,
+        #     origin_columns=origin_columns,
+        #     id=id,
+        #     sheet_name=sheet_name,
+        #     sheet_range=sheet_range,
+        # )
+        # tri.base_linear_model()
+        # self.t.add(tri, f"{id}")
+        # setattr(self, f"{id}", tri)
 
     def FromDF(self, df, id="rpt_loss") -> None:
+        """
+        Load a triangle from a Pandas DataFrame. The triangle must include the origin
+        periods in the first column and the development periods in the first row.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            The DataFrame to load.
+        id : str, optional
+            The name to assign to the triangle object.
+            Default is "rpt_loss".
+        """
+
         tri = Triangle.from_df(df=df, id=id)
         tri.base_linear_model()
         self.t.add(tri, f"{id}")
@@ -132,8 +269,36 @@ class rocky:
         cal=False,
         n_validation=5,
     ):
+        """
+        Add a model to the ROCKY object.
+
+        Parameters
+        ----------
+        id : str, optional
+            The name to assign to the model.
+            Default is None, which will assign a default name.
+        model_class : str, optional
+            The model class to use.
+            Default is "tweedie".
+        tri : Triangle, optional
+            The triangle object to use.
+            Default is None, which will use the first triangle in the ROCKY object.
+        cal : bool, optional
+            Whether to use calendar periods as variables.
+            Default is False.
+        n_validation : int, optional
+            The number of validation folds to use for hyperparameter tuning.
+            Default is 5.
+
+        Notes
+        -----
+        The following model classes are available:
+            - "tweedie" (alias "glm") (starting with v0.0.1)
+
+        """
+
         if id is None:
-            if model_class.lower() in ["tweedie", "glm"]:
+            if model_class.lower() in all_models:
                 id = "PaidLossGLM" + ("_Cal" if cal else "")
             else:
                 raise ValueError(
@@ -166,7 +331,7 @@ class rocky:
             UserWarning(
                 f"{id} already exists in ROCKY object. Please pass a different id."
             )
-            exit()
+            pass
         except AttributeError:
             setattr(self, f"{id}", getattr(self.mod, f"{id}"))
 

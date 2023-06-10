@@ -200,6 +200,10 @@ class Triangle:
         #     self._load_is_cum_model()
         #     self._is_cum_model()
 
+        # create alias for self.tri as self.df that matches the triangle as it is
+        # updated, and does not need to be updated separately
+        self.df = self.tri
+
     def __repr__(self) -> str:
         return self.tri.__repr__()
 
