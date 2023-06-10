@@ -24,6 +24,8 @@ import plotly.express as px
 
 import warnings
 
+from typing import List, Optional, Any
+
 
 @dataclass
 class glm:
@@ -461,25 +463,95 @@ class glm:
         dof = self.GetDegreesOfFreedom()
         return dev / dof
 
-    def _p(self, distribution="poisson"):
-        if distribution == "normal":
-            return 0
-        elif distribution == "poisson":
-            return 1
-        elif distribution == "gamma":
-            return 2
-        elif distribution == "inv_gaussian":
-            return 3
+    def GetYearTypeDict(self):
+        d = {
+            "accident": "acc",
+            "acc": "acc",
+            "ay": "acc",
+            "accident_year": "acc",
+            "development": "dev",
+            "dy": "dev",
+            "dev": "dev",
+            "development_year": "dev",
+            "development_period": "dev",
+            "calendar": "cal",
+            "cal": "cal",
+            "cy": "cal",
+            "calendar_year": "cal",
+        }
+        return d
 
-    def _b(
-        self,
-        distribution="poisson",
-    ):
-        if distribution == "normal":
-            return 1
-        elif distribution == "poisson":
-            return 1
-        elif distribution == "gamma":
-            return 1
-        elif distribution == "inv_gaussian":
-            return 1
+    def Combine(
+        self, year_type: str, year_list: list, combined_name: str = None
+    ) -> pd.DataFrame:
+        """
+        This function combines parameters of the design matrix to have the same value.
+
+        THIS SHOULD JUST BE A MAPPING BETWEEN ORIGINAL "BASE" PARAMETERS AND COMBINED
+        PARAMETERS SO THE BASE SET CAN BE USED FOR ORDERING, ETC, AND KEEPING AY
+        PARAMETERS TOGETHER, DEV PARAM TOGETHER, ETC
+        """
+        # run through recode year-type dictionary
+        year_type = self.GetYearTypeDict()[year_type.lower()]
+
+        # check that acceptable year_type was passed
+        if year_type not in ["acc", "dev", "cal"]:
+            raise ValueError("Year type must be 'acc', 'dev', or 'cal'")
+
+        # make a copy of the current design matrix
+        X_train = self.GetX("train").copy()
+        X_forecast = self.GetX("forecast").copy()
+        X_new_train = X_train.copy()
+        X_new_forecast = X_forecast.copy()
+
+        # recode combined name
+        if combined_name is None:
+            combined_name = f"{year_type}_combined"
+        combined_param_name = combined_name.lower().replace(" ", "_").replace(".", "_")
+
+        if year_type == "acc":
+            # generate column names
+            cols_to_combine = ["accident_period_" + str(year) for year in year_list]
+
+            # check if columns exist in the DataFrame
+            if not set(cols_to_combine).issubset(X_train.columns):
+                raise ValueError(
+                    "One or more columns specified do not exist in the DataFrame"
+                )
+
+            # add new column that is the sum of the specified accident year columns
+            X_new_train[combined_param_name] = X_new_train[cols_to_combine].sum(axis=1)
+            X_new_forecast[combined_param_name] = X_new_forecast[cols_to_combine].sum(
+                axis=1
+            )
+
+            # drop the original columns
+            X_new_train = X_new_train.drop(columns=cols_to_combine)
+            X_new_forecast = X_new_forecast.drop(columns=cols_to_combine)
+
+        elif year_type == "dev":
+            # generate column names
+            cols_to_combine = ["development_year_" + str(year) for year in year_list]
+
+            # check if columns exist in the DataFrame
+            if not set(cols_to_combine).issubset(X_train.columns):
+                raise ValueError(
+                    "One or more columns specified do not exist in the DataFrame"
+                )
+
+            # add new column that is the sum of the specified development year columns
+            X_new_train[combined_param_name] = X_new_train[cols_to_combine].sum(axis=1)
+            X_new_forecast[combined_param_name] = X_new_forecast[cols_to_combine].sum(
+                axis=1
+            )
+
+            # drop the original columns
+            X_new_train = X_new_train.drop(columns=cols_to_combine)
+            X_new_forecast = X_new_forecast.drop(columns=cols_to_combine)
+
+        # reset X_train, X_forecast
+        self.X_train = X_new_train
+        self.X_forecast = X_new_forecast
+
+        # refit the model
+        self.Fit()

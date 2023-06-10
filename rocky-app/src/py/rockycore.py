@@ -52,7 +52,7 @@ class rockyContainer:
 
 
 @dataclass
-class ROCKY:
+class rocky:
     # initialize the model attribute, triangle attribute, forecast attribute,
     # validation attribute, and plotting attribute
     id: str = None
@@ -141,6 +141,12 @@ class ROCKY:
                 )
         if tri is None:
             raise ValueError("Triangle object must be provided")
+
+        if type(tri) == str:
+            if type(getattr(self, tri)) != Triangle:
+                raise ValueError("Triangle object must be provided")
+            else:
+                tri = getattr(self, tri)
 
         # add the model to the model container
         self.mod.add(
