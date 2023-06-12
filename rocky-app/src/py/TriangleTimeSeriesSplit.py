@@ -11,6 +11,8 @@ import numpy as np
 import sklearn
 import xgboost
 from sklearn.linear_model import TweedieRegressor
+from sklearn.ensemble import RandomForestRegressor
+from xgboost import XGBRegressor
 from sklearn.metrics import mean_squared_error, mean_absolute_error, d2_tweedie_score
 from sklearn.exceptions import ConvergenceWarning
 import warnings
@@ -39,13 +41,15 @@ class TriangleTimeSeriesSplit:
         n_splits: int = 5,
         tie_criterion: str = "ave_mse_test",
         tweedie_grid: dict = None,
-        random_forest_grid: dict = None,
+        randomforest_grid: dict = None,
         xgboost_grid: dict = None,
         **kwargs,
     ):
         self.tri = triangle
         self.n_splits_ = n_splits
         self.split = []
+        self.has_tuning_results = False
+        self.is_tuned = False
 
         # if no grid is provided, use the default grid
         if tweedie_grid is None:
@@ -56,8 +60,8 @@ class TriangleTimeSeriesSplit:
             }
         else:
             self.tweedie_grid = tweedie_grid
-        if random_forest_grid is None:
-            self.random_forest_grid = {
+        if randomforest_grid is None:
+            self.randomforest_grid = {
                 "n_estimators": [10, 25, 50, 100],
                 "max_depth": [None, 10, 25, 50],
                 "min_samples_split": [2, 5, 10],
@@ -65,7 +69,7 @@ class TriangleTimeSeriesSplit:
                 "bootstrap": [True, False],
             }
         else:
-            self.random_forest_grid = random_forest_grid
+            self.randomforest_grid = randomforest_grid
         if xgboost_grid is None:
             self.xgboost_grid = {
                 "n_estimators": [100, 200, 500, 1000],
@@ -90,17 +94,17 @@ class TriangleTimeSeriesSplit:
         if "max_iter" in kwargs:
             self.tweedie_grid["max_iter"] = kwargs["max_iter"]
         if "n_estimators" in kwargs:
-            self.random_forest_grid["n_estimators"] = kwargs["n_estimators"]
+            self.randomforest_grid["n_estimators"] = kwargs["n_estimators"]
             self.xgboost_grid["n_estimators"] = kwargs["n_estimators"]
         if "max_depth" in kwargs:
-            self.random_forest_grid["max_depth"] = kwargs["max_depth"]
+            self.randomforest_grid["max_depth"] = kwargs["max_depth"]
             self.xgboost_grid["max_depth"] = kwargs["max_depth"]
         if "min_samples_split" in kwargs:
-            self.random_forest_grid["min_samples_split"] = kwargs["min_samples_split"]
+            self.randomforest_grid["min_samples_split"] = kwargs["min_samples_split"]
         if "min_samples_leaf" in kwargs:
-            self.random_forest_grid["min_samples_leaf"] = kwargs["min_samples_leaf"]
+            self.randomforest_grid["min_samples_leaf"] = kwargs["min_samples_leaf"]
         if "bootstrap" in kwargs:
-            self.random_forest_grid["bootstrap"] = kwargs["bootstrap"]
+            self.randomforest_grid["bootstrap"] = kwargs["bootstrap"]
         if "learning_rate" in kwargs:
             self.xgboost_grid["learning_rate"] = kwargs["learning_rate"]
         if "min_child_weight" in kwargs:
@@ -306,216 +310,7 @@ class TriangleTimeSeriesSplit:
 
             self.tweedie_result = tweedie_result.T.sort_values("ave_mse_test")
 
-    def TuneModel(
-        self, model, grid=None, n_jobs=-1, verbose=0, use_cal=False, **kwargs
-    ):
-        """
-        Tune a model's hyperparameters using time series cross validation.
-
-        Parameters:
-        ----------
-        model: model object
-            A model object that has a fit and predict method.
-        grid: dictionary, default=None
-            A dictionary of hyperparameter values to try. The keys should be the
-            hyperparameter names and the values should be lists of values to try.
-            For example, if we want to try 3 values of alpha and 2 values of power,
-            we would pass grid={'alpha': [0.5, 1, 2], 'power': [1, 2]}. If None,
-            the default is to try 3 values of alpha and 2 values of power.
-
-            This method has default parameter grids for the following models:
-                1. TweedieRegressor
-                2. RandomForestRegressor
-                3. XGBRegressor
-
-            If you pass a model that is not one of these three, you must pass a grid,
-            otherwise an error will be raised.
-        n_jobs: int, default=-1
-            The number of jobs to run in parallel. -1 means use all processors.
-        verbose: int, default=0
-            The verbosity level.
-        **kwargs: keyword arguments
-            Additional keyword arguments to pass to the model's fit method. For example,
-            if you want to pass a validation set, you can pass X_valid and y_valid here.
-        """
-        first_ay = self.tri.acc.min()
-
-        result_dict = {}
-
-        # apply default grid if none is passed (if model is one of the three models
-        # that have default grids)
-        if grid is None:
-            if isinstance(model, sklearn.linear_model.TweedieRegressor):
-                grid = self.tweedie_grid
-            elif isinstance(model, sklearn.ensemble.RandomForestRegressor):
-                grid = self.random_forest_grid
-            elif isinstance(model, xgboost.XGBRegressor):
-                grid = self.xgboost_grid
-            else:
-                raise ValueError(
-                    "You must pass a grid for this model or use a model that\
-                        has a default grid."
-                )
-
-        # anonymous function to get all combinations of hyperparameters
-        def get_grid(grid):
-            return list(itertools.product(*[grid[k] for k in grid.keys()]))
-
-        # anonymous function to get the number of combinations of hyperparameters
-        def get_n_parameters(grid):
-            return len(get_grid(grid))
-
-        # anonymous function to get the key for each combination of hyperparameters
-        # def is_number(n):
-        #     try:
-        #         float(n)
-        #     except ValueError:
-        #         return False
-        #     except TypeError:
-        #         return False
-        #     return True
-
-        def get_key(grid, param_set):
-            key = []
-            for k, v in zip(grid.keys(), get_grid(grid)[3]):
-                if v is not None:
-                    if isinstance(v, bool):
-                        key.append(f"{k}_{v}")
-                    elif isinstance(v, str):
-                        key.append(f"{k}_{v}")
-                    else:
-                        key.append(f"{k}_{np.round(v, 2)}")
-            return "-".join(key)
-
-        # get all combinations of hyperparameters
-        parameters = get_grid(grid)
-        n_parameters = get_n_parameters(grid)
-
-        # count number of models that fail to converge
-        n_failed_to_converge = 0
-
-        # anonymous function to train the passed model on the passed data
-        def train_model(model, X_train, y_train, X_test, hyperparameters, **kwargs):
-            model.set_params(**hyperparameters)
-            try:
-                model.fit(X_train, y_train, **kwargs)
-            except ValueError:
-                nonlocal n_failed_to_converge
-                n_failed_to_converge += 1
-                return None
-
-            return model.predict(X_test)
-
-        # anonymous function to add the mean squared error to the result_dict
-        def add_mse(result_dict, grid, parameters, para, y_train, y_test, y_pred):
-            result_dict[get_key(grid, parameters.index(para))][
-                f"cy_{excl_cal}_mse_train"
-            ] = mean_squared_error(y_train, model.predict(X_train))
-            result_dict[get_key(grid, parameters.index(para))][
-                f"cy_{excl_cal}_mse_test"
-            ] = mean_squared_error(y_test, y_pred)
-            return result_dict
-
-        # add d2 score to result dictionary
-        def add_d2(result_dict, grid, parameters, para, y_train, y_test, power):
-            result_dict[get_key(grid, parameters.index(para))][
-                f"cy_{excl_cal}_d2_train"
-            ] = d2_tweedie_score(
-                y_train, model.predict(X_train), power=np.round(power, 2)
-            )
-            result_dict[get_key(grid, parameters.index(para))][
-                f"cy_{excl_cal}_d2_test"
-            ] = d2_tweedie_score(
-                y_test, model.predict(X_test), power=np.round(power, 2)
-            )
-            return result_dict
-
-        def add_mae(result_dict, grid, parameters, para, y_train, y_test, y_pred):
-            result_dict[get_key(grid, parameters.index(para))][
-                f"cy_{excl_cal}_mae_train"
-            ] = mean_absolute_error(y_train, model.predict(X_train))
-            result_dict[get_key(grid, parameters.index(para))][
-                f"cy_{excl_cal}_mae_test"
-            ] = mean_absolute_error(y_test, y_pred)
-            return result_dict
-
-        # loop through all combinations of hyperparameters and initialize result_dict
-        for param_set in parameters:
-            # print(f"parameters: {parameters}")
-            # print(f"grid: {grid}")
-            # print(f"param_set: {param_set}")
-            # print(f"key: {get_key(grid, param_set)}")
-
-            result_dict[get_key(grid, parameters.index(param_set))] = {}
-
-        # loop through all combinations of train/val splits
-        for train, val in self.GetSplit():
-            X_train = self.tri.get_X_base(cal=use_cal).iloc[train]
-            y_train = self.tri.get_y_base()[train]
-
-            X_test = self.tri.get_X_base(cal=use_cal).iloc[val]
-            y_test = self.tri.get_y_base()[val]
-            X_id_test = self.tri.get_X_id().iloc[val]
-
-            excl_cal = X_id_test.cal.min() + first_ay.year - 1
-
-            # loop through all combinations of hyperparameters in the current
-            # train/val split
-            for para in tqdm(
-                parameters,
-                total=n_parameters,
-                desc=f"Training models with data through {excl_cal}",
-            ):
-                # train model and get predictions
-                y_pred = train_model(
-                    model,
-                    X_train,
-                    y_train,
-                    X_test,
-                    dict(zip(grid.keys(), para)),
-                    **kwargs,
-                )
-
-                # add mean squared error to result dictionary
-                result_dict = add_mse(
-                    result_dict, grid, parameters, para, y_train, y_test, y_pred
-                )
-
-                # add d2 score to result dictionary if tweedie
-                if model.__class__.__name__ == "TweedieRegressor":
-                    result_dict = add_d2(
-                        result_dict, grid, parameters, para, y_train, y_test, y_pred
-                    )
-
-                # add MAE to result dictionary
-                result_dict = add_mae(
-                    result_dict, grid, parameters, para, y_train, y_test, y_pred
-                )
-
-        print(f"{n_failed_to_converge} / {n_parameters} models failed to converge.")
-
-        result = pd.DataFrame(result_dict).T
-
-        # list of methods to loop through
-        methods = "mse_train mse_test mae_train mae_test".split()
-        if model.__class__.__name__ == "TweedieRegressor":
-            methods += "d2_train d2_test".split()
-
-        for m in methods:
-            result[f"ave_{m}"] = result.filter(like=m).mean(axis=1)
-            result[f"sd_{m}"] = result.filter(like=m).std(axis=1)
-            result[f"cv_{m}"] = result[f"sd_{m}"] / result[f"ave_{m}"]
-
-        cols_to_drop = [c for c in result.columns if "cy_" in c]
-
-        result = result.drop(columns=cols_to_drop)
-
-        result = result.T
-
-        for c in result.columns.tolist():
-            result[c] = result[c].astype(float)
-
-        return result.T.sort_values("ave_mse_test")
+        self.has_tuning_results = True
 
     def TweedieParetoFront(self, measures=None):
         """
@@ -613,5 +408,399 @@ class TriangleTimeSeriesSplit:
 
         # Re-fit a model with the optimal hyperparameters, and return it
         best_model = TweedieRegressor(alpha=alpha, power=power, link="log")
+        best_model.fit(self.tri.get_X_base("train"), self.tri.get_y_base("train"))
+        return best_model
+
+    def TuneModel(
+        self, model, grid=None, n_jobs=-1, verbose=0, use_cal=False, **kwargs
+    ):
+        """
+        Tune a model's hyperparameters using time series cross validation.
+
+        Parameters:
+        ----------
+        model: model object
+            A model object that has a fit and predict method.
+        grid: dictionary, default=None
+            A dictionary of hyperparameter values to try. The keys should be the
+            hyperparameter names and the values should be lists of values to try.
+            For example, if we want to try 3 values of alpha and 2 values of power,
+            we would pass grid={'alpha': [0.5, 1, 2], 'power': [1, 2]}. If None,
+            the default is to try 3 values of alpha and 2 values of power.
+
+            This method has default parameter grids for the following models:
+                1. TweedieRegressor
+                2. RandomForestRegressor
+                3. XGBRegressor
+
+            If you pass a model that is not one of these three, you must pass a grid,
+            otherwise an error will be raised.
+        n_jobs: int, default=-1
+            The number of jobs to run in parallel. -1 means use all processors.
+        verbose: int, default=0
+            The verbosity level.
+        **kwargs: keyword arguments
+            Additional keyword arguments to pass to the model's fit method. For example,
+            if you want to pass a validation set, you can pass X_valid and y_valid here.
+        """
+        first_ay = self.tri.acc.min()
+
+        result_dict = {}
+
+        # apply default grid if none is passed (if model is one of the three models
+        # that have default grids)
+        if grid is None:
+            if isinstance(model, sklearn.linear_model.TweedieRegressor):
+                model_type = "tweedie"
+                grid = self.tweedie_grid
+            elif isinstance(model, sklearn.ensemble.RandomForestRegressor):
+                model_type = "randomforest"
+                grid = self.randomforest_grid
+            elif isinstance(model, xgboost.XGBRegressor):
+                model_type = "xgboost"
+                grid = self.xgboost_grid
+            else:
+                raise ValueError(
+                    "You must pass a grid for this model or use a model that\
+                        has a default grid."
+                )
+
+        # anonymous function to get all combinations of hyperparameters
+        def get_grid(grid):
+            return list(itertools.product(*[grid[k] for k in grid.keys()]))
+
+        # anonymous function to get the number of combinations of hyperparameters
+        def get_n_parameters(grid):
+            return len(get_grid(grid))
+
+        # anonymous function to get a key for the result dictionary
+        def get_key(grid, param_set):
+            keys = grid.keys()
+            key = "-".join(
+                f"{k}_{np.round(v, 2) if isinstance(v, (int, float)) and not isinstance(v, bool) else v}"
+                for k, v in zip(keys, param_set)
+            )
+            return key
+
+        # get all combinations of hyperparameters
+        parameters = get_grid(grid)
+        n_parameters = get_n_parameters(grid)
+
+        # count number of models that fail to converge
+        n_failed_to_converge = 0
+
+        # anonymous function to train the passed model on the passed data
+        def train_model(model, X_train, y_train, X_test, hyperparameters, **kwargs):
+            model.set_params(**hyperparameters)
+            try:
+                model.fit(X_train, y_train, **kwargs)
+            except ValueError:
+                nonlocal n_failed_to_converge
+                n_failed_to_converge += 1
+                return None
+
+            return model.predict(X_test)
+
+        # anonymous function to add the mean squared error to the result_dict
+        def add_mse(result_dict, grid, parameters, para, y_train, y_test, y_pred):
+            result_dict[get_key(grid, parameters[parameters.index(para)])][
+                f"cy_{excl_cal}_mse_train"
+            ] = mean_squared_error(y_train, model.predict(X_train))
+            result_dict[get_key(grid, parameters[parameters.index(para)])][
+                f"cy_{excl_cal}_mse_test"
+            ] = mean_squared_error(y_test, y_pred)
+            return result_dict
+
+        # add d2 score to result dictionary
+        def add_d2(result_dict, grid, parameters, para, y_train, y_test, power):
+            result_dict[get_key(grid, parameters[parameters.index(para)])][
+                f"cy_{excl_cal}_d2_train"
+            ] = d2_tweedie_score(
+                y_train, model.predict(X_train), power=np.round(power, 2)
+            )
+            result_dict[get_key(grid, parameters[parameters.index(para)])][
+                f"cy_{excl_cal}_d2_test"
+            ] = d2_tweedie_score(
+                y_test, model.predict(X_test), power=np.round(power, 2)
+            )
+            return result_dict
+
+        def add_mae(result_dict, grid, parameters, para, y_train, y_test, y_pred):
+            result_dict[get_key(grid, parameters[parameters.index(para)])][
+                f"cy_{excl_cal}_mae_train"
+            ] = mean_absolute_error(y_train, model.predict(X_train))
+            result_dict[get_key(grid, parameters[parameters.index(para)])][
+                f"cy_{excl_cal}_mae_test"
+            ] = mean_absolute_error(y_test, y_pred)
+            return result_dict
+
+        # loop through all combinations of hyperparameters and initialize result_dict
+        for param_set in parameters:
+            result_dict[get_key(grid, param_set)] = {}
+
+        # loop through all combinations of train/val splits
+        for train, val in self.GetSplit():
+            # training data
+            X_train = self.tri.get_X_base(cal=use_cal).iloc[train]
+            y_train = self.tri.get_y_base()[train]
+
+            # validation data
+            X_test = self.tri.get_X_base(cal=use_cal).iloc[val]
+            y_test = self.tri.get_y_base()[val]
+
+            # labels for the training and validation data
+            X_id_test = self.tri.get_X_id().iloc[val]
+
+            # get the breakpoint year for the current train/val split
+            excl_cal = X_id_test.cal.min() + first_ay.year - 1
+
+            # loop through all combinations of hyperparameters in the current
+            # train/val split
+            for para in tqdm(
+                parameters,
+                total=n_parameters,
+                desc=f"Training models with data through {excl_cal}",
+            ):
+                # train model and get predictions
+                y_pred = train_model(
+                    model,
+                    X_train,
+                    y_train,
+                    X_test,
+                    dict(zip(grid.keys(), para)),
+                    **kwargs,
+                )
+
+                # add mean squared error to result dictionary
+                result_dict = add_mse(
+                    result_dict, grid, parameters, para, y_train, y_test, y_pred
+                )
+
+                # add d2 score to result dictionary if tweedie
+                if model.__class__.__name__ == "TweedieRegressor":
+                    result_dict = add_d2(
+                        result_dict, grid, parameters, para, y_train, y_test, y_pred
+                    )
+
+                # add MAE to result dictionary
+                result_dict = add_mae(
+                    result_dict, grid, parameters, para, y_train, y_test, y_pred
+                )
+
+        print(f"{n_failed_to_converge} / {n_parameters} models failed to converge.")
+
+        result = pd.DataFrame(result_dict).T
+
+        # list of methods to loop through
+        methods = "mse_train mse_test mae_train mae_test".split()
+        if model.__class__.__name__ == "TweedieRegressor":
+            methods += "d2_train d2_test".split()
+
+        for m in methods:
+            result[f"ave_{m}"] = result.filter(like=m).mean(axis=1)
+            result[f"sd_{m}"] = result.filter(like=m).std(axis=1)
+            result[f"cv_{m}"] = result[f"sd_{m}"] / result[f"ave_{m}"]
+
+        cols_to_drop = [c for c in result.columns if "cy_" in c]
+
+        result = result.drop(columns=cols_to_drop)
+
+        result = result.T
+
+        for c in result.columns.tolist():
+            result[c] = result[c].astype(float)
+
+        setattr(self, f"{model_type}_result", result.T.sort_values("ave_mse_test"))
+
+        return result.T.sort_values("ave_mse_test")
+
+    def ModelParetoFront(self, model_type, measures=None):
+        """
+        Get the Pareto front from the results of a model tuning process.
+        In multi-objective optimization, the Pareto front consists of the solutions
+        that are optimal in the sense that no other solution is superior to them
+        when considering all objectives. Here, we consider models with the lowest mean
+        squared error and the lowest standard deviation (for stability)
+        as the optimal solutions.
+
+        Parameters:
+        ----------
+        model_type: str
+            The type of the model. It should be one of the following: 'Tweedie',
+            'RandomForest', 'XGBoost'.
+
+        measures: dict, default=None
+            A dictionary where keys are the names of measures to consider when computing
+            the Pareto front, and the values are 'min' if we want to minimize that
+            measure or 'max' if we want to maximize that measure. For example, if we
+            want to minimize the mean squared error and maximize the d2 score, we would
+            pass measures={'mse': 'min', 'd2': 'max'}. If None, the default is to
+            minimize the mean squared error and minimize the standard deviation of the
+            mean squared error. This is the recommended setting, and is meant to balance
+            model performance and stability.
+
+        Returns:
+        -------
+        A pandas DataFrame containing the Pareto front.
+        """
+
+        # Ensure model tuning has been called
+        if hasattr(self, f"{model_type.lower()}_result"):
+            pass
+        else:
+            if model_type.lower() == "tweedie":
+                m = TweedieRegressor()
+            elif model_type.lower() == "randomforest":
+                m = RandomForestRegressor()
+            elif model_type.lower() == "xgboost":
+                m = XGBRegressor()
+            else:
+                raise ValueError(
+                    "Model type must be one of\
+                                 'Tweedie', 'RandomForest', or 'XGBoost'."
+                )
+            self.TuneModel(m)
+
+        # If no measures are passed, use the default
+        if measures is None:
+            measures = {"ave_mse_test": "min", "sd_mse_test": "min"}
+
+        # Create a copy of the results dataframe
+        results = getattr(self, f"{model_type.lower()}_result").copy()
+
+        # Initialize a boolean Series to keep track of whether each model
+        # is Pareto optimal
+        is_pareto_optimal = pd.Series([True] * len(results), index=results.index)
+
+        for i, model in results.iterrows():
+            # Compare the current model to all other models
+            for measure, direction in measures.items():
+                if direction == "min":
+                    is_pareto_optimal[i] = not any(
+                        (results[measure] <= model[measure])
+                        & (
+                            results[list(measures.keys())]
+                            != model[list(measures.keys())]
+                        ).any(axis=1)
+                    )
+                elif direction == "max":
+                    is_pareto_optimal[i] = not any(
+                        (results[measure] >= model[measure])
+                        & (
+                            results[list(measures.keys())]
+                            != model[list(measures.keys())]
+                        ).any(axis=1)
+                    )
+
+        # Return only the Pareto optimal models
+        optimal_results = results[is_pareto_optimal]
+        setattr(self, f"{model_type.lower()}_optimal", optimal_results)
+        return optimal_results
+
+    def OptimalModel(self, model_type, measures=None, tie_criterion=None):
+        """
+        Returns the optimal model, which is defined to be the Pareto-optimal
+        model, optimized on selected optimization criteria. If more than one model is
+        Pareto-optimal, the model with the lowest mean squared error is returned.
+
+        If the ModelParetoFront method has not been called, we will run it
+        using the measures passed to this method.
+
+        This method is intended to be the only method that the user needs to call
+        to get the optimal model.
+
+        Parameters:
+        ----------
+        model_type: str
+            The type of the model. It should be one of the following:
+            'Tweedie', 'RandomForest', 'XGBoost'.
+
+        measures: dict, default=None
+            A dictionary where keys are the names of measures to consider when computing
+            the Pareto front, and the values are 'min' if we want to minimize that
+            measure or 'max' if we want to maximize that measure.
+
+        tie_criterion: str, default=None
+            The criterion to use when selecting the best model among those with the same
+            score on the selected measures. If None, the mean squared error is used.
+
+        Returns:
+        -------
+        The optimal model.
+        """
+        # Ensure ModelParetoFront has been called
+        if not hasattr(self, f"{model_type.lower()}_optimal"):
+            self.ModelParetoFront(model_type, measures=measures)
+
+        if tie_criterion is None:
+            tie_criterion = self.tie_criterion
+
+        # if there is more than one optimal model, return the one with the lowest MSE
+        optimal_models = getattr(self, f"{model_type.lower()}_optimal")
+        if optimal_models.shape[0] > 1:
+            optimal_model = optimal_models.sort_values(tie_criterion).iloc[0]
+        else:
+            optimal_model = optimal_models.iloc[0]
+
+        # print(f"Optimal model: {optimal_model}")
+
+        # get the optimal set of hyperparameters from the Pareto front df
+        def process_dataframe():
+            # Create a new DataFrame from the split index
+            df = getattr(self, f"{model_type.lower()}_optimal").copy()
+            df_new = (
+                df.index.to_series().str.split("-", expand=True).reset_index(drop=True)
+            )
+            # print(f"df_new1: {df_new}")
+
+            # Create an empty DataFrame to store the results
+            results = pd.DataFrame()
+
+            # For each column in the new DataFrame
+            for col in df_new.columns:
+                # print(f"{col}: {df_new[col]}")
+                # Split the column into a new DataFrame with two columns
+                split_col = df_new[col].str.rsplit("_", n=1, expand=True)
+                # print(f"split_col: {split_col}")
+
+                # Use the first column as the column names in the results DataFrame
+                # and the second column as the values
+                results[split_col[0]] = split_col[1]
+                # print(f"results: {results}")
+
+            df_new = df_new.iloc[0].str.rsplit("_", n=1, expand=True).set_index(0).T
+
+            for col in df_new.columns.tolist():
+                if col == "bootstrap":
+                    df_new[col] = df_new[col].astype(bool)
+                elif col == "max_depth":
+                    df_new.loc[df_new["max_depth"].eq("None"), "max_depth"] = None
+                    df_new.loc[
+                        df_new["max_depth"].ne("None"), "max_depth"
+                    ] = df_new.loc[df_new["max_depth"].ne("None"), "max_depth"].astype(
+                        int
+                    )
+                elif col in ["min_samples_leaf", "min_samples_split", "n_estimators"]:
+                    print(f"col: {col}\n{df_new[col]}")
+                    df_new[col] = df_new[col].astype(int)
+
+            return df_new
+
+        optimal_df = process_dataframe()
+
+        # get the optimal set of hyperparameters from the respective grid
+        grid = getattr(self, f"{model_type.lower()}_grid")
+        hyperparameters = {param: optimal_df[param].values[0] for param in grid.keys()}
+
+        # create and fit the model with the optimal hyperparameters, and return it
+        if model_type.lower() == "tweedie":
+            best_model = TweedieRegressor(**hyperparameters, link="log")
+        elif model_type.lower() == "randomforest":
+            best_model = RandomForestRegressor(**hyperparameters)
+        elif model_type.lower() == "xgboost":
+            best_model = XGBRegressor(**hyperparameters)
+        else:
+            raise ValueError(f"Invalid model_type {model_type}")
+
         best_model.fit(self.tri.get_X_base("train"), self.tri.get_y_base("train"))
         return best_model
