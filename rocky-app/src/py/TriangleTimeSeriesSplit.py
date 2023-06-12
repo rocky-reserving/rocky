@@ -1,9 +1,10 @@
-try:
-    from .triangle import Triangle
-except ModuleNotFoundError:
-    from triangle import Triangle
-except ImportError:
-    from triangle import Triangle
+# try:
+#     from .triangle import Triangle
+# except ModuleNotFoundError:
+#     from triangle import Triangle
+# except ImportError:
+#     from triangle import Triangle
+from triangle import Triangle
 
 import pandas as pd
 import numpy as np

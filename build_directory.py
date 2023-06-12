@@ -21,7 +21,7 @@ def traverse_directory(directory, file, indent, skip_paths):
 
 
 # Example usage:
-input_directory = r"C:\Users\AndyW\OneDrive\Documents\GitHub\rocky"
+# input_directory = r"C:\Users\AndyW\OneDrive\Documents\GitHub\rocky"
 output_file = "rocky_structure_map.txt"
 skip_paths = [
     ".gitignore",
@@ -38,4 +38,7 @@ skip_paths = [
     "git",
     "testing",
 ]
-generate_file_structure_map(input_directory, output_file, skip_paths)
+# generate_file_structure_map(input_directory, output_file, skip_paths)
+
+generate_file_structure_map(directory=".", output_file=output_file, skip_paths=skip_paths)
+

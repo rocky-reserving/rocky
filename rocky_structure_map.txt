@@ -1,4 +1,4 @@
-C:\Users\AndyW\OneDrive\Documents\GitHub\rocky
+.
 |--.prettierrc
 |--BaseEstimator.py
 |--build_directory.py
@@ -19,26 +19,14 @@ C:\Users\AndyW\OneDrive\Documents\GitHub\rocky
 |--\model\
 |  |--LossTriangleClassifier.py
 |--paid.csv
-|--PaidIncurredChain.py
+|--paidincurredchain.py
 |--plot.py
 |--pymc.yaml
 |--README.md
+|--requirements.txt
 |--\rocky-app\
-|  |--\server\
-|  |  |--.flaskenv
-|  |  |--app.db
-|  |  |--app.py
-|  |--\src\
-|  |  |--\py\
-|  |  |  |--HalfMegaModel.py
-|  |  |  |--rockycore.py
-|  |  |  |--triangle.py
-|  |  |  |--triangle_type_aliases.py
-|  |  |  |--utils.py
-|  |  |  |--__init__.py
-|  |  |--__init__.py
-|  |--ui prompt
-|  |--\web\
+|  |--compose-dev.yaml
+|  |--\rocky\
 |  |  |--.eslintrc.cjs
 |  |  |--index.html
 |  |  |--package-lock.json
@@ -48,27 +36,114 @@ C:\Users\AndyW\OneDrive\Documents\GitHub\rocky
 |  |  |--\src\
 |  |  |  |--App.css
 |  |  |  |--App.jsx
+|  |  |  |--\components\
+|  |  |  |  |--LandingHeader.jsx
+|  |  |  |  |--Toolbar.jsx
+|  |  |  |  |--Workspace.jsx
+|  |  |  |  |--\_toolbar\
+|  |  |  |  |  |--Accordion.jsx
+|  |  |  |  |  |--SaveLoadButton.jsx
+|  |  |  |  |  |--ToolbarIcon.jsx
+|  |  |  |  |--\_workspace\
+|  |  |  |  |  |--Panel.jsx
+|  |  |  |--index.css
+|  |  |  |--main.jsx
+|  |  |--tailwind.config.js
+|  |  |--vite.config.js
+|  |--ROCKY Demo.ipynb
+|  |--\server\
+|  |  |--.flaskenv
+|  |  |--app.db
+|  |  |--app.py
+|  |  |--Dockerfile
+|  |  |--env.yml
+|  |  |--req2.txt
+|  |  |--req3.txt
+|  |  |--req4.txt
+|  |  |--test-rocky.yml
+|  |--\src\
+|  |  |--glm_model.ipynb
+|  |  |--\py\
+|  |  |  |--Forecast.py
+|  |  |  |--GLM.py
+|  |  |  |--ModelPlot.py
+|  |  |  |--PoissonGLM.py
+|  |  |  |--requirements.txt
+|  |  |  |--rockycore.py
+|  |  |  |--setup.py
+|  |  |  |--triangle.py
+|  |  |  |--TriangleTimeSeriesSplit.py
+|  |  |  |--tuning-test.ipynb
+|  |  |  |--util.py
+|  |  |  |--\_dev\
+|  |  |  |  |--HalfMegaModel.py
+|  |  |  |--\_util\
+|  |  |  |  |--BaseEstimator.py
+|  |  |  |  |--count_rocky.py
+|  |  |  |  |--triangle_type_aliases.py
+|  |  |  |  |--utils.py
+|  |  |  |  |--__init__.py
+|  |  |  |--__init__.py
+|  |  |--__init__.py
+|  |--ui prompt
+|  |--\web\
+|  |  |--.eslintrc.cjs
+|  |  |--Dockerfile
+|  |  |--documentation.html
+|  |  |--firestore.indexes.json
+|  |  |--index.html
+|  |  |--package-lock.json
+|  |  |--package.json
+|  |  |--\public\
+|  |  |  |--vite.svg
+|  |  |--rules.json
+|  |  |--\src\
+|  |  |  |--App.css
+|  |  |  |--App.jsx
 |  |  |  |--\assets\
 |  |  |  |  |--react.svg
-|  |  |  |--build.css
+|  |  |  |  |--rocky_icon.jpg
+|  |  |  |  |--rocky_icon.svg
 |  |  |  |--\classes\
 |  |  |  |  |--luxon.min.js
 |  |  |  |  |--Triangle.js
 |  |  |  |--\components\
+|  |  |  |  |--\footer\
+|  |  |  |  |  |--Footer.component.jsx
+|  |  |  |  |--\landing\
+|  |  |  |  |  |--Landing.component.jsx
+|  |  |  |  |  |--\sub-comp\
+|  |  |  |  |  |  |--LandingButton.component.jsx
+|  |  |  |  |  |  |--LandingHeader.component.jsx
+|  |  |  |  |  |  |--LandingLogos.component.jsx
+|  |  |  |  |  |  |--LandingMain.component.jsx
 |  |  |  |  |--\main-window\
 |  |  |  |  |  |--BaseDraggableWindow.component.jsx
 |  |  |  |  |  |--LoadDataButton.component.jsx
 |  |  |  |  |  |--MainWorkspace.component.jsx
+|  |  |  |  |--\navbar\
+|  |  |  |  |  |--Navbar.component.jsx
+|  |  |  |  |  |--\sub-comp\
+|  |  |  |  |  |  |--NavbarLogo.component.jsx
+|  |  |  |  |  |  |--NavbarMenu.component.jsx
+|  |  |  |  |  |  |--NavbarSeparator.component.jsx
 |  |  |  |  |--\sidebar\
-|  |  |  |  |  |--Accordion.component.jsx
 |  |  |  |  |  |--Sidebar.component.jsx
+|  |  |  |  |  |--\sub-components\
+|  |  |  |  |  |  |--Accordion.component.jsx
+|  |  |  |  |  |  |--SidebarMenu.component.jsx
+|  |  |  |  |  |  |--SidebarToggle.component.jsx
+|  |  |  |  |  |  |--\sub-components\
+|  |  |  |  |  |  |  |--AccordionItem.component.jsx
+|  |  |  |  |  |  |  |--AccordionTitle.component.jsx
 |  |  |  |--index.css
 |  |  |  |--main.jsx
+|  |  |  |--style-grid.css
 |  |  |--vite.config.js
 |  |--__init__.py
+|--rocky.yaml
 |--rocky3.yaml
 |--rocky_structure_map.txt
-|--rocky_tree_structure.txt
 |--rpt.csv
 |--test pymc.ipynb
 |--testrocky.ipynb

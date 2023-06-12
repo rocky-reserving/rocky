@@ -3,6 +3,30 @@ import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
 
+# from _util.BaseEstimator import BaseEstimator
+
+# column name mappings
+column_name_map = {
+    'acc': 'Accident Period'
+    , 'accident_period': 'Accident Period'
+    , 'ay': 'Accident Period'
+    , 'dev': 'Development Period'
+    , 'development_period': 'Development Period'
+    , 'cal': 'Calendar Period'
+    , 'cy': 'Calendar Period'
+    , 'calendar_period': 'Calendar Period'
+
+    , 'y': 'Observed'
+    , 'yhat': 'Predicted'
+    , 'yhat_lower': 'Predicted Lower'
+    , 'yhat_upper': 'Predicted Upper'
+    , 'resid': 'Residual'
+    , 'std_resid': 'Standardized Residual'
+}
+
+def map_col(col):
+    return column_name_map[col] if col in column_name_map else col
+
 
 class Plot:
     def __init__(
@@ -14,6 +38,7 @@ class Plot:
         acc=None,
         dev=None,
         cal=None,
+        fitted_model=None,
     ):
         self.X_train = X_train
         self.y_train = y_train
@@ -22,6 +47,7 @@ class Plot:
         self.acc = acc
         self.dev = dev
         self.cal = cal
+        self.fitted_model = fitted_model
 
     def SetXTrain(self, X):
         self.X_train = X
@@ -53,17 +79,18 @@ class Plot:
             yhat = self.yhat
 
         if hover_data is None:
-            hover_data = ["acc", "dev", "cal", "y", "yhat"]
+            hover_data = [map_col(i) for i in ["acc", "dev", "cal", "y", "yhat"]]
+
+        color = map_col(color)
 
         obs_vs_pred = pd.DataFrame(
             {
-                "y": y if not log else np.log(y),
-                "yhat": yhat if not log else np.log(yhat),
-                "acc": self.acc,
-                "dev": self.dev,
-                "cal": self.cal,
-            }
-        )
+                map_col("y"): y if not log else np.log(y),
+                map_col("yhat"): yhat if not log else np.log(yhat),
+            })
+        obs_vs_pred[map_col('acc')] = self.acc
+        obs_vs_pred[map_col('dev')] = self.dev
+        obs_vs_pred[map_col('cal')] = self.cal
 
         obs_vs_pred["color"] = obs_vs_pred[color]
 
@@ -73,37 +100,37 @@ class Plot:
 
         # Create the scatter plot
         fig = px.scatter(
-            obs_vs_pred,
-            x="y",
-            y="yhat",
+            obs_vs_pred.rename(columns=column_name_map),
+            x=map_col("y"),
+            y=map_col("yhat"),
             color=color,
             opacity=opacity,
             hover_data=hover_data,
             title=f"{title}{'' if not log else ' (log scale)'}",
-            labels={"y": "Observed", "yhat": "Predicted"},
+            # labels={"y": "Observed", "yhat": "Predicted"},
         )
 
         # Add a single trend line
         fig.add_trace(
             px.scatter(
-                obs_vs_pred,
-                x="y",
-                y="yhat",
+                obs_vs_pred.rename(columns=column_name_map),
+                x=map_col("y"),
+                y=map_col("yhat"),
                 color=color,
                 hover_data=hover_data,
                 opacity=opacity,
                 title=f"{title}{'' if not log else ' (log scale)'}",
-                labels={"y": "Observed", "yhat": "Predicted"},
+                # labels={"y": "Observed", "yhat": "Predicted"},
             ).data[0]
         )
 
         # Add a 45-degree black dashed line
         fig.add_shape(
             type="line",
-            x0=obs_vs_pred["y"].min(),
-            y0=obs_vs_pred["yhat"].min(),
-            x1=obs_vs_pred["y"].max(),
-            y1=obs_vs_pred["yhat"].max(),
+            x0=obs_vs_pred[map_col("y")].min(),
+            y0=obs_vs_pred[map_col("yhat")].min(),
+            x1=obs_vs_pred[map_col("y")].max(),
+            y1=obs_vs_pred[map_col("yhat")].max(),
             line=dict(color="black", dash="dash"),
         )
 
@@ -120,7 +147,7 @@ class Plot:
         scatterpoint_outline_width=1,
         scatterpoint_fill_color=(0, 0, 0, 0.5),
         plot_title=None,
-        y_axis_title="resid",
+        y_axis_title="Standardized Residuals",
         x_axis_title="",
         log=False,
     ):
@@ -156,10 +183,11 @@ class Plot:
         if plot_by == "yhat":
             fig = px.scatter(
                 df,
-                x=plot_by,
-                y="std_resid",
-                color="std_resid",
-                hover_data=["y", "yhat", "acc", "dev", "cal"],
+                x = map_col('plot_by'),
+                y=map_col("Standardized Residuals"),
+                color=map_col("Standardized Residuals"),
+                hover_data=["Observed", "Predicted", "Accident Period",
+                            "Development Period", "Calendar Period"],
                 title=plot_title,
                 labels={"yhat": "Predicted", "resid": "Residual"},
             )
@@ -168,9 +196,11 @@ class Plot:
             fig.add_shape(
                 type="line",
                 x0=df["acc"].min(),
+                # x0=df["acc"].min(),
                 y0=0,
                 x1=df["acc"].max(),
                 y1=0,
+                title=plot_title,
                 line=dict(color="black", dash="dash"),
             )
 
@@ -190,12 +220,59 @@ class Plot:
                         box_visible=False,
                         line_color="black",
                         meanline_visible=True,
+
                     )
                 )
+
+
 
             fig.update_layout(
                 xaxis=dict(type="category", title=x_axis_title),
                 yaxis=dict(title=y_axis_title),
+                title=plot_title,
             )
 
+        fig.show()
+
+    def residual_qq(self, log=False):
+        df = pd.DataFrame({map_col("y"): self.y_train, map_col("yhat"): self.yhat})
+        df[map_col("y")] = np.log(df[map_col("y")]) if log else df[map_col("y")]
+        df[map_col("yhat")] = np.log(df[map_col("yhat")]) if log else df[map_col("yhat")]
+        df[map_col('resid')] = df[map_col("y")] - df[map_col("yhat")]
+        df[map_col("std_resid")] = (df[map_col("resid")] - df[map_col("resid")].mean()) / df[map_col("resid")].std()
+
+        fig = go.Figure()
+
+        fig.add_trace(
+            go.Scatter(
+                df.rename(columns=column_name_map),
+                x=('resid'),
+                y=map_col('y'),
+                mode="markers",
+                marker=dict(color="black", size=3, opacity=0.5),
+            )
+        )
+
+        fig.add_trace(
+            go.Scatter(
+                x=[-3, 3],
+                y=[-3, 3],
+                mode="lines",
+                line=dict(color="black", width=1, dash="dash"),
+            )
+        )
+
+        fig.update_layout(
+            title="Normal Q-Q Plot",
+            xaxis=dict(title="Standardized Residuals"),
+            yaxis=dict(title="Observed"),
+        )
+
+        fig.show()
+
+    def model(self, variable=None):
+        if variable is None:
+            variable = "acc"
+        params = self.fitted_model.GetParameters(column=variable)
+        fig = px.line(params, x='parameter', y='cumsum')
         fig.show()

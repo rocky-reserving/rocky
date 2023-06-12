@@ -5,16 +5,18 @@ curdir = os.path.abspath(os.path.dirname("."))
 sys.path.append(curdir)
 
 # function to count the number of objects in a container
-try:
-    from .util import count_rocky
-except ImportError:
-    from util import count_rocky
+# try:
+#     from .util import count_rocky
+# except ImportError:
+#     from util import count_rocky
+from util import count_rocky
 
 # triangle data type
-try:
-    from .triangle import Triangle
-except ImportError:
-    from triangle import Triangle
+# try:
+#     from .triangle import Triangle
+# except ImportError:
+#     from triangle import Triangle
+from triangle import Triangle
 
 # try:
 #     from .TriangleTimeSeriesSplit import TriangleTimeSeriesSplit
@@ -22,10 +24,11 @@ except ImportError:
 #     from TriangleTimeSeriesSplit import TriangleTimeSeriesSplit
 
 # GLM model
-try:
-    from .GLM import glm
-except ImportError:
-    from GLM import glm
+# try:
+#     from .GLM import glm
+# except ImportError:
+#     from GLM import glm
+from GLM import glm
 
 
 from dataclasses import dataclass
@@ -104,6 +107,20 @@ class rocky:
             id = obj.id
         setattr(self, "id", id)
 
+    def load_mack_1994(self, id='rpt_loss') -> None:
+        """
+        Load the Mack 1994 Sample Incurred Loss triangles.
+
+        A reported loss triangle is created and added to the rocky object.
+        """
+        tri = Triangle.from_mack_1994()
+        tri.base_linear_model()
+
+        if id is None:
+            id = "rpt_loss"
+        self.t.add(tri, id)
+        setattr(self, f"{id}", tri)
+
     def load_taylor_ashe(self, id=None) -> None:
         """
         Load the Taylor-Ashe triangle data set. This is the set of triangles
@@ -152,6 +169,11 @@ class rocky:
             if id is None:
                 id = "paid_loss"
             self.load_taylor_ashe(id=id)
+            getattr(self, f"{id}").base_linear_model()
+        elif sample.lower()=="mack_1994":
+            if id is None:
+                id = "rpt_loss"
+            self.load_mack_1994(id=id)
             getattr(self, f"{id}").base_linear_model()
 
     def FromClipboard(self, id: str = "rpt_loss") -> None:

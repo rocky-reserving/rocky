@@ -152,12 +152,6 @@ class Triangle:
             self.am = self.acc.dt.month.astype(int)
             self.am.name = "accident_month"
 
-            # self.cal = pd.DataFrame(
-            #     self.acc.month.values.reshape(-1, 1) + self.dev.values.reshape(1, -1),
-            #     index=self.acc,
-            #     columns=self.dev,
-            # )
-
             # set the n_rows and n_cols attributes
             self.n_rows = self.tri.shape[0]
             self.n_cols = self.tri.shape[1]
@@ -183,7 +177,7 @@ class Triangle:
             for c in self.tri.columns:
                 try:
                     self.tri[c] = self.tri[c].astype(float)
-                except:
+                except TypeError:
                     self.tri[c] = (
                         self.tri[c]
                         .str.replace(",", "")
@@ -192,17 +186,11 @@ class Triangle:
                         .astype(float)
                     )
 
-        # # test if there is a cum model file
-        # self.has_cum_model_file = os.path.isfile(f'./models/{self.id}_is_cum_model.pt')
-
-        # # load and run is_cum model if there is a cum model file
-        # if self.has_cum_model_file:
-        #     self._load_is_cum_model()
-        #     self._is_cum_model()
-
         # create alias for self.tri as self.df that matches the triangle as it is
         # updated, and does not need to be updated separately
         self.df = self.tri
+        self.base_linear_model()
+        self.positive_y = self.y_base.loc[self.y_base > 0].index.values
 
     def __repr__(self) -> str:
         return self.tri.__repr__()
@@ -747,6 +735,36 @@ class Triangle:
 
         # Create and return a Triangle object
         return cls(id=id, tri=df.round(1), triangle=df.round(1))
+    
+    @classmethod
+    def from_mack_1994(cls) -> "Triangle":
+        """
+        Create a Triangle object from the sample triangle in the Mack 1994
+        paper, "Measuring the Variability of Chain Ladder Reserve Estimates"
+        
+        (see https://www.casact.org/sites/default/files/2021-03/7_Mack_1994.pdf)
+
+        Parameters:
+        -----------
+        None
+
+        Returns:
+        --------
+        Triangle
+            A Triangle object with data loaded from the Taylor Ashe sample data.
+        """
+        # Get the current directory
+        current_dir = os.path.dirname(os.path.realpath(__file__))
+
+        # Construct the file path to the sample data
+        data_file = os.path.join(current_dir, "data", "mack1994.csv")
+
+        # Read the data from the CSV file
+        df = pd.read_csv(data_file, header=0, index_col=0)
+
+        # Create and return a Triangle object
+        return cls(id="gl_rpt_loss", tri=df, triangle=df)
+
 
     @classmethod
     def from_taylor_ashe(cls) -> "Triangle":
@@ -1656,7 +1674,8 @@ class Triangle:
             else:
                 out[c] = df_cal[c] + out[cols[i - 1]]
 
-        out = out.reset_index(drop=True).astype(int)
+        out = out.astype(int)
+        # out = out.reset_index(drop=True).astype(int)
 
         idx = self.get_X_id(split=split).index
         return out.loc[idx]
@@ -1680,7 +1699,7 @@ class Triangle:
 
         df["intercept"] = 1
 
-        return df.reset_index(drop=True)
+        return df
 
     def get_y_base(self, split=None):
         """
@@ -1695,7 +1714,7 @@ class Triangle:
         else:
             df = self.y_base
 
-        return df.reset_index(drop=True)
+        return df
 
     def get_X_id(self, split=None):
         """
@@ -1710,7 +1729,7 @@ class Triangle:
         else:
             df = self.X_id
 
-        return df.reset_index(drop=True)
+        return df
 
     def get_y_id(self, split=None):
         """
@@ -1725,7 +1744,7 @@ class Triangle:
         else:
             df = self.y_id
 
-        return df.reset_index(drop=True)
+        return df
 
     def prep_for_cnn(self, steps=False) -> pd.DataFrame:
         """
