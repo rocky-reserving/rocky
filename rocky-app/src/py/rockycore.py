@@ -319,7 +319,7 @@ class rocky:
                 id=id,
                 model_class=model_class,
                 tri=tri,
-                cal=cal,
+                use_cal=cal,
                 n_validation=n_validation,
             ),
             f"{id}",

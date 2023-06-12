@@ -53,6 +53,7 @@ class glm:
     X_train: pd.DataFrame = None
     X_forecast: pd.DataFrame = None
     y_train: pd.Series = None
+    use_cal: bool = False
     plot: Plot = None
     acc: pd.Series = None
     dev: pd.Series = None
@@ -129,7 +130,7 @@ class glm:
 
         Returns the base triangle data for the model.
         """
-        return self.tri.get_X_base(kind, cal=self.cal)
+        return self.tri.get_X_base(kind, cal=self.use_cal)
 
     def GetYBase(self, kind="train"):
         """
@@ -148,16 +149,22 @@ class glm:
         if kind is None:
             return pd.concat(
                 [
-                    self.tri.get_X_base("train"),
-                    self.tri.get_X_base("forecast"),
+                    self.tri.get_X_base("train", cal=self.use_cal),
+                    self.tri.get_X_base("forecast", cal=self.use_cal),
                 ]
             )
         else:
             if kind.lower() in ["train", "forecast"]:
                 if kind.lower() == "train":
-                    return self.X_train
+                    if self.is_fitted:
+                        return self.X_train
+                    else:
+                        return self.tri.get_X_base("train", cal=self.use_cal)
                 elif kind.lower() == "forecast":
-                    return self.X_forecast
+                    if self.is_fitted:
+                        return self.X_forecast
+                    else:
+                        return self.tri.get_X_base("forecast", cal=self.use_cal)
             else:
                 raise ValueError("kind must be 'train' or 'forecast'")
 

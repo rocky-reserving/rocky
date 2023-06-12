@@ -1604,6 +1604,32 @@ class Triangle:
             self.X_base_train = self.X_base_train.drop(columns="intercept")
             self.X_base_forecast = self.X_base_forecast.drop(columns="intercept")
 
+    def get_X(self, split=None, use_cal=False, X_type=None, column_query=None):
+        cal = self.get_X_cal(split=split)
+        base = self.get_X_base(split=split)
+        id = self.get_X_id(split=split)
+
+        if use_cal:
+            X = pd.concat([id, base, cal], axis=1)
+        else:
+            X = pd.concat([id, base], axis=1)
+
+        if split is None:
+            pass
+        elif split == "train":
+            X = X.loc[X.is_observed.eq(1)]
+        elif split == "forecast":
+            X = X.loc[X.is_observed.eq(0)]
+
+        if column_query is not None:
+            for c in X.columns.tolist():
+                if column_query in c:
+                    pass
+                else:
+                    X = X.drop(columns=c)
+
+        return X
+
     def get_X_cal(self, split=None):
         """
         Returns the calendar design matrix
