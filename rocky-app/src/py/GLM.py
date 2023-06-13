@@ -38,7 +38,6 @@ class glm(BaseEstimator):
     Base GLM class. All GLM models inherit from this class, and are Tweedie
     GLMs. The GLM models are fit using the scikit-learn TweedieRegressor class.
     """
-
     id: str
     model_class: str = None
     model: object = None
@@ -63,31 +62,10 @@ class glm(BaseEstimator):
     acc: pd.Series = None
     dev: pd.Series = None
     cal: pd.Series = None
+    must_be_positive: bool = True
 
     def __post_init__(self):
-        if self.weights is None:
-            self.weights = np.ones(self.tri.tri.shape[0])
-
-        # initialize X_train, X_forecast, and y_train
-        self.X_train = self.GetXBase("train")
-        self.X_forecast = self.GetXBase("forecast")
-        self.y_train = self.GetYBase("train")
-
-        # filter non-positive values
-        self.X_train = self.X_train.iloc[self.tri.positive_y]
-        self.y_train = self.y_train[self.tri.positive_y]
-
-        # initialize the plotting object
-        self.plot = Plot()
-
-        # initialize the acc, dev, cal attributes
-        self.acc = self.tri.get_X_id("train")["accident_period"]
-        self.dev = self.tri.get_X_id("train")["development_period"]
-        self.cal = self.tri.get_X_id("train")["cal"]
-
-        self.acc = self.acc[self.tri.positive_y]
-        self.dev = self.dev[self.tri.positive_y]
-        self.cal = self.cal[self.tri.positive_y]
+        super().__post_init__()
 
     def __repr__(self):
         if self.alpha is None:

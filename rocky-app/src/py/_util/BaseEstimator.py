@@ -62,27 +62,52 @@ class BaseEstimator:
     acc_forecast: pd.Series = None
     dev_forecast: pd.Series = None
     cal_forecast: pd.Series = None
-    is_positive: bool = False
+    must_be_positive: bool = False
 
     def __post_init__(self):
         if self.weights is None:
             self.weights = np.ones(self.tri.tri.shape[0])
 
-        # index where y is positive and observed
-        is_positive = self.tri.positive_y
-        is_observed = self.tri.is_observed
-        is_forecast = (1).where(is_observed, 0) == 0
+        # build idx
+        self._build_idx()
 
-        self.train_idx = self.drop_non_positive_y(is_positive, is_observed).index.values
-        self.forecast_idx = self.drop_non_positive_y(is_forecast).index.values
-
-        # initialize X_train, X_forecast, and y_train
-        self.X_train = self.GetXBase("train")
-        self.X_forecast = self.drop_non_positive_y(self.GetXBase("train"), is_forecast)
-        self.y_train = self.GetYBase("train")[]
+        # initialize matrices
+        self._initialize_matrices()
 
         # initialize the plotting object
         self.plot = Plot()
+
+        # order the columns of X_train and X_forecast
+        self.column_order = self.GetX().columns.tolist()
+
+    def _build_idx1(self):
+        # index where y is positive and observed
+        is_positive = self.tri.positive_y
+        is_observed = self.tri.is_observed.values
+        total = self.tri.X_base.index.values
+        is_forecast = np.setdiff1d(total, is_observed)
+        return is_positive, is_observed, is_forecast
+
+    def _build_idx(self):
+
+        is_positive, is_observed, is_forecast = self._build_idx1()
+
+        # depending on the model, we may want to drop non-positive y values
+        # if so, set must_be_positive to True in the child class
+        if self.must_be_positive:
+            self.initial_train_idx = self.combine_indices(is_positive, is_observed)
+        else:
+            self.initial_train_idx = self.combine_indices(is_observed)
+        self.initial_forecast_idx = self.combine_indices(is_forecast)
+
+        self.train_index = self.initial_train_idx
+        self.forecast_index = self.initial_forecast_idx
+
+    def _initialize_matrices(self):
+        # initialize X_train, X_forecast, and y_train
+        self.X_train = self.GetXBase("train")
+        self.X_forecast = self.GetXBase("train")
+        self.y_train = self.GetYBase("train")
 
         # initialize the acc, dev, cal attributes (train set)
         self.acc = self.tri.get_X_id("train")["accident_period"]
@@ -94,16 +119,23 @@ class BaseEstimator:
         self.dev_forecast = self.tri.get_X_id("forecast")["development_period"]
         self.cal_forecast = self.tri.get_X_id("forecast")["cal"]
 
-        # # drop non positive y values
-        # self.drop_non_positive_y()
+    def combine_indices(self, *args):
+        """
+        Combine indices into a single index.
 
-        # order the columns of X_train and X_forecast
-        self.column_order = self.GetX().columns.tolist()
+        Parameters
+        ----------
+        args : np.ndarray
+            Indices to combine. If multiple indices are passed, they must each
+            be an array. The indicies will be concatenated along the first axis
+            to form a single index.
 
-    # def drop_non_positive_y(self, df=None, *args):
-    #     if df is None:
-    #         df = pd.Series(np.arrange(self.tri.tri.shape[0]*2))
-    #     return df.loc[df.index.isin(set(args[0])).intersection(*map(set, args[1:]))]
+        Returns
+        -------
+        np.ndarray
+            Combined index.
+        """
+        return pd.Series(np.concatenate(args, axis=0)).drop_duplicates().sort_values().values
 
     def __repr__(self):
         raise NotImplementedError
@@ -119,6 +151,19 @@ class BaseEstimator:
         Update the model's attributes for plotting.
         """
         raise NotImplementedError
+    
+    def GetIdx(self, kind="train"):
+        if kind=='train':
+            idx = self.train_index
+        elif kind=='forecast':
+            idx = self.forecast_index
+        elif kind=='all' or kind is None:
+            idx = self.train_index.tolist() + self.forecast_index.tolist()
+            idx = pd.Series(idx).sort_values().drop_duplicates().values
+        else:
+            raise ValueError("kind must be 'train', 'forecast', or 'all'")
+        return idx
+        
 
     def GetXBase(self, kind="train"):
         """
@@ -126,7 +171,12 @@ class BaseEstimator:
 
         Returns the base triangle data for the model.
         """
-        return self.tri.get_X_base(kind, cal=self.use_cal)
+        idx = self.GetIdx(kind)
+        
+        X = self.tri.get_X_base(kind)
+        X = X.iloc[idx, :]
+        return X
+
 
     def GetYBase(self, kind="train"):
         """
@@ -137,7 +187,11 @@ class BaseEstimator:
         Parameters
         ----------
         """
-        return self.tri.get_y_base(kind)
+        idx = self.GetIdx(kind)
+        
+        y = self.tri.get_y_base(kind)
+        y = y[idx]
+        return y
 
     def GetX(self, kind=None):
         """
@@ -145,6 +199,8 @@ class BaseEstimator:
         matrix directly from the triangle. When parameters are combined, X is
         created as the design matrix of the combined parameters.
         """
+        idx = self.GetIdx(kind)
+        
         if kind is None or kind=='all':
             df = pd.concat([self.X_train, self.X_forecast])
         elif kind=="train":
@@ -153,10 +209,12 @@ class BaseEstimator:
             df = self.X_forecast
         else:
             raise ValueError("kind must be 'train', 'forecast', 'all'")
+        
         def cond(x):
             return x != 'intercept' and x != 'is_observed'
+        
         df = df[['intercept'] + [c for c in df.columns if cond(c)]]
-        return df
+        return df.iloc[idx, :]
 
     def GetParameterNames(self, column=None):
         """
@@ -169,9 +227,11 @@ class BaseEstimator:
         Getter for the model's y data. If there is no y data, take the y vector
         directly from the triangle.
         """
+        idx = self.GetIdx(kind)
+
         if kind.lower() in ["train", "forecast"]:
             if kind.lower() == "train":
-                return self.y_train
+                return self.y_train[idx]
             elif kind.lower() == "forecast":
                 raise ValueError("y_forecast is what we are trying to predict!")
         else:

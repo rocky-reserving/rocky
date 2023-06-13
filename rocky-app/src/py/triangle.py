@@ -1304,7 +1304,8 @@ class Triangle:
         n: int = None,
         tail: float = 1.0,
         excludes: str = "hl",
-        custom: np.ndarray = None,):
+        custom: np.ndarray = None,
+        round_to: int = 0,):
         """
         Calculates the ultimate loss from the standard chain ladder method.
 
@@ -1335,6 +1336,8 @@ class Triangle:
             If not None, the 'ave_type', 'n', 'tail', and 'excludes' parameters
             are ignored.
             Default is None.
+        round_to: int
+            The number of decimal places to round the ultimate loss to. Default is 0.
         """
         diag = self.diag()
         
@@ -1345,7 +1348,7 @@ class Triangle:
         # calculate the ultimate loss
         ult = diag * atu
 
-        return ult
+        return ult.round(round_to)
 
         
 
