@@ -191,6 +191,7 @@ class Triangle:
         self.df = self.tri
         self.base_linear_model()
         self.positive_y = self.y_base.loc[self.y_base > 0].index.values
+        self.is_observed = self.X_base.is_observed
 
     def __repr__(self) -> str:
         return self.tri.__repr__()
@@ -1298,6 +1299,56 @@ class Triangle:
 
         return diag
 
+    def ult(self,
+        ave_type: str = "vwa",
+        n: int = None,
+        tail: float = 1.0,
+        excludes: str = "hl",
+        custom: np.ndarray = None,):
+        """
+        Calculates the ultimate loss from the standard chain ladder method.
+
+        Parameters:
+        -----------
+        ave_type: str
+            The type of average to use. Options are 'vwa', 'simple',
+            and 'medial'. Default is 'vwa'.
+        n: int
+            The number of periods to use in the average calculation. If None, use
+            all available periods.
+        tail: float
+            The tail factor to use in the average calculation. Default is 1.0, or
+            no tail factor.
+        excludes: str
+            The exclusions to use in the average calculation. Default is 'hl',
+            or high and low. This parameter is a string of characters, where each
+            character is an exclusion. The options are:
+                h - high
+                l - low
+                m - median
+            These characters can be in any order, and any number of them can be
+            specified. For example, 'hl' excludes the high and low values, as does
+            'lh', but 'hhl' excludes only the high value.
+        custom: np.ndarray
+            A custom array of age-to-age factors to use in the calculation. If
+            None, use the age-to-age factors calculated from the 'ave_type'.
+            If not None, the 'ave_type', 'n', 'tail', and 'excludes' parameters
+            are ignored.
+            Default is None.
+        """
+        diag = self.diag()
+        
+        # calculate the age-to-ultimate factors and reverse the order
+        atu = self.atu(ave_type=ave_type, n=n, tail=tail, excludes=excludes, custom=custom)[::-1]
+        atu.index = diag.index
+
+        # calculate the ultimate loss
+        ult = diag * atu
+
+        return ult
+
+        
+
     def ata_summary(self) -> pd.DataFrame:
         """
         Produces a fixed summary of the age-to-age factors for the triangle data.
@@ -1675,7 +1726,6 @@ class Triangle:
                 out[c] = df_cal[c] + out[cols[i - 1]]
 
         out = out.astype(int)
-        # out = out.reset_index(drop=True).astype(int)
 
         idx = self.get_X_id(split=split).index
         return out.loc[idx]
