@@ -59,29 +59,51 @@ class BaseEstimator:
     dev: pd.Series = None
     cal: pd.Series = None
     has_combined_params: bool = False
+    acc_forecast: pd.Series = None
+    dev_forecast: pd.Series = None
+    cal_forecast: pd.Series = None
+    is_positive: bool = False
 
     def __post_init__(self):
         if self.weights is None:
             self.weights = np.ones(self.tri.tri.shape[0])
 
+        # index where y is positive and observed
+        is_positive = self.tri.positive_y
+        is_observed = self.tri.is_observed
+        is_forecast = (1).where(is_observed, 0) == 0
+
+        self.train_idx = self.drop_non_positive_y(is_positive, is_observed).index.values
+        self.forecast_idx = self.drop_non_positive_y(is_forecast).index.values
+
         # initialize X_train, X_forecast, and y_train
         self.X_train = self.GetXBase("train")
-        self.X_forecast = self.GetXBase("forecast")
-        self.y_train = self.GetYBase("train")
+        self.X_forecast = self.drop_non_positive_y(self.GetXBase("train"), is_forecast)
+        self.y_train = self.GetYBase("train")[]
 
         # initialize the plotting object
         self.plot = Plot()
 
-        # initialize the acc, dev, cal attributes
+        # initialize the acc, dev, cal attributes (train set)
         self.acc = self.tri.get_X_id("train")["accident_period"]
         self.dev = self.tri.get_X_id("train")["development_period"]
         self.cal = self.tri.get_X_id("train")["cal"]
 
+        # initialize forecasting attributes
+        self.acc_forecast = self.tri.get_X_id("forecast")["accident_period"]
+        self.dev_forecast = self.tri.get_X_id("forecast")["development_period"]
+        self.cal_forecast = self.tri.get_X_id("forecast")["cal"]
+
+        # # drop non positive y values
+        # self.drop_non_positive_y()
+
         # order the columns of X_train and X_forecast
         self.column_order = self.GetX().columns.tolist()
 
-        # are there any values of y that are not positive?
-        self.non_positive_y = self.y_train[self.y_train <= 0].index
+    # def drop_non_positive_y(self, df=None, *args):
+    #     if df is None:
+    #         df = pd.Series(np.arrange(self.tri.tri.shape[0]*2))
+    #     return df.loc[df.index.isin(set(args[0])).intersection(*map(set, args[1:]))]
 
     def __repr__(self):
         raise NotImplementedError
