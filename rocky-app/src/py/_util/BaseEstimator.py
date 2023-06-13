@@ -22,10 +22,11 @@ import pandas as pd
 
 from ModelPlot import Plot
 
+
 @dataclass
 class BaseEstimator:
     """
-    Base model class. 
+    Base model class.
 
     The methods in this class are used by all models and estimators in the
     rocky package. Those that are not implemented in this class must be
@@ -34,6 +35,7 @@ class BaseEstimator:
     All added models should inherit from this class, and should implement methods
     as needed.
     """
+
     id: str
     model_class: str = None
     model: object = None
@@ -63,8 +65,10 @@ class BaseEstimator:
     dev_forecast: pd.Series = None
     cal_forecast: pd.Series = None
     must_be_positive: bool = False
+    model_name: str = None
 
     def __post_init__(self):
+        # print(f"must be positive: {self.must_be_positive}")
         if self.weights is None:
             self.weights = np.ones(self.tri.tri.shape[0])
 
@@ -78,27 +82,31 @@ class BaseEstimator:
         self.plot = Plot()
 
         # order the columns of X_train and X_forecast
-        self.column_order = self.GetX().columns.tolist()
+        self.column_order = self.GetX("train").columns.tolist()
 
     def _build_idx1(self):
         # index where y is positive and observed
         is_positive = self.tri.positive_y
-        is_observed = self.tri.is_observed.values
+        is_observed = self.tri.X_base.loc[
+            self.tri.X_base["is_observed"] == 1
+        ].index.values
         total = self.tri.X_base.index.values
         is_forecast = np.setdiff1d(total, is_observed)
         return is_positive, is_observed, is_forecast
 
     def _build_idx(self):
-
         is_positive, is_observed, is_forecast = self._build_idx1()
+        # print(f"is_positive: {is_positive}")
+        # print(f"is_observed: {is_observed}")
+        # print(f"is_forecast: {is_forecast}")
 
         # depending on the model, we may want to drop non-positive y values
         # if so, set must_be_positive to True in the child class
         if self.must_be_positive:
-            self.initial_train_idx = self.combine_indices(is_positive, is_observed)
+            self.initial_train_idx = np.intersect1d(is_positive, is_observed)
         else:
-            self.initial_train_idx = self.combine_indices(is_observed)
-        self.initial_forecast_idx = self.combine_indices(is_forecast)
+            self.initial_train_idx = is_observed
+        self.initial_forecast_idx = is_forecast
 
         self.train_index = self.initial_train_idx
         self.forecast_index = self.initial_forecast_idx
@@ -106,7 +114,7 @@ class BaseEstimator:
     def _initialize_matrices(self):
         # initialize X_train, X_forecast, and y_train
         self.X_train = self.GetXBase("train")
-        self.X_forecast = self.GetXBase("train")
+        self.X_forecast = self.GetXBase("forecast")
         self.y_train = self.GetYBase("train")
 
         # initialize the acc, dev, cal attributes (train set)
@@ -135,7 +143,12 @@ class BaseEstimator:
         np.ndarray
             Combined index.
         """
-        return pd.Series(np.concatenate(args, axis=0)).drop_duplicates().sort_values().values
+        return (
+            pd.Series(np.concatenate(args, axis=0))
+            .drop_duplicates()
+            .sort_values()
+            .values
+        )
 
     def __repr__(self):
         raise NotImplementedError
@@ -151,19 +164,18 @@ class BaseEstimator:
         Update the model's attributes for plotting.
         """
         raise NotImplementedError
-    
+
     def GetIdx(self, kind="train"):
-        if kind=='train':
+        if kind == "train":
             idx = self.train_index
-        elif kind=='forecast':
+        elif kind == "forecast":
             idx = self.forecast_index
-        elif kind=='all' or kind is None:
+        elif kind == "all" or kind is None:
             idx = self.train_index.tolist() + self.forecast_index.tolist()
             idx = pd.Series(idx).sort_values().drop_duplicates().values
         else:
             raise ValueError("kind must be 'train', 'forecast', or 'all'")
         return idx
-        
 
     def GetXBase(self, kind="train"):
         """
@@ -171,12 +183,15 @@ class BaseEstimator:
 
         Returns the base triangle data for the model.
         """
+        # get index
         idx = self.GetIdx(kind)
-        
-        X = self.tri.get_X_base(kind)
-        X = X.iloc[idx, :]
-        return X
 
+        # get X
+        X = self.tri.get_X_base(kind)
+
+        # filter X and return
+        X = X.loc[idx, :]
+        return X
 
     def GetYBase(self, kind="train"):
         """
@@ -188,7 +203,7 @@ class BaseEstimator:
         ----------
         """
         idx = self.GetIdx(kind)
-        
+
         y = self.tri.get_y_base(kind)
         y = y[idx]
         return y
@@ -200,21 +215,32 @@ class BaseEstimator:
         created as the design matrix of the combined parameters.
         """
         idx = self.GetIdx(kind)
-        
-        if kind is None or kind=='all':
+        # print(f"kind: {kind}")
+        # print(f"idx: {idx}")
+
+        if kind is None or kind == "all":
             df = pd.concat([self.X_train, self.X_forecast])
-        elif kind=="train":
+        elif kind == "train":
             df = self.X_train
-        elif kind=="forecast":
+        elif kind == "forecast":
             df = self.X_forecast
         else:
             raise ValueError("kind must be 'train', 'forecast', 'all'")
-        
+
         def cond(x):
-            return x != 'intercept' and x != 'is_observed'
-        
-        df = df[['intercept'] + [c for c in df.columns if cond(c)]]
-        return df.iloc[idx, :]
+            return x != "intercept" and x != "is_observed"
+
+        condition = ["intercept"]
+        for c in df.columns:
+            if cond(c):
+                condition.append(c)
+
+        # print(f"condition: {condition}")
+        df = df[condition]
+        # print(f"df: {df.head()}")
+        # print(f"df shape: {df.shape}")
+
+        return df.loc[idx, :]
 
     def GetParameterNames(self, column=None):
         """
@@ -255,55 +281,27 @@ class BaseEstimator:
         y: pd.Series = None,
         **kwargs,
     ) -> None:
-        """
-        Fit the model to the Triangle data.
+        raise NotImplementedError
 
-        Parameters
-        ----------
-        X : pd.DataFrame, optional
-            The design matrix, by default None, which will use the design matrix
-            from the Triangle object.
-        y : pd.Series, optional
-            The response vector, by default None, which will use the response
-            vector from the Triangle object.
-        **kwargs
-            Additional keyword arguments to pass to the glm object. See
-            `sklearn.linear_model.TweedieRegressor` for more details.
-
-        Returns
-        -------
-        None
-            The model is fit in place.
-
-        Notes
-        -----
-        If the hyperparameters are not set, then a Pareto-optimal set of
-        hyperparameters will be found using `TuneFitHyperparameters()`.
-
-        Examples
-        --------
-        >>> from rockycore import ROCKY
-        >>> # create a ROCKY object
-        >>> rky = ROCKY()
-        >>> # load a triangle from the clipboard
-        >>> rky.FromClipboard()
-        >>> # add a GLM to `rky`
-        >>> rky.AddModel()
-
-        """
+    def ManualFit(self, **kwargs):
         raise NotImplementedError
 
     def Predict(self, kind: str = None, X: pd.DataFrame = None) -> pd.Series:
         raise NotImplementedError
-    
-    def Ultimate(self) -> pd.Series:
-        X = self.GetX(kind='forecast')
-        df = pd.DataFrame({
-            'acc': self.tri.get_X_id('all').accident_period
-            , 'Ultimate': self.GetY(kind="train").tolist() + self.Predict('forecast', X).tolist()
-        })
 
-        return df.groupby('acc').sum()['Ultimate'].round(0)
+    def Ultimate(self) -> pd.Series:
+        X = self.GetX(kind="forecast")
+        df = pd.DataFrame(
+            {
+                "Accident Period": self.tri.get_X_id("all").accident_period,
+                f"{self.model_name} Ultimate": self.GetY(kind="train").tolist()
+                + self.Predict("forecast", X).tolist(),
+            }
+        )
+
+        return (
+            df.groupby("Accident Period").sum()[f"{self.model_name} Ultimate"].round(0)
+        )
 
     def GetYhat(self, kind: str = None) -> pd.Series:
         return self.Predict(kind=kind)
@@ -446,7 +444,10 @@ class BaseEstimator:
 
         elif year_type == "dev":
             # generate column names
-            cols_to_combine = ["development_period_" + pd.Series([year]).astype(str).str.zfill(4)[0] for year in year_list]
+            cols_to_combine = [
+                "development_period_" + pd.Series([year]).astype(str).str.zfill(4)[0]
+                for year in year_list
+            ]
 
             # check if columns exist in the DataFrame
             # if not set(cols_to_combine).issubset(X_train.columns.tolist()):

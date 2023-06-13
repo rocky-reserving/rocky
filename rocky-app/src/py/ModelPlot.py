@@ -7,22 +7,22 @@ import numpy as np
 
 # column name mappings
 column_name_map = {
-    'acc': 'Accident Period'
-    , 'accident_period': 'Accident Period'
-    , 'ay': 'Accident Period'
-    , 'dev': 'Development Period'
-    , 'development_period': 'Development Period'
-    , 'cal': 'Calendar Period'
-    , 'cy': 'Calendar Period'
-    , 'calendar_period': 'Calendar Period'
-
-    , 'y': 'Observed'
-    , 'yhat': 'Predicted'
-    , 'yhat_lower': 'Predicted Lower'
-    , 'yhat_upper': 'Predicted Upper'
-    , 'resid': 'Residual'
-    , 'std_resid': 'Standardized Residual'
+    "acc": "Accident Period",
+    "accident_period": "Accident Period",
+    "ay": "Accident Period",
+    "dev": "Development Period",
+    "development_period": "Development Period",
+    "cal": "Calendar Period",
+    "cy": "Calendar Period",
+    "calendar_period": "Calendar Period",
+    "y": "Observed",
+    "yhat": "Predicted",
+    "yhat_lower": "Predicted Lower",
+    "yhat_upper": "Predicted Upper",
+    "resid": "Residual",
+    "std_resid": "Standardized Residual",
 }
+
 
 def map_col(col):
     return column_name_map[col] if col in column_name_map else col
@@ -87,10 +87,11 @@ class Plot:
             {
                 map_col("y"): y if not log else np.log(y),
                 map_col("yhat"): yhat if not log else np.log(yhat),
-            })
-        obs_vs_pred[map_col('acc')] = self.acc
-        obs_vs_pred[map_col('dev')] = self.dev
-        obs_vs_pred[map_col('cal')] = self.cal
+            }
+        )
+        obs_vs_pred[map_col("acc")] = self.acc
+        obs_vs_pred[map_col("dev")] = self.dev
+        obs_vs_pred[map_col("cal")] = self.cal
 
         obs_vs_pred["color"] = obs_vs_pred[color]
 
@@ -183,11 +184,16 @@ class Plot:
         if plot_by == "yhat":
             fig = px.scatter(
                 df,
-                x = map_col('plot_by'),
+                x=map_col("plot_by"),
                 y=map_col("Standardized Residuals"),
                 color=map_col("Standardized Residuals"),
-                hover_data=["Observed", "Predicted", "Accident Period",
-                            "Development Period", "Calendar Period"],
+                hover_data=[
+                    "Observed",
+                    "Predicted",
+                    "Accident Period",
+                    "Development Period",
+                    "Calendar Period",
+                ],
                 title=plot_title,
                 labels={"yhat": "Predicted", "resid": "Residual"},
             )
@@ -220,11 +226,8 @@ class Plot:
                         box_visible=False,
                         line_color="black",
                         meanline_visible=True,
-
                     )
                 )
-
-
 
             fig.update_layout(
                 xaxis=dict(type="category", title=x_axis_title),
@@ -237,17 +240,21 @@ class Plot:
     def residual_qq(self, log=False):
         df = pd.DataFrame({map_col("y"): self.y_train, map_col("yhat"): self.yhat})
         df[map_col("y")] = np.log(df[map_col("y")]) if log else df[map_col("y")]
-        df[map_col("yhat")] = np.log(df[map_col("yhat")]) if log else df[map_col("yhat")]
-        df[map_col('resid')] = df[map_col("y")] - df[map_col("yhat")]
-        df[map_col("std_resid")] = (df[map_col("resid")] - df[map_col("resid")].mean()) / df[map_col("resid")].std()
+        df[map_col("yhat")] = (
+            np.log(df[map_col("yhat")]) if log else df[map_col("yhat")]
+        )
+        df[map_col("resid")] = df[map_col("y")] - df[map_col("yhat")]
+        df[map_col("std_resid")] = (
+            df[map_col("resid")] - df[map_col("resid")].mean()
+        ) / df[map_col("resid")].std()
 
         fig = go.Figure()
 
         fig.add_trace(
             go.Scatter(
                 df.rename(columns=column_name_map),
-                x=('resid'),
-                y=map_col('y'),
+                x=("resid"),
+                y=map_col("y"),
                 mode="markers",
                 marker=dict(color="black", size=3, opacity=0.5),
             )
@@ -274,5 +281,5 @@ class Plot:
         if variable is None:
             variable = "acc"
         params = self.fitted_model.GetParameters(column=variable)
-        fig = px.line(params, x='parameter', y='cumsum')
+        fig = px.line(params, x="parameter", y="cumsum")
         fig.show()

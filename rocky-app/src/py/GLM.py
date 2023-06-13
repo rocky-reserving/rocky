@@ -38,6 +38,7 @@ class glm(BaseEstimator):
     Base GLM class. All GLM models inherit from this class, and are Tweedie
     GLMs. The GLM models are fit using the scikit-learn TweedieRegressor class.
     """
+
     id: str
     model_class: str = None
     model: object = None
@@ -63,6 +64,7 @@ class glm(BaseEstimator):
     dev: pd.Series = None
     cal: pd.Series = None
     must_be_positive: bool = True
+    model_name: str = "GLM"
 
     def __post_init__(self):
         super().__post_init__()
@@ -381,6 +383,31 @@ class glm(BaseEstimator):
             fitted_model=self,
         )
 
+    def ManualFit(self, **kwargs):
+        # TODO: docstring
+
+        # parameters
+        params = self.GetParameters()
+
+        # loop through the kwargs and set the coefficients of the model
+        for key, value in kwargs.items():
+            # get index of the key from the design matrix
+            idx = params[params["parameter"] == key].index[0]
+
+            # set the coefficient
+            self.model.coef_[idx] = value
+
+        # update attributes
+        self._update_attributes("fit")
+        self._update_plot_attributes(
+            X_id=self.tri.get_X_id("train"),
+            yhat=self.GetYhat("train"),
+            acc=self.acc,
+            dev=self.dev,
+            cal=self.cal,
+            fitted_model=self,
+        )
+
     def Predict(self, kind: str = None, X: pd.DataFrame = None) -> pd.Series:
         if self.model is None:
             raise ValueError("Model has not been fit")
@@ -398,11 +425,11 @@ class glm(BaseEstimator):
     # def GetYhat(self, kind: str = None) -> pd.Series:
     #     return self.Predict(kind=kind)
 
-    def GetParameters(self, column:str = None) -> pd.DataFrame:
+    def GetParameters(self, column: str = None) -> pd.DataFrame:
         """
         Get the parameters of the model.
 
-        Parameters  
+        Parameters
         ----------
         column : str, optional
             The type of parameter to return, by default None, which will return
@@ -449,8 +476,10 @@ class glm(BaseEstimator):
             return params.query("var_gp == 'calendar'")
         elif column == "intercept":
             return params.query("parameter == 'intercept'")
-        
-    def PlotParameter(self, column: str = "acc", value: str = 'cumsum', **kwargs) -> None:
+
+    def PlotParameter(
+        self, column: str = "acc", value: str = "cumsum", **kwargs
+    ) -> None:
         """
         Plot the parameters of the model.
 
@@ -476,8 +505,15 @@ class glm(BaseEstimator):
         if column is None:
             column = "acc"
         params = self.GetParameters(column=column)
-        fig = px.line(params, x='parameter', y='cumsum')
-        fig.update_layout(title=f"{column} parameters", xaxis_title="Parameter", yaxis_title="Cumulative Parameter Value")
+        hover_data = ["parameter", "value", "cumsum"]
+        fig = px.line(
+            params, x="parameter", y="cumsum", hover_data=hover_data, **kwargs
+        )
+        fig.update_layout(
+            title=f"Cumulative {column} parameters",
+            xaxis_title="Parameter",
+            yaxis_title="Cumulative Parameter Value",
+        )
         fig.show()
 
     # def PredictTriangle(self):

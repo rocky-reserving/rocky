@@ -1347,6 +1347,8 @@ class Triangle:
 
         # calculate the ultimate loss
         ult = diag * atu
+        ult.name = "Chain Ladder Ultimate Loss"
+        ult.index.name = "Accident Period"
 
         return ult.round(round_to)
 
