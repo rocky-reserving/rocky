@@ -168,9 +168,7 @@ class Triangle:
             # set the n_cal attribute
             self.n_cal = self.cal.max().max() - self.cal.min().min() + 1
 
-            # set the incr_triangle attribute
-            if self.incr_triangle is None:
-                self.incr_triangle = self.cum_to_inc(_return=True)
+            
 
         # convert triangle data to float
         if self.tri is not None:
@@ -185,6 +183,10 @@ class Triangle:
                         .str.replace("(", "-")
                         .astype(float)
                     )
+
+            # set the incr_triangle attribute
+            if self.incr_triangle is None:
+                self.incr_triangle = self.cum_to_inc(_return=True)
 
         # create alias for self.tri as self.df that matches the triangle as it is
         # updated, and does not need to be updated separately
@@ -645,6 +647,13 @@ class Triangle:
         # set the first `origin_columns` columns to be the index
         or_col = df.columns.tolist()[:origin_columns]
         df.set_index(or_col, inplace=True)
+
+        # convert remaining columns to numeric
+        for c in df.columns.tolist():
+            df[c] = df[c].astype(str).str.replace(",", "").str.replace(".", "").str.replace(" ", "").astype(float)
+
+        df.index = df.index.astype(str).astype(int)
+        print(df.index)
 
         # Create and return a Triangle object
         return cls(id=id, tri=df, triangle=df)
