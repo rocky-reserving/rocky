@@ -1,41 +1,29 @@
-# try:
-#     from .triangle import Triangle
-# except ImportError:
-#     from triangle import Triangle
+# rocky code
 from triangle import Triangle
-
-# try:
-#     from .TriangleTimeSeriesSplit import TriangleTimeSeriesSplit
-# except ImportError:
-#     from TriangleTimeSeriesSplit import TriangleTimeSeriesSplit
 from TriangleTimeSeriesSplit import TriangleTimeSeriesSplit
-
-# try:
-#     from .ModelPlot import Plot
-# except ImportError:
-#     from ModelPlot import Plot
 from ModelPlot import Plot
+from _util.BaseEstimator import BaseEstimator
 
+# for class attributes/definitions
 from dataclasses import dataclass
 
+# for working with data
 import numpy as np
 import pandas as pd
 
+# for fitting the model
 from sklearn.linear_model import TweedieRegressor
 
+# for plotting
 import plotly.express as px
 
+# for warnings
 import warnings
-
-from typing import List, Optional, Any
-
-from _util.BaseEstimator import BaseEstimator
-
 
 @dataclass
 class glm(BaseEstimator):
     """
-    Base GLM class. All GLM models inherit from this class, and are Tweedie
+    Base GLM class. All GLM models are based on, and are Tweedie
     GLMs. The GLM models are fit using the scikit-learn TweedieRegressor class.
     """
 
@@ -64,25 +52,18 @@ class glm(BaseEstimator):
     dev: pd.Series = None
     cal: pd.Series = None
     must_be_positive: bool = True
-    model_name: str = "GLM"
+    model_name: str = "tweedieGLM"
+    
 
     def __post_init__(self):
         super().__post_init__()
+        self.model_name_params = {
+            'alpha': self.alpha,
+            'power': self.power,
+        }
 
-    def __repr__(self):
-        if self.alpha is None:
-            a = ""
-        else:
-            a = f"alpha={self.alpha}"
-
-        if self.power is None:
-            p = ""
-        else:
-            if self.alpha is None:
-                p = f"power={self.power}"
-            else:
-                p = f", power={self.power}"
-        return f"tweedieGLM({a}{p})"
+    # def __repr__(self):
+    #     super().__repr__()
 
     def _update_attributes(self, after="fit", **kwargs):
         """
@@ -106,55 +87,6 @@ class glm(BaseEstimator):
         else:
             raise AttributeError(f"{self.id} model object has no plot attribute.")
 
-    # def GetXBase(self, kind="train"):
-    #     """
-    #     This is a wrapper function for the Triangle class's get_X_base method.
-
-    #     Returns the base triangle data for the model.
-    #     """
-    #     return self.tri.get_X_base(kind, cal=self.use_cal)
-
-    # def GetYBase(self, kind="train"):
-    #     """
-    #     This is a wrapper function for the Triangle class's get_y_base method.
-
-    #     Returns the base triangle data for the model.
-
-    #     Parameters
-    #     ----------
-    #     """
-    #     return self.tri.get_y_base(kind)
-
-    # def GetX(self, kind=None):
-    #     """
-    #     Getter for the model's X data. If there is no X data, take the base design
-    #     matrix directly from the triangle. When parameters are combined, X is
-    #     created as the design matrix of the combined parameters.
-    #     """
-    #     if kind is None:
-    #         return pd.concat(
-    #             [
-    #                 self.tri.get_X_base("train", cal=self.use_cal),
-    #                 self.tri.get_X_base("forecast", cal=self.use_cal),
-    #             ]
-    #         )
-    #     else:
-    #         if kind.lower() in ["train", "forecast"]:
-    #             if kind.lower() == "train":
-    #                 if self.is_fitted:
-    #                     return self.X_train
-    #                 else:
-    #                     df = self.tri.get_X_base("train", cal=self.use_cal)
-    #                     return df
-    #             elif kind.lower() == "forecast":
-    #                 if self.is_fitted:
-    #                     return self.X_forecast
-    #                 else:
-    #                     df = self.tri.get_X_base("forecast", cal=self.use_cal)
-    #                     return df
-    #         else:
-    #             raise ValueError("kind must be 'train' or 'forecast'")
-
     def GetParameterNames(self, column=None):
         """
         Getter for the model's parameter names.
@@ -164,29 +96,7 @@ class glm(BaseEstimator):
         else:
             return self.GetX().columns.to_series().str.startswith(column)
 
-    # def GetY(self, kind="train"):
-    #     """
-    #     Getter for the model's y data. If there is no y data, take the y vector
-    #     directly from the triangle.
-    #     """
-    #     if kind.lower() in ["train", "forecast"]:
-    #         if kind.lower() == "train":
-    #             return self.y_train
-    #         elif kind.lower() == "forecast":
-    #             raise ValueError("y_forecast is what we are trying to predict!")
-    #     else:
-    #         raise ValueError("kind must be 'train' for `y`")
-
-    # def GetN(self):
-    #     return self.GetX("train").shape[0]
-
-    # def GetP(self):
-    #     return self.GetX("train").shape[1]
-
-    # def GetDegreesOfFreedom(self):
-    #     return self.GetN() - self.GetP()
-
-    def VarY(self, kind="train"):
+    def GetVarY(self, kind="train"):
         return self.Predict(self.GetX(kind=kind)).values * self.ScaleParameter()
 
     @classmethod
@@ -422,9 +332,6 @@ class glm(BaseEstimator):
         yhat = self.model.predict(X)
         return pd.Series(yhat)
 
-    # def GetYhat(self, kind: str = None) -> pd.Series:
-    #     return self.Predict(kind=kind)
-
     def GetParameters(self, column: str = None) -> pd.DataFrame:
         """
         Get the parameters of the model.
@@ -467,15 +374,19 @@ class glm(BaseEstimator):
         params["intercept"] = params["cumsum"].shift(1).fillna(0)
 
         if column is None or column == "all":
-            return params
+            params = params
         elif column == "acc":
-            return params.query("var_gp == 'accident'")
+            params = params.query("var_gp == 'accident'")
         elif column == "dev":
-            return params.query("var_gp == 'development'")
+            params = params.query("var_gp == 'development'")
         elif column == "cal":
-            return params.query("var_gp == 'calendar'")
+            params = params.query("var_gp == 'calendar'")
         elif column == "intercept":
-            return params.query("parameter == 'intercept'")
+            params = params.query("parameter == 'intercept'")
+        
+        # params = params.drop(columns=['var_gp intercept'.split()])
+        return params
+        
 
     def PlotParameter(
         self, column: str = "acc", value: str = "cumsum", **kwargs
@@ -501,7 +412,7 @@ class glm(BaseEstimator):
         if self.model is None:
             raise ValueError("Model has not been fit")
 
-        params = self.GetParameters()
+        # params = self.GetParameters()
         if column is None:
             column = "acc"
         params = self.GetParameters(column=column)
@@ -515,11 +426,6 @@ class glm(BaseEstimator):
             yaxis_title="Cumulative Parameter Value",
         )
         fig.show()
-
-    # def PredictTriangle(self):
-    #     yhat = pd.DataFrame(dict(yhat=self.Predict()))
-    #     _ids = self.tri.get_X_id()
-    #     return pd.concat([_ids, yhat], axis=1)
 
     def GetSaturatedModel(self):
         y = self.GetY("train")
@@ -537,59 +443,13 @@ class glm(BaseEstimator):
         print(f"They must be specifically implemented in the {cls_name} class")
         raise NotImplementedError
 
-    # def LogLikelihood(self):
-    #     return np.sum(self.LogPi())
-
     def Deviance(self):
         """
         D(Y, Y_hat) = 2 * sum(Y * log(Y / Y_hat) - (Y - Y_hat))
                     = 2 * sum[loglik(saturated model) - loglik(fitted model)]
         """
+        print("Deviance not implemented for this model")
         raise NotImplementedError
-
-    # def RawResiduals(self):
-    #     return self.GetY() - self.GetYhat()
-
-    # def PearsonResiduals(self, show_plot=False, by=None, **kwargs):
-    #     res = np.divide(
-    #         self.RawResiduals(),
-    #     )
-
-    #     if show_plot:
-    #         df = pd.DataFrame(dict(resid=res))
-    #         if by is None:
-    #             df["y"] = self.GetY()
-    #         else:
-    #             try:
-    #                 df[by] = getattr(self.tri, by)
-    #             except AttributeError:
-    #                 raise ValueError(
-    #                     f"""by={by} must be a valid attribute of the triangle object.
-    #                     Try `ay` or `dev` instead."""
-    #                 )
-    #         self.plot.residual(df, plot_by=by, **kwargs)
-    #     else:
-    #         return res
-
-    # def PearsonResidualPlot(self, by=None):
-    #     if by is None:
-    #         fig = px.scatter(
-    #             x=self.Predict(), y=self.PearsonResiduals(), trendline="ols"
-    #         )
-    #         fig.show()
-    #     else:
-    #         if by not in ["accident_period", "development_period", "cal"]:
-    #             raise ValueError(
-    #                 'by must be one of "accident_period", "development_period", "cal"'
-    #             )
-
-    #         df = self.tri.get_X_id("train")
-    #         df["Pearson Residuals"] = self.PearsonResiduals()
-
-    #         pad_map = {"accident_period": 4, "development_period": 3, "cal": 2}
-    #         df[by] = df[by].astype(int).astype(str).str.pad(pad_map[by], fillchar="0")
-    #         fig = px.scatter(df, x=df[by], y=self.PearsonResiduals(), trendline="ols")
-    #         fig.show()
 
     def DevianceResiduals(self):
         """
@@ -610,101 +470,3 @@ class glm(BaseEstimator):
             ),
         )
         return resid
-
-    # def ScaleParameter(self):
-    #     dev = self.Deviance()
-    #     dof = self.GetDegreesOfFreedom()
-    #     return dev / dof
-
-    # def GetYearTypeDict(self):
-    #     d = {
-    #         "accident": "acc",
-    #         "acc": "acc",
-    #         "ay": "acc",
-    #         "accident_year": "acc",
-    #         "development": "dev",
-    #         "dy": "dev",
-    #         "dev": "dev",
-    #         "development_year": "dev",
-    #         "development_period": "dev",
-    #         "calendar": "cal",
-    #         "cal": "cal",
-    #         "cy": "cal",
-    #         "calendar_year": "cal",
-    #     }
-    #     return d
-
-    # def Combine(
-    #     self, year_type: str, year_list: list, combined_name: str = None
-    # ) -> pd.DataFrame:
-    #     """
-    #     This function combines parameters of the design matrix to have the same value.
-
-    #     THIS SHOULD JUST BE A MAPPING BETWEEN ORIGINAL "BASE" PARAMETERS AND COMBINED
-    #     PARAMETERS SO THE BASE SET CAN BE USED FOR ORDERING, ETC, AND KEEPING AY
-    #     PARAMETERS TOGETHER, DEV PARAM TOGETHER, ETC
-    #     """
-    #     # run through recode year-type dictionary
-    #     year_type = self.GetYearTypeDict()[year_type.lower()]
-
-    #     # check that acceptable year_type was passed
-    #     if year_type not in ["acc", "dev", "cal"]:
-    #         raise ValueError("Year type must be 'acc', 'dev', or 'cal'")
-
-    #     # make a copy of the current design matrix
-    #     X_train = self.GetX("train").copy()
-    #     X_forecast = self.GetX("forecast").copy()
-    #     X_new_train = X_train.copy()
-    #     X_new_forecast = X_forecast.copy()
-
-    #     # recode combined name
-    #     if combined_name is None:
-    #         combined_name = f"{year_type}_combined"
-    #     combined_param_name = combined_name.lower().replace(" ", "_").replace(".", "_")
-
-    #     if year_type == "acc":
-    #         # generate column names
-    #         cols_to_combine = ["accident_period_" + str(year) for year in year_list]
-
-    #         # check if columns exist in the DataFrame
-    #         if not set(cols_to_combine).issubset(X_train.columns):
-    #             raise ValueError(
-    #                 "One or more columns specified do not exist in the DataFrame"
-    #             )
-
-    #         # add new column that is the sum of the specified accident year columns
-    #         X_new_train[combined_param_name] = X_new_train[cols_to_combine].sum(axis=1)
-    #         X_new_forecast[combined_param_name] = X_new_forecast[cols_to_combine].sum(
-    #             axis=1
-    #         )
-
-    #         # drop the original columns
-    #         X_new_train = X_new_train.drop(columns=cols_to_combine)
-    #         X_new_forecast = X_new_forecast.drop(columns=cols_to_combine)
-
-    #     elif year_type == "dev":
-    #         # generate column names
-    #         cols_to_combine = ["development_year_" + str(year) for year in year_list]
-
-    #         # check if columns exist in the DataFrame
-    #         if not set(cols_to_combine).issubset(X_train.columns):
-    #             raise ValueError(
-    #                 "One or more columns specified do not exist in the DataFrame"
-    #             )
-
-    #         # add new column that is the sum of the specified development year columns
-    #         X_new_train[combined_param_name] = X_new_train[cols_to_combine].sum(axis=1)
-    #         X_new_forecast[combined_param_name] = X_new_forecast[cols_to_combine].sum(
-    #             axis=1
-    #         )
-
-    #         # drop the original columns
-    #         X_new_train = X_new_train.drop(columns=cols_to_combine)
-    #         X_new_forecast = X_new_forecast.drop(columns=cols_to_combine)
-
-    #     # reset X_train, X_forecast
-    #     self.X_train = X_new_train
-    #     self.X_forecast = X_new_forecast
-
-    #     # refit the model
-    #     self.Fit()

@@ -98,27 +98,33 @@ class Triangle:
 
     id: str = None
     tri: pd.DataFrame = None
+    tri0: pd.DataFrame = None
     triangle: pd.DataFrame = None
-    acc: np.ndarray = None
-    dev: np.ndarray = None
-    cal: np.ndarray = None
+    tri_exposure: pd.Series = None
+    acc: pd.Series = None
+    dev: pd.Series = None
+    cal: pd.Series = None
     n_acc: int = None
     n_dev: int = None
     n_cal: int = None
     n_vals: int = 3
     incr_triangle: pd.DataFrame = None
     X_base: pd.DataFrame = None
-    y_base: np.ndarray = None
+    y_base: pd.Series = None
+    exposure: pd.Series = None
     X_base_train: pd.DataFrame = None
-    y_base_train: np.ndarray = None
+    y_base_train: pd.Series = None
+    exposure_train: pd.Series = None
     X_base_forecast: pd.DataFrame = None
-    y_base_forecast: np.ndarray = None
+    y_base_forecast: pd.Series = None
+    exposure_forecast: pd.Series = None
     has_cum_model_file: bool = False
-    is_cum_model: Any = None
+    is_cum_model: Any = None    
 
     def __post_init__(self) -> None:
         """
         Reset triangle id if it is not allowed.
+
         Parameters:
         -----------
         None
@@ -194,6 +200,11 @@ class Triangle:
         self.base_linear_model()
         self.positive_y = self.y_base.loc[self.y_base > 0].index.values
         self.is_observed = self.X_base.is_observed
+        self.tri0 = self.tri.round(0)
+
+        # if no exposure vector is passed, set all exposures to 1
+        if self.exposure is None:
+            self.exposure = pd.Series(1, index=self.X_base)
 
     def __repr__(self) -> str:
         return self.tri.__repr__()
@@ -653,7 +664,7 @@ class Triangle:
             df[c] = df[c].astype(str).str.replace(",", "").str.replace(".", "").str.replace(" ", "").astype(float)
 
         df.index = df.index.astype(str).astype(int)
-        print(df.index)
+        # print(df.index)
 
         # Create and return a Triangle object
         return cls(id=id, tri=df, triangle=df)
@@ -1434,6 +1445,9 @@ class Triangle:
             i.strftime("%Y") if isinstance(i, datetime) else i for i in out.index
         ]
 
+        # rename the columns to put a title above the df
+        out.columns.name = 'Age-to-Age Factors as of (months)'
+
         return out
 
     def melt_triangle(
@@ -1629,10 +1643,10 @@ class Triangle:
                 development_period=melted[dev].astype(int).values,
             )
         )
-        self.X_id["cal"] = (
+        self.X_id["calendar_period"] = (
             self.X_id.accident_period - self.X_id.accident_period.min()
         ) + (self.X_id.development_period / self.X_id.development_period.min())
-        self.X_id["cal"] = self.X_id["cal"].astype(int)
+        self.X_id["calendar_period"] = self.X_id["calendar_period"].astype(int)
         self.X_id.index = self.X_base.index
 
     def base_linear_model(
@@ -1687,7 +1701,38 @@ class Triangle:
             self.X_base_train = self.X_base_train.drop(columns="intercept")
             self.X_base_forecast = self.X_base_forecast.drop(columns="intercept")
 
-    def get_X(self, split=None, use_cal=False, X_type=None, column_query=None):
+    def get_X(self,
+              split:str = None,
+              use_cal:bool = False,
+              X_type:str = None,
+              column_query:str = None
+              ) -> pd.DataFrame:
+        """
+        Get the design matrix for the given split. 
+        
+        Parameters:
+        -----------
+        split: str
+            The split to get the design matrix for. If None, return the full design
+            matrix. If "train", return the training design matrix. If "forecast",
+            return the forecast design matrix. Default is None.
+        use_cal: bool
+            If True, include the calendar period in the design matrix. Default is
+            False.
+        X_type: str
+            The type of design matrix to return. If None, return the full design
+            matrix. If "base", return the base design matrix. If "cal", return the
+            calendar design matrix. If "id", return the id design matrix. Default is
+            None.
+        column_query: str
+            If not None, only return columns that contain the given string. Default
+            is None.
+
+        Returns:
+        --------
+        X: pd.DataFrame
+            The design matrix for the given split.
+        """
         cal = self.get_X_cal(split=split)
         base = self.get_X_base(split=split)
         id = self.get_X_id(split=split)
@@ -1718,9 +1763,9 @@ class Triangle:
         Returns the calendar design matrix
         """
         df = self.get_X_id(split=split)
-        df["cal"] = df["cal"].astype(str).str.pad(4, fillchar="0")
-        df["cal"] = df.cal.apply(lambda x: f"{x}")
-        df_cal = pd.get_dummies(df[["cal"]], drop_first=True)
+        df["calendar_period"] = df["calendar_period"].astype(str).str.pad(4, fillchar="0")
+        df["calendar_period"] = df.calendar_period.apply(lambda x: f"{x}")
+        df_cal = pd.get_dummies(df[["calendar_period"]], drop_first=True)
         out = df_cal.copy()
 
         # ay dm columns
@@ -1743,6 +1788,19 @@ class Triangle:
 
         idx = self.get_X_id(split=split).index
         return out.loc[idx]
+
+    def get_X_exposure(self, split:str = None) -> pd.DataFrame:
+        """
+        Returns the exposure design matrix
+        """
+        if split is None:
+            df = self.exposure
+        elif split == "train":
+            df = self.exposure_train
+        elif split == "forecast":
+            df = self.exposure_forecast
+
+        return df
 
     def get_X_base(self, split=None, cal=False):
         """
@@ -1810,69 +1868,69 @@ class Triangle:
 
         return df
 
-    def prep_for_cnn(self, steps=False) -> pd.DataFrame:
-        """
-        Performs data preprocessing and reshaping to transform triangle into form
-        suitable for inference on LossTriangleClassifier
+    # def prep_for_cnn(self, steps=False) -> pd.DataFrame:
+    #     """
+    #     Performs data preprocessing and reshaping to transform triangle into form
+    #     suitable for inference on LossTriangleClassifier
 
-        If steps is True, returns a dictionary of steps taken to preprocess
-        """
-        from sklearn.preprocessing import StandardScaler
-        from torch.utils.data import DataLoader
+    #     If steps is True, returns a dictionary of steps taken to preprocess
+    #     """
+    #     from sklearn.preprocessing import StandardScaler
+    #     from torch.utils.data import DataLoader
 
-        # initialize if needed
-        if steps:
-            out_dict = {}
+    #     # initialize if needed
+    #     if steps:
+    #         out_dict = {}
 
-        # read indicators
-        ind = pd.read_csv("data/LossTriangleClassifierShape.csv").iloc[:, 1:]
-        if steps:
-            out_dict["01. Indicators"] = ind
+    #     # read indicators
+    #     ind = pd.read_csv("data/LossTriangleClassifierShape.csv").iloc[:, 1:]
+    #     if steps:
+    #         out_dict["01. Indicators"] = ind
 
-        # copy triangle
-        df = self.tri.copy()
-        if steps:
-            out_dict["02. Current Triangle"] = df
+    #     # copy triangle
+    #     df = self.tri.copy()
+    #     if steps:
+    #         out_dict["02. Current Triangle"] = df
 
-        # only last 10 rows, first 10 columns
-        df = df.iloc[-10:, :10]
-        if steps:
-            out_dict["03. Remove all but last 10 rows, first 10 cols"] = df
+    #     # only last 10 rows, first 10 columns
+    #     df = df.iloc[-10:, :10]
+    #     if steps:
+    #         out_dict["03. Remove all but last 10 rows, first 10 cols"] = df
 
-        # replace empty strings with nan values
-        df = df.replace("", np.nan)
-        if steps:
-            out_dict["04. Replace empty strings with nan"] = df
+    #     # replace empty strings with nan values
+    #     df = df.replace("", np.nan)
+    #     if steps:
+    #         out_dict["04. Replace empty strings with nan"] = df
 
-        # set index & columns of `ind` equal to those in `df` so you can
-        # easily multiply them
-        ind.index = df.index
-        ind.columns = df.columns
+    #     # set index & columns of `ind` equal to those in `df` so you can
+    #     # easily multiply them
+    #     ind.index = df.index
+    #     ind.columns = df.columns
 
-        # multiply them
-        mult = df * ind
-        if steps:
-            out_dict["05. Multiply original triangle with indicators"] = mult
+    #     # multiply them
+    #     mult = df * ind
+    #     if steps:
+    #         out_dict["05. Multiply original triangle with indicators"] = mult
 
-        # replace blank values with nan
-        replaced = mult.replace("", np.nan)
-        if steps:
-            out_dict["06. Replace blank values with nan"] = replaced
+    #     # replace blank values with nan
+    #     replaced = mult.replace("", np.nan)
+    #     if steps:
+    #         out_dict["06. Replace blank values with nan"] = replaced
 
-        # preprocess
-        scaler = StandardScaler()
-        scaled = scaler.fit_transform(replaced.values)
-        scaled = pd.DataFrame(scaled, index=replaced.index, columns=replaced.columns)
-        if steps:
-            out_dict["07. Standardize over the whole triangle"] = scaled
+    #     # preprocess
+    #     scaler = StandardScaler()
+    #     scaled = scaler.fit_transform(replaced.values)
+    #     scaled = pd.DataFrame(scaled, index=replaced.index, columns=replaced.columns)
+    #     if steps:
+    #         out_dict["07. Standardize over the whole triangle"] = scaled
 
-        # fill na values with 0s
-        scaled = scaled.fillna(0)
+    #     # fill na values with 0s
+    #     scaled = scaled.fillna(0)
 
-        if steps:
-            return out_dict
-        else:
-            return scaled
+    #     if steps:
+    #         return out_dict
+    #     else:
+    #         return scaled
 
     #     id: str = None
     # tri: pd.DataFrame = None

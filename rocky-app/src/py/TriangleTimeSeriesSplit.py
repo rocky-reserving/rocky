@@ -19,7 +19,7 @@ from sklearn.exceptions import ConvergenceWarning
 import warnings
 
 import itertools
-from tqdm.notebook import tqdm as tqdm
+from tqdm import tqdm
 
 
 class TriangleTimeSeriesSplit:
@@ -41,6 +41,7 @@ class TriangleTimeSeriesSplit:
         triangle: Triangle = None,
         n_splits: int = 5,
         tie_criterion: str = "ave_mse_test",
+        model_type: str = 'tweedie',
         tweedie_grid: dict = None,
         randomforest_grid: dict = None,
         xgboost_grid: dict = None,
@@ -51,14 +52,22 @@ class TriangleTimeSeriesSplit:
         self.split = []
         self.has_tuning_results = False
         self.is_tuned = False
+        self.model_type = model_type
 
         # if no grid is provided, use the default grid
         if tweedie_grid is None:
-            self.tweedie_grid = {
-                "alpha": np.arange(0, 3.1, 0.1),
-                "power": np.array([0]) + np.arange(1, 3.1, 0.1),
-                "max_iter": 100000,
-            }
+            if model_type=='tweedie':
+                self.tweedie_grid = {
+                    "alpha": np.arange(0, 3.1, 0.1),
+                    "power": np.array([0]) + np.arange(1, 3.1, 0.1),
+                    "max_iter": 100000,
+                }
+            elif model_type=='loglinear':
+                self.tweedie_grid = {
+                    "alpha": np.arange(0, 3.1, 0.1),
+                    "l1_ratio": np.arange(0, 1.05, 0.05),
+                    "max_iter": 100000,
+                }
         else:
             self.tweedie_grid = tweedie_grid
         if randomforest_grid is None:
@@ -92,6 +101,8 @@ class TriangleTimeSeriesSplit:
             self.xgboost_grid["alpha"] = kwargs["alpha"]
         if "power" in kwargs:
             self.tweedie_grid["power"] = kwargs["power"]
+        if "l1_ratio" in kwargs:
+            self.tweedie_grid["l1_ratio"] = kwargs["l1_ratio"]
         if "max_iter" in kwargs:
             self.tweedie_grid["max_iter"] = kwargs["max_iter"]
         if "n_estimators" in kwargs:
@@ -142,7 +153,7 @@ class TriangleTimeSeriesSplit:
 
             yield train_indices, test_indices
 
-    def GridTweedie(self, alpha=None, power=None, max_iter=None):
+    def GridTweedie(self, alpha=None, power=None, l1_ratio=None, max_iter=None, model_type='tweedie'):
         """
         Sets the grid for the hyperparameters of the Tweedie models.
 
@@ -154,23 +165,27 @@ class TriangleTimeSeriesSplit:
         Parameters
         ----------
         alpha : array-like, default=None
-            The alpha values to use in the grid. If None, the default values
-            will be used.
         power : array-like, default=None
-            The power values to use in the grid. If None, the default values
-            will be used.
+        l1_ratio : array-like, default=None
         max_iter : int, default=None
-            The maximum number of iterations for the Tweedie models. If None,
-            the default value will be used.
+        model_type : str, default='tweedie'
+            The model type to use. Currently can be 'tweedie' or 'loglinear'.
         """
-        if alpha is not None:
-            self.tweedie_grid["alpha"] = alpha
+        if model_type in ['tweedie', 'loglinear']:
+            if alpha is not None:
+                self.tweedie_grid["alpha"] = alpha
 
-        if power is not None:
-            self.tweedie_grid["power"] = power
+        if model_type in ['loglinear']:
+            if l1_ratio is not None:
+                self.tweedie_grid["l1_ratio"] = l1_ratio
+        
+        if model_type in ['tweedie']:
+            if power is not None:
+                self.tweedie_grid["power"] = power
 
-        if max_iter is not None:
-            self.tweedie_grid["max_iter"] = max_iter
+        if model_type in ['tweedie', 'loglinear']:
+            if max_iter is not None:
+                self.tweedie_grid["max_iter"] = max_iter
 
     def TuneTweedie(self):
         """
@@ -213,17 +228,32 @@ class TriangleTimeSeriesSplit:
 
         The results are stored in the self.split list, which is a list of dictionaries
         """
+        # get the minimum and maximum values of ay
         first_ay = self.tri.ay.min()
 
         result_dict = {}
 
-        parameters = list(
-            itertools.product(self.tweedie_grid["alpha"], self.tweedie_grid["power"])
-        )
+        model_params = {
+            'tweedie': ['alpha', 'power']
+            , 'loglinear': ['alpha', 'l1_ratio']
+        }
+
+        param_map = {
+            'tweedie': itertools.product(self.tweedie_grid["alpha"], self.tweedie_grid["power"])
+            , 'loglinear': itertools.product(self.tweedie_grid["alpha"], self.tweedie_grid["l1_ratio"])
+        }
+
+        parameters = list(param_map[self.model_type])
         n_parameters = len(parameters)
 
         n_failed_to_converge = 0
 
+        cur_params = {}
+        for param in model_params[self.model_type]:
+            cur_params[param] = None
+
+############################ 6/14 right here ##########################################
+        # for **cur_params in parameters:
         for alpha, power in parameters:
             result_dict[f"alpha_{np.round(alpha, 2)}_power_{np.round(power, 2)}"] = {}
 

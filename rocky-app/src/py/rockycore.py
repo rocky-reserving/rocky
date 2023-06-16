@@ -4,31 +4,10 @@ import os
 curdir = os.path.abspath(os.path.dirname("."))
 sys.path.append(curdir)
 
-# function to count the number of objects in a container
-# try:
-#     from .util import count_rocky
-# except ImportError:
-#     from util import count_rocky
 from util import count_rocky
-
-# triangle data type
-# try:
-#     from .triangle import Triangle
-# except ImportError:
-#     from triangle import Triangle
 from triangle import Triangle
-
-# try:
-#     from .TriangleTimeSeriesSplit import TriangleTimeSeriesSplit
-# except ImportError:
-#     from TriangleTimeSeriesSplit import TriangleTimeSeriesSplit
-
-# GLM model
-# try:
-#     from .GLM import glm
-# except ImportError:
-#     from GLM import glm
 from GLM import glm
+from LogLinear import loglinear
 
 
 from dataclasses import dataclass
@@ -56,7 +35,10 @@ class rockyContainer:
         # only show comma-separated list of ids if there are any objects in
         # the container
         if len(self.__dict__) > 0:
-            return ", ".join([f'"{k}"' for k in self.__dict__.keys()])
+            if len(self.__dict__) > 1:
+                return "(" + ", ".join([f'"{k}"' for k in self.__dict__.keys()]) + ")"
+            else:
+                return ", ".join([f'"{k}"' for k in self.__dict__.keys()])
         else:
             return "()"
 
@@ -81,7 +63,7 @@ class rocky:
     f: Any = rockyContainer()  # forecasts
     plot: Any = rockyContainer()  # plots
     t: Any = rockyContainer()  # triangles
-    rockylog: Any = None  # rockylog -- not implemented yet
+    # rockylog: Any = None  # rockylog -- not implemented yet
 
     def __post_init__(self) -> None:
         if self.id is None:
@@ -252,17 +234,17 @@ class rocky:
             The range of cells to load.
             Default is None, which will load all cells.
         """
-        raise NotImplementedError
-        # tri = Triangle.from_excel(
-        #     filename=filename,
-        #     origin_columns=origin_columns,
-        #     id=id,
-        #     sheet_name=sheet_name,
-        #     sheet_range=sheet_range,
-        # )
-        # tri.base_linear_model()
-        # self.t.add(tri, f"{id}")
-        # setattr(self, f"{id}", tri)
+        # raise NotImplementedError
+        tri = Triangle.from_excel(
+            filename=filename,
+            origin_columns=origin_columns,
+            id=id,
+            sheet_name=sheet_name,
+            sheet_range=sheet_range,
+        )
+        tri.base_linear_model()
+        self.t.add(tri, f"{id}")
+        setattr(self, f"{id}", tri)
 
     def FromDF(self, df, id="rpt_loss") -> None:
         """
@@ -336,16 +318,27 @@ class rocky:
                 tri = getattr(self, tri)
 
         # add the model to the model container
-        self.mod.add(
-            glm(
-                id=id,
-                model_class=model_class,
-                tri=tri,
-                use_cal=cal,
-                n_validation=n_validation,
-            ),
-            f"{id}",
-        )
+        if model_class.lower() in ['tweedie','glm']:
+            self.mod.add(
+                glm(
+                    id=id,
+                    model_class=model_class,
+                    tri=tri,
+                    use_cal=cal,
+                    n_validation=n_validation,
+                ),
+                f"{id}",
+            )
+        elif model_class.lower() in ['loglinear']:
+            self.mod.add(
+                loglinear(
+                    id=id,
+                    model_class=model_class,
+                    tri=tri,
+                    use_cal=cal,
+                    n_validation=n_validation,
+                )
+            )
 
         # add the model directly to the ROCKY object
         try:

@@ -40,17 +40,11 @@ class BaseEstimator:
     model_class: str = None
     model: object = None
     tri: Triangle = None
-    intercept: float = None
+    exposure: pd.Series = None
     coef: np.ndarray[float] = None
     is_fitted: bool = False
     n_validation: int = 0
-    saturated_model = None
     weights: pd.Series = None
-    distribution_family: str = None
-    alpha: float = None
-    power: float = None
-    max_iter: int = 100000
-    link: str = "log"
     cv: TriangleTimeSeriesSplit = None
     X_train: pd.DataFrame = None
     X_forecast: pd.DataFrame = None
@@ -65,7 +59,6 @@ class BaseEstimator:
     dev_forecast: pd.Series = None
     cal_forecast: pd.Series = None
     must_be_positive: bool = False
-    model_name: str = None
 
     def __post_init__(self):
         # print(f"must be positive: {self.must_be_positive}")
@@ -84,6 +77,9 @@ class BaseEstimator:
         # order the columns of X_train and X_forecast
         self.column_order = self.GetX("train").columns.tolist()
 
+    def __repr__(self):
+        return f"{self.__class__.__name__}({self.id})"
+
     def _build_idx1(self):
         # index where y is positive and observed
         is_positive = self.tri.positive_y
@@ -96,9 +92,6 @@ class BaseEstimator:
 
     def _build_idx(self):
         is_positive, is_observed, is_forecast = self._build_idx1()
-        # print(f"is_positive: {is_positive}")
-        # print(f"is_observed: {is_observed}")
-        # print(f"is_forecast: {is_forecast}")
 
         # depending on the model, we may want to drop non-positive y values
         # if so, set must_be_positive to True in the child class
@@ -120,12 +113,14 @@ class BaseEstimator:
         # initialize the acc, dev, cal attributes (train set)
         self.acc = self.tri.get_X_id("train")["accident_period"]
         self.dev = self.tri.get_X_id("train")["development_period"]
-        self.cal = self.tri.get_X_id("train")["cal"]
+        self.cal = self.tri.get_X_id("train")["calendar_period"]
+        self.exposure = self.tri.get_X_id("train")["exposure"]
 
         # initialize forecasting attributes
         self.acc_forecast = self.tri.get_X_id("forecast")["accident_period"]
         self.dev_forecast = self.tri.get_X_id("forecast")["development_period"]
-        self.cal_forecast = self.tri.get_X_id("forecast")["cal"]
+        self.cal_forecast = self.tri.get_X_id("forecast")["calendar_period"]
+        self.exposure_forecast = self.tri.get_X_id("forecast")["exposure"]
 
     def combine_indices(self, *args):
         """
@@ -187,7 +182,7 @@ class BaseEstimator:
         idx = self.GetIdx(kind)
 
         # get X
-        X = self.tri.get_X_base(kind)
+        X = self.tri.get_X_base(kind, cal=self.use_cal)
 
         # filter X and return
         X = X.loc[idx, :]
@@ -207,7 +202,144 @@ class BaseEstimator:
         y = self.tri.get_y_base(kind)
         y = y[idx]
         return y
+    
+    def GetAcc(self, kind:str = None) -> pd.Series:
+        """
+        Getter for the model's accident period vector, filtered for the 
+        current model context and kind.
 
+        Parameters
+        ----------
+        kind : str, optional
+            The type of data to return. If None, return all data. If "train",
+            return only the training data. If "forecast", return only the
+            forecast data. If "all", return both the training and forecast
+            data. The default is None.
+
+        Returns
+        -------
+        pd.Series
+            The accident period vector.
+        """
+        # get current context index
+        idx = self.GetIdx(kind)
+
+        # get accident period vector
+        if kind is None or kind == "all":
+            acc = pd.concat([self.acc, self.acc_forecast])
+        elif kind == "train":
+            acc = self.acc
+        elif kind == "forecast":
+            acc = self.acc_forecast            
+        else:
+            raise ValueError("kind must be 'train', 'forecast', 'all'")
+
+        # filter and return
+        return acc[idx]
+    
+    def GetDev(self, kind:str = None) -> pd.Series:
+        """
+        Getter for the model's development period vector, filtered for the
+        current model context and kind.
+
+        Parameters
+        ----------
+        kind : str, optional
+            The type of data to return. If None, return all data. If "train",
+            return only the training data. If "forecast", return only the
+            forecast data. If "all", return both the training and forecast
+            data. The default is None.
+
+        Returns
+        -------
+        pd.Series
+            The development period vector.
+        """
+        # get current context index
+        idx = self.GetIdx(kind)
+
+        # get development period vector
+        if kind is None or kind == "all":
+            dev = pd.concat([self.dev, self.dev_forecast])
+        elif kind == "train":
+            dev = self.dev
+        elif kind == "forecast":
+            dev = self.dev_forecast            
+        else:
+            raise ValueError("kind must be 'train', 'forecast', 'all'")
+
+        # filter and return
+        return dev[idx]
+    
+    def GetCal(self, kind:str = None) -> pd.Series:
+        """
+        Getter for the model's calendar period vector, filtered for the
+        current model context and kind.
+
+        Parameters
+        ----------
+        kind : str, optional
+            The type of data to return. If None, return all data. If "train",
+            return only the training data. If "forecast", return only the
+            forecast data. If "all", return both the training and forecast
+            data. The default is None.
+
+        Returns
+        -------
+        pd.Series
+            The calendar period vector.
+        """
+        # get current context index
+        idx = self.GetIdx(kind)
+
+        # get calendar period vector
+        if kind is None or kind == "all":
+            cal = pd.concat([self.cal, self.cal_forecast])
+        elif kind == "train":
+            cal = self.cal
+        elif kind == "forecast":
+            cal = self.cal_forecast            
+        else:
+            raise ValueError("kind must be 'train', 'forecast', 'all'")
+
+        # filter and return
+        return cal[idx]
+    
+    def GetExposure(self, kind:str = None) -> pd.Series:
+        """
+        Getter for the model's exposure vector, filtered for the current model
+        context and kind.
+
+        Parameters
+        ----------
+        kind : str, optional
+            The type of data to return. If None, return all data. If "train",
+            return only the training data. If "forecast", return only the
+            forecast data. If "all", return both the training and forecast
+            data. The default is None.
+
+        Returns
+        -------
+        pd.Series
+            The exposure vector.
+        """
+        # get current context index
+        idx = self.GetIdx(kind)
+
+        # get exposure vector
+        if kind is None or kind == "all":
+            exposure = pd.concat([self.exposure, self.exposure_forecast])
+        elif kind == "train":
+            exposure = self.exposure
+        elif kind == "forecast":
+            exposure = self.exposure_forecast            
+        else:
+            raise ValueError("kind must be 'train', 'forecast', 'all'")
+
+        # filter and return
+        return exposure[idx]
+        
+        
     def GetX(self, kind=None):
         """
         Getter for the model's X data. If there is no X data, take the base design
@@ -215,8 +347,6 @@ class BaseEstimator:
         created as the design matrix of the combined parameters.
         """
         idx = self.GetIdx(kind)
-        # print(f"kind: {kind}")
-        # print(f"idx: {idx}")
 
         if kind is None or kind == "all":
             df = pd.concat([self.X_train, self.X_forecast])
@@ -235,10 +365,7 @@ class BaseEstimator:
             if cond(c):
                 condition.append(c)
 
-        # print(f"condition: {condition}")
         df = df[condition]
-        # print(f"df: {df.head()}")
-        # print(f"df shape: {df.shape}")
 
         return df.loc[idx, :]
 
@@ -246,15 +373,18 @@ class BaseEstimator:
         """
         Getter for the model's parameter names.
         """
+        print("GetParameterNames is not implemented for this model.")
         raise NotImplementedError
 
-    def GetY(self, kind="train"):
+    def GetY(self, kind:str = "train") -> pd.Series:
         """
         Getter for the model's y data. If there is no y data, take the y vector
         directly from the triangle.
         """
+        # get index to filter y
         idx = self.GetIdx(kind)
 
+        # get the correct version of y depending on the kind
         if kind.lower() in ["train", "forecast"]:
             if kind.lower() == "train":
                 return self.y_train[idx]
@@ -262,17 +392,76 @@ class BaseEstimator:
                 raise ValueError("y_forecast is what we are trying to predict!")
         else:
             raise ValueError("kind must be 'train' for `y`")
+        
+    def GetWeights(self, kind:str = "train") -> pd.Series:
+        """
+        Getter for the model's weights. If there are no weights, return None.
+        """
+        idx = self.GetIdx(kind)
+        if kind.lower() == "train":
+            return self.weights[idx]
+        else:
+            raise ValueError("kind must be 'train' for `weights`")
 
-    def GetN(self):
+    def GetN(self) -> int:
+        """
+        Getter for the model's number of observations. 
+        
+        This is equal to the number of rows in the "train"
+        design matrix.
+
+        Returns
+        -------
+        int
+            Number of observations.
+        """
         return self.GetX("train").shape[0]
 
-    def GetP(self):
-        return self.GetX("train").shape[1]
+    def GetP(self) -> int:
+        """
+        Getter for the model's number of parameters.
 
-    def GetDegreesOfFreedom(self):
+        This is equal to the number of columns in the "train"
+        design matrix, excluding those that have no nonzero 
+        values in the design matrix.
+
+        Must do this because if there are calendar year parameters,
+        about half of them will be unobserved and thus have no
+        nonzero values in the design matrix. They are not parameters
+        in the normal sense, so we exclude them from the count.
+
+        Returns
+        -------
+        int
+            Number of parameters.
+        """
+        # p, unadjusted for columns that are completely 0
+        unadj_p = self.GetX("train").shape[1]
+
+        # p, adjusted for columns that are completely 0
+        adj_p = unadj_p - self.GetX("train").isna().all().sum()
+        
+        return adj_p
+
+    def GetDegreesOfFreedom(self) -> int:
+        """
+        Getter for the model's degrees of freedom.
+
+        Degrees of freedom is equal to the number of observations
+        minus the number of parameters.
+
+        Returns
+        -------
+        int
+            Degrees of freedom.
+        """
         return self.GetN() - self.GetP()
 
-    def VarY(self, kind="train"):
+    def GetVarY(self, kind="train"):
+        """
+
+        """
+        print("VarY is not implemented for this model.")
         raise NotImplementedError
 
     def Fit(
@@ -281,16 +470,19 @@ class BaseEstimator:
         y: pd.Series = None,
         **kwargs,
     ) -> None:
+        print("Fit is not implemented for this model.")
         raise NotImplementedError
 
     def ManualFit(self, **kwargs):
+        print("ManualFit is not implemented for this model.")
         raise NotImplementedError
 
     def Predict(self, kind: str = None, X: pd.DataFrame = None) -> pd.Series:
+        print("Predict is not implemented for this model.")
         raise NotImplementedError
 
-    def Ultimate(self) -> pd.Series:
-        X = self.GetX(kind="forecast")
+    def Ultimate(self, tail=None) -> pd.Series:
+        X = self.GetX(kind="forecast", )
         df = pd.DataFrame(
             {
                 "Accident Period": self.tri.get_X_id("all").accident_period,
@@ -299,9 +491,14 @@ class BaseEstimator:
             }
         )
 
-        return (
-            df.groupby("Accident Period").sum()[f"{self.model_name} Ultimate"].round(0)
-        )
+        df = df.groupby("Accident Period").sum()[f"{self.model_name} Ultimate"].round(0)
+
+        if tail is None:
+            tail = 1
+        df = df * tail
+
+        df.index = self.tri.tri.index
+        return df
 
     def GetYhat(self, kind: str = None) -> pd.Series:
         return self.Predict(kind=kind)
@@ -315,6 +512,7 @@ class BaseEstimator:
         pd.DataFrame
             The parameters of the model.
         """
+        print("GetParameters is not implemented for this model.")
         raise NotImplementedError
 
     def PredictTriangle(self):
@@ -339,31 +537,15 @@ class BaseEstimator:
         D(Y, Y_hat) = 2 * sum(Y * log(Y / Y_hat) - (Y - Y_hat))
                     = 2 * sum[loglik(saturated model) - loglik(fitted model)]
         """
+        print("Deviance not implemented for this model")
         raise NotImplementedError
 
     def RawResiduals(self):
         return self.GetY() - self.GetYhat()
 
-    def PearsonResiduals(self, show_plot=False, by=None, **kwargs):
-        res = np.divide(
-            self.RawResiduals(),
-        )
-
-        if show_plot:
-            df = pd.DataFrame(dict(resid=res))
-            if by is None:
-                df["y"] = self.GetY()
-            else:
-                try:
-                    df[by] = getattr(self.tri, by)
-                except AttributeError:
-                    raise ValueError(
-                        f"""by={by} must be a valid attribute of the triangle object.
-                        Try `ay` or `dev` instead."""
-                    )
-            self.plot.residual(df, plot_by=by, **kwargs)
-        else:
-            return res
+    def PearsonResiduals(self):
+        res = np.divide(self.RawResiduals(), np.sqrt(self.VarY()))
+        return res
 
     def DevianceResiduals(self):
         """
@@ -371,9 +553,11 @@ class BaseEstimator:
         R_i^D = sign(Y_i - Y_hat_i) *
                 sqrt(2 * [Y_i * log(Y_i / Y_hat_i) - (Y_i - Y_hat_i)])
         """
+        print("DevianceResiduals not implemented for this model")
         raise NotImplementedError
 
     def ScaleParameter(self):
+        print("ScaleParameter not implemented for this model")
         raise NotImplementedError
 
     def GetYearTypeDict(self):
