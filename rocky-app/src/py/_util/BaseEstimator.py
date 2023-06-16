@@ -2,18 +2,7 @@
 This module contains the BaseEstimator class, which is the base class for all
 models and estimators in the rocky package.
 """
-# import Triangle
-# try:
-#     from ..triangle import Triangle
-# except:
-#     from triangle import Triangle
 from triangle import Triangle
-
-# import TriangleTimeSeriesSplit
-# try:
-#     from ..TriangleTimeSeriesSplit import TriangleTimeSeriesSplit
-# except:
-#     from TriangleTimeSeriesSplit import TriangleTimeSeriesSplit
 from TriangleTimeSeriesSplit import TriangleTimeSeriesSplit
 
 from dataclasses import dataclass
@@ -34,6 +23,124 @@ class BaseEstimator:
 
     All added models should inherit from this class, and should implement methods
     as needed.
+
+    Parameters
+    ----------
+    id : str
+        Model ID. This is used to identify the model in the rocky object.
+    model_class : str, optional
+        Model class. This is used to identify the model in the rocky object, and
+        is used in the model's repr.
+    model : object, optional
+        Model object. This is the model object that is fit to the data. For example,
+        the GLM rocky model object is based on the sklearn.linear_model.TweedieRegressor
+        object. This is used in the model's repr.
+    tri : Triangle
+        rocky Triangle object, or a dictionary of Triangles. This is used to
+        identify the model in the rocky object.
+    exposure : pd.Series, optional
+        Exposure vector. Before fitting, the triangle data are divided by the
+        exposure vector. If None, the exposure vector is set to a vector of ones.
+    coef : pd.Series, optional
+        Fitted model coefficients. Starts as None, and is set to the model
+        coefficients after the model is fit.
+    is_fitted : bool, optional
+        Whether the model has been fit. Starts as False, and is set to True
+        after the model is fit.
+    n_validation : int, optional
+        Number of calendar periods to use for validation. If 0, no validation
+        is performed. If n_validation is not greater than or equal to 0, an
+        error is raised.
+    weights : pd.Series, optional
+        Weights vector. This is used to weight the data when fitting the model.
+        If None, the weights vector is set to a vector of ones.
+    cv : TriangleTimeSeriesSplit, optional
+        Cross-validation object. This is used to split the data into training
+        and testing sets for cross-validation. If None, the data are not split
+        into training and testing sets.
+    X_train : pd.DataFrame, optional
+        Training data. This is the data used to fit the model. If None, X_train
+        is calculated from the triangle data.
+    X_forecast : pd.DataFrame, optional
+        Forecasting data. This is the data used to forecast the model. If None,
+        X_forecast is calculated from the triangle data.
+    y_train : pd.Series, optional
+        Training response. This is the unadjusted response variable. If None,
+        y_train is calculated from the triangle data.
+        Note that this is not the same as the response used to fit the model.
+        Before fitting, the triangle data are divided by the exposure vector
+        and the weights vector. The response used to fit the model is the
+        adjusted response.
+    use_cal : bool, optional
+        Whether to use calendar periods. If True, the calendar periods are
+        included in X_train and X_forecast. If False, the calendar periods
+        are not included in X_train and X_forecast.
+    plot : Plot, optional
+        Plot object. This is used to plot the model results. If None, a new
+        Plot object is created.
+    acc : pd.Series, optional
+        Accident period labels. This is used to identify the accident periods
+        in the triangle data. If None, the accident periods are identified
+        from the triangle data.
+    dev : pd.Series, optional
+        Development period labels. This is used to identify the development
+        periods in the triangle data. If None, the development periods are
+        identified from the triangle data.
+    cal : pd.Series, optional
+        Calendar period labels. This is used to identify the calendar periods
+        in the triangle data. If None, the calendar periods are identified
+        from the triangle data.
+    acc_gp : pd.Series, optional
+        Accident period variable group. This is used to group the accident
+        periods in the triangle data. If None, the accident periods are not
+        grouped.
+    dev_gp : pd.Series, optional
+        Development period variable group. This is used to group the development
+        periods in the triangle data. If None, the development periods are not
+        grouped.
+    cal_gp : pd.Series, optional
+        Calendar period variable group. This is used to group the calendar
+        periods in the triangle data. If None, the calendar periods are not
+        grouped.
+    acc_gp_filter : pd.Series, optional
+        Accident period variable group filter. This is used to blend the accident
+        periods in the triangle data. If None, the accident periods are not
+        blended.
+    hetero_gp : pd.Series, optional
+        Heteroskedasticity variable group. This is used to identify the
+        heteroskedasticity groups in the triangle data. If None, the
+        heteroskedasticity groups are not identified.
+    has_combined_params : bool, optional
+        Whether the model has combined parameters. If True, the model has
+        combined parameters. If False, the model does not have combined
+        parameters.
+    acc_forecast : pd.Series, optional
+        Forecast accident period labels. This is used to identify the accident
+        periods in the forecast data. If None, the accident periods are
+        identified from the forecast data.
+    dev_forecast : pd.Series, optional
+        Forecast development period labels. This is used to identify the
+        development periods in the forecast data. If None, the development
+        periods are identified from the forecast data.
+    cal_forecast : pd.Series, optional
+        Forecast calendar period labels. This is used to identify the calendar
+        periods in the forecast data. If None, the calendar periods are
+        identified from the forecast data.
+    must_be_positive : bool, optional
+        Whether the model must be positive. If True, the model must be positive.
+        If False, the model does not have to be positive.
+
+    Public Methods
+    --------------
+    GetIdx
+        Returns the index for the model. This is used to get the index for the
+        train, forecast, or all data, and is used to filter the X and y data when
+        GetX and GetY are called.
+    GetX
+        Returns the X data for the model. This is used to get the design matrix
+        for fitting a rocky model with a linear predictor. The X data are filtered
+        by the index returned by GetIdx.
+
     """
 
     id: str
@@ -41,7 +148,7 @@ class BaseEstimator:
     model: object = None
     tri: Triangle = None
     exposure: pd.Series = None
-    coef: np.ndarray[float] = None
+    coef: pd.Series = None
     is_fitted: bool = False
     n_validation: int = 0
     weights: pd.Series = None
@@ -54,6 +161,11 @@ class BaseEstimator:
     acc: pd.Series = None
     dev: pd.Series = None
     cal: pd.Series = None
+    acc_gp: pd.Series = None
+    dev_gp: pd.Series = None
+    cal_gp: pd.Series = None
+    acc_gp_filter: pd.Series = None
+    hetero_gp: pd.Series = None
     has_combined_params: bool = False
     acc_forecast: pd.Series = None
     dev_forecast: pd.Series = None
@@ -160,7 +272,25 @@ class BaseEstimator:
         """
         raise NotImplementedError
 
-    def GetIdx(self, kind="train"):
+    def GetIdx(self, kind: str = "train") -> pd.Series:
+        """
+        Get the index for the model.
+
+        This is used to get the index for the train, forecast, or all data,
+        and is used to filter the X and y data when GetX and GetY are called.
+
+        Parameters
+        ----------
+        kind : str, optional
+            The type of index to return. Must be one of "train", "forecast",
+            or "all". If "all", the index for both the train and forecast
+            data will be returned. The default is "train".
+
+        Returns
+        -------
+        pd.Series
+            The index for the model.
+        """
         if kind == "train":
             idx = self.train_index
         elif kind == "forecast":
@@ -172,11 +302,23 @@ class BaseEstimator:
             raise ValueError("kind must be 'train', 'forecast', or 'all'")
         return idx
 
-    def GetXBase(self, kind="train"):
+    def GetXBase(self, kind: str = "train") -> pd.DataFrame:
         """
         This is a wrapper function for the Triangle class's get_X_base method.
 
-        Returns the base triangle data for the model.
+        Returns the base triangle data for the model. Uses GetIdx to filter
+        the data.
+
+        Parameters
+        ----------
+        kind : str, optional
+            The type of data to return. If None, return the train data.
+            The default is "train".
+
+        Returns
+        -------
+        pd.DataFrame
+            The base triangle data for the model.
         """
         # get index
         idx = self.GetIdx(kind)
@@ -202,10 +344,10 @@ class BaseEstimator:
         y = self.tri.get_y_base(kind)
         y = y[idx]
         return y
-    
-    def GetAcc(self, kind:str = None) -> pd.Series:
+
+    def GetAcc(self, kind: str = None) -> pd.Series:
         """
-        Getter for the model's accident period vector, filtered for the 
+        Getter for the model's accident period vector, filtered for the
         current model context and kind.
 
         Parameters
@@ -230,14 +372,14 @@ class BaseEstimator:
         elif kind == "train":
             acc = self.acc
         elif kind == "forecast":
-            acc = self.acc_forecast            
+            acc = self.acc_forecast
         else:
             raise ValueError("kind must be 'train', 'forecast', 'all'")
 
         # filter and return
         return acc[idx]
-    
-    def GetDev(self, kind:str = None) -> pd.Series:
+
+    def GetDev(self, kind: str = None) -> pd.Series:
         """
         Getter for the model's development period vector, filtered for the
         current model context and kind.
@@ -264,14 +406,14 @@ class BaseEstimator:
         elif kind == "train":
             dev = self.dev
         elif kind == "forecast":
-            dev = self.dev_forecast            
+            dev = self.dev_forecast
         else:
             raise ValueError("kind must be 'train', 'forecast', 'all'")
 
         # filter and return
         return dev[idx]
-    
-    def GetCal(self, kind:str = None) -> pd.Series:
+
+    def GetCal(self, kind: str = None) -> pd.Series:
         """
         Getter for the model's calendar period vector, filtered for the
         current model context and kind.
@@ -298,14 +440,261 @@ class BaseEstimator:
         elif kind == "train":
             cal = self.cal
         elif kind == "forecast":
-            cal = self.cal_forecast            
+            cal = self.cal_forecast
         else:
             raise ValueError("kind must be 'train', 'forecast', 'all'")
 
         # filter and return
         return cal[idx]
-    
-    def GetExposure(self, kind:str = None) -> pd.Series:
+
+    def GetAccGp(self) -> pd.Series:
+        """
+        Getter for the model's accident period group vector, filtered for the
+        current model context and kind.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        pd.Series
+            The accident period group vector.
+
+        Notes
+        -----
+        This method will always return the full accident period group vector, since
+        there are no accident period groups applicable to the forecast data.
+        """
+        # get current context index (always train)
+        idx = self.GetIdx("train")
+
+        # return NotImplementedError if no accident period group
+        if self.acc_gp is None:
+            raise NotImplementedError("acc_gp not implemented")
+
+        # filter acciden and return
+        return self.acc_gp[idx]
+
+    def GetDevGp(self) -> pd.Series:
+        """
+        Getter for the model's development period group vector, filtered for the
+        current model context and kind.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        pd.Series
+            The development period group vector.
+
+        Notes
+        -----
+        This method will always return the full development period group vector, since
+        there are no development period groups applicable to the forecast data.
+        """
+        # get current context index (always train)
+        idx = self.GetIdx("train")
+
+        # return NotImplementedError if no development period group
+        if self.dev_gp is None:
+            raise NotImplementedError("dev_gp not implemented")
+
+        # filter development and return
+        return self.dev_gp[idx]
+
+    def GetCalGp(self) -> pd.Series:
+        """
+        Getter for the model's calendar period group vector, filtered for the
+        current model context and kind.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        pd.Series
+            The calendar period group vector.
+
+        Notes
+        -----
+        This method will always return the full calendar period group vector, since
+        there are no calendar period groups applicable to the forecast data.
+        """
+        # get current context index (always train)
+        idx = self.GetIdx("train")
+
+        # return NotImplementedError if no calendar period group
+        if self.cal_gp is None:
+            raise NotImplementedError("cal_gp not implemented")
+
+        # filter calendar and return
+        return self.cal_gp[idx]
+
+    def GetAccGpMap(self) -> pd.Series:
+        """
+        Getter for the model's accident period group map vector, filtered for the
+        current model context and kind.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        pd.Series
+            The accident period group map vector.
+
+        Notes
+        -----
+        This method will always return the full accident period group map vector, since
+        there are no accident period groups applicable to the forecast data.
+        """
+        # get current context index (always train)
+        idx = self.GetIdx("train")
+
+        # return NotImplementedError if no accident period group map
+        if self.acc_gp_map is None:
+            raise NotImplementedError("acc_gp_map not implemented")
+
+        # filter accident and return
+        return self.acc_gp_map[idx]
+
+    def GetDevGpMap(self) -> pd.Series:
+        """
+        Getter for the model's development period group map vector, filtered for the
+        current model context and kind.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        pd.Series
+            The development period group map vector.
+
+        Notes
+        -----
+        This method will always return the full development period group map vector, since
+        there are no development period groups applicable to the forecast data.
+        """
+        # get current context index (always train)
+        idx = self.GetIdx("train")
+
+        # return NotImplementedError if no development period group map
+        if self.dev_gp_map is None:
+            raise NotImplementedError("dev_gp_map not implemented")
+
+        # filter development and return
+        return self.dev_gp_map[idx]
+
+    def SetDevGpMap(self, dev_gp_map: pd.Series) -> None:
+        """
+        Setter for the model's development period group map vector.
+
+        Parameters
+        ----------
+        dev_gp_map : pd.Series
+            The development period group map vector.
+        """
+        # set development period group map vector
+        self.dev_gp_map = dev_gp_map
+
+    def GetCalGpMap(self) -> pd.Series:
+        """
+        Getter for the model's calendar period group map vector, filtered for the
+        current model context and kind.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        pd.Series
+            The calendar period group map vector.
+
+        Notes
+        -----
+        This method will always return the full calendar period group map vector, since
+        there are no calendar period groups applicable to the forecast data.
+        """
+        # get current context index (always train)
+        idx = self.GetIdx("train")
+
+        # return NotImplementedError if no calendar period group map
+        if self.cal_gp_map is None:
+            raise NotImplementedError("cal_gp_map not implemented")
+
+        # filter calendar and return
+        return self.cal_gp_map[idx]
+
+    def SetCalGpMap(self, cal_gp_map: pd.Series) -> None:
+        """
+        Setter for the model's calendar period group map vector.
+
+        Parameters
+        ----------
+        cal_gp_map : pd.Series
+            The calendar period group map vector.
+
+        Returns
+        -------
+        None
+        """
+        # set calendar period group map
+        self.cal_gp_map = cal_gp_map
+
+    def GetHeteroGp(self) -> pd.Series:
+        """
+        Getter for the model's heteroskedasticity group vector,
+        filtered for the current model context and kind.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        pd.Series
+            The heterogeneity group vector.
+
+        Notes
+        -----
+        This method will always return the full hetero group vector, since
+        there are no hetero groups applicable to the forecast data.
+        """
+        # get current context index (always train)
+        idx = self.GetIdx("train")
+
+        # return NotImplementedError if no heterogeneity group
+        if self.hetero_gp is None:
+            raise NotImplementedError("hetero_gp not implemented")
+
+        # filter heterogeneity and return
+        return self.hetero_gp[idx]
+
+    def SetHeteroGp(self, hetero_gp: pd.Series) -> None:
+        """
+        Setter for the model's heteroskedasticity group vector.
+
+        Parameters
+        ----------
+        hetero_gp : pd.Series
+            The heteroskedasticity group vector.
+
+        Returns
+        -------
+        None
+        """
+        # set hetero_gp
+        self.hetero_gp = hetero_gp
+
+    def GetExposure(self, kind: str = None) -> pd.Series:
         """
         Getter for the model's exposure vector, filtered for the current model
         context and kind.
@@ -332,14 +721,13 @@ class BaseEstimator:
         elif kind == "train":
             exposure = self.exposure
         elif kind == "forecast":
-            exposure = self.exposure_forecast            
+            exposure = self.exposure_forecast
         else:
             raise ValueError("kind must be 'train', 'forecast', 'all'")
 
         # filter and return
         return exposure[idx]
-        
-        
+
     def GetX(self, kind=None):
         """
         Getter for the model's X data. If there is no X data, take the base design
@@ -369,6 +757,32 @@ class BaseEstimator:
 
         return df.loc[idx, :]
 
+    def SetX(
+        self, kind: str = "train", X: pd.DataFrame = None, vars: list = None
+    ) -> None:
+        """
+        Setter for the model's X data. If there is no X data, exit.
+        If `vars` is included, only set the X data for those variables.
+        Raise an error if the variables are not in the model's X data.
+        """
+        # get current context index
+        idx = self.GetIdx("train")
+
+        # get the correct version of X depending on the kind
+        if self.X_train is None:
+            raise ValueError("X_train is not defined!")
+        else:
+            if vars is None:
+                if X is None:
+                    quit
+                else:
+                    self.X_train.loc[idx, :] = X
+            else:
+                if set(vars).issubset(set(self.X_train.columns)):
+                    self.X_train.loc[idx, vars] = X
+                else:
+                    raise ValueError("vars must be in X_train!")
+
     def GetParameterNames(self, column=None):
         """
         Getter for the model's parameter names.
@@ -376,7 +790,7 @@ class BaseEstimator:
         print("GetParameterNames is not implemented for this model.")
         raise NotImplementedError
 
-    def GetY(self, kind:str = "train") -> pd.Series:
+    def GetY(self, kind: str = "train") -> pd.Series:
         """
         Getter for the model's y data. If there is no y data, take the y vector
         directly from the triangle.
@@ -392,8 +806,21 @@ class BaseEstimator:
                 raise ValueError("y_forecast is what we are trying to predict!")
         else:
             raise ValueError("kind must be 'train' for `y`")
-        
-    def GetWeights(self, kind:str = "train") -> pd.Series:
+
+    def SetY(self, y: pd.Series) -> None:
+        """
+        Setter for the model's y data.
+        """
+        # if the index of y is not the same as the index of the model,
+        # raise an error since we cannot change the index of the model
+        # without breaking the index of the triangle
+        if not y.index.equals(self.GetIdx("train")):
+            raise ValueError("y must have the same index as the model")
+
+        # set y
+        self.y_train = y
+
+    def GetWeights(self, kind: str = "train") -> pd.Series:
         """
         Getter for the model's weights. If there are no weights, return None.
         """
@@ -403,10 +830,17 @@ class BaseEstimator:
         else:
             raise ValueError("kind must be 'train' for `weights`")
 
+    def SetWeights(self, weights: pd.Series) -> None:
+        """
+        Setter for the model's weights.
+        """
+        idx = self.GetIdx("train")
+        self.weights[idx] = weights
+
     def GetN(self) -> int:
         """
-        Getter for the model's number of observations. 
-        
+        Getter for the model's number of observations.
+
         This is equal to the number of rows in the "train"
         design matrix.
 
@@ -422,7 +856,7 @@ class BaseEstimator:
         Getter for the model's number of parameters.
 
         This is equal to the number of columns in the "train"
-        design matrix, excluding those that have no nonzero 
+        design matrix, excluding those that have no nonzero
         values in the design matrix.
 
         Must do this because if there are calendar year parameters,
@@ -440,7 +874,7 @@ class BaseEstimator:
 
         # p, adjusted for columns that are completely 0
         adj_p = unadj_p - self.GetX("train").isna().all().sum()
-        
+
         return adj_p
 
     def GetDegreesOfFreedom(self) -> int:
@@ -458,10 +892,13 @@ class BaseEstimator:
         return self.GetN() - self.GetP()
 
     def GetVarY(self, kind="train"):
-        """
-
-        """
+        """ """
         print("VarY is not implemented for this model.")
+        raise NotImplementedError
+
+    def SetVarY(self, var_y, kind="train"):
+        """ """
+        print("SetVarY is not implemented for this model.")
         raise NotImplementedError
 
     def Fit(
@@ -482,7 +919,9 @@ class BaseEstimator:
         raise NotImplementedError
 
     def Ultimate(self, tail=None) -> pd.Series:
-        X = self.GetX(kind="forecast", )
+        X = self.GetX(
+            kind="forecast",
+        )
         df = pd.DataFrame(
             {
                 "Accident Period": self.tri.get_X_id("all").accident_period,
@@ -540,11 +979,11 @@ class BaseEstimator:
         print("Deviance not implemented for this model")
         raise NotImplementedError
 
-    def RawResiduals(self):
-        return self.GetY() - self.GetYhat()
+    def RawResiduals(self, kind="train"):
+        return self.GetY(kind=kind) - self.GetYhat(kind=kind)
 
-    def PearsonResiduals(self):
-        res = np.divide(self.RawResiduals(), np.sqrt(self.VarY()))
+    def PearsonResiduals(self, kind="train"):
+        res = np.divide(self.RawResiduals(kind=kind), np.sqrt(self.VarY(kind=kind)))
         return res
 
     def DevianceResiduals(self):

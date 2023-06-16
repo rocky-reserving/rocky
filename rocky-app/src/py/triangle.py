@@ -204,7 +204,7 @@ class Triangle:
 
         # if no exposure vector is passed, set all exposures to 1
         if self.exposure is None:
-            self.exposure = pd.Series(1, index=self.X_base)
+            self.exposure = pd.Series(1, index=self.acc.drop_duplicates())
 
     def __repr__(self) -> str:
         return self.tri.__repr__()

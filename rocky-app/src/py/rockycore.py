@@ -7,7 +7,7 @@ sys.path.append(curdir)
 from util import count_rocky
 from triangle import Triangle
 from GLM import glm
-from LogLinear import loglinear
+from LogLinear import Loglinear
 
 
 from dataclasses import dataclass
@@ -89,7 +89,7 @@ class rocky:
             id = obj.id
         setattr(self, "id", id)
 
-    def load_mack_1994(self, id='rpt_loss') -> None:
+    def load_mack_1994(self, id="rpt_loss") -> None:
         """
         Load the Mack 1994 Sample Incurred Loss triangles.
 
@@ -152,7 +152,7 @@ class rocky:
                 id = "paid_loss"
             self.load_taylor_ashe(id=id)
             getattr(self, f"{id}").base_linear_model()
-        elif sample.lower()=="mack_1994":
+        elif sample.lower() == "mack_1994":
             if id is None:
                 id = "rpt_loss"
             self.load_mack_1994(id=id)
@@ -318,7 +318,7 @@ class rocky:
                 tri = getattr(self, tri)
 
         # add the model to the model container
-        if model_class.lower() in ['tweedie','glm']:
+        if model_class.lower() in ["tweedie", "glm"]:
             self.mod.add(
                 glm(
                     id=id,
@@ -329,9 +329,9 @@ class rocky:
                 ),
                 f"{id}",
             )
-        elif model_class.lower() in ['loglinear']:
+        elif model_class.lower() in ["loglinear"]:
             self.mod.add(
-                loglinear(
+                Loglinear(
                     id=id,
                     model_class=model_class,
                     tri=tri,
