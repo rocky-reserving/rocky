@@ -119,7 +119,7 @@ class Triangle:
     y_base_forecast: pd.Series = None
     exposure_forecast: pd.Series = None
     has_cum_model_file: bool = False
-    is_cum_model: Any = None    
+    is_cum_model: Any = None
 
     def __post_init__(self) -> None:
         """
@@ -173,8 +173,6 @@ class Triangle:
 
             # set the n_cal attribute
             self.n_cal = self.cal.max().max() - self.cal.min().min() + 1
-
-            
 
         # convert triangle data to float
         if self.tri is not None:
@@ -661,7 +659,14 @@ class Triangle:
 
         # convert remaining columns to numeric
         for c in df.columns.tolist():
-            df[c] = df[c].astype(str).str.replace(",", "").str.replace(".", "").str.replace(" ", "").astype(float)
+            df[c] = (
+                df[c]
+                .astype(str)
+                .str.replace(",", "")
+                .str.replace(".", "")
+                .str.replace(" ", "")
+                .astype(float)
+            )
 
         df.index = df.index.astype(str).astype(int)
         # print(df.index)
@@ -756,13 +761,13 @@ class Triangle:
 
         # Create and return a Triangle object
         return cls(id=id, tri=df.round(1), triangle=df.round(1))
-    
+
     @classmethod
     def from_mack_1994(cls) -> "Triangle":
         """
         Create a Triangle object from the sample triangle in the Mack 1994
         paper, "Measuring the Variability of Chain Ladder Reserve Estimates"
-        
+
         (see https://www.casact.org/sites/default/files/2021-03/7_Mack_1994.pdf)
 
         Parameters:
@@ -785,7 +790,6 @@ class Triangle:
 
         # Create and return a Triangle object
         return cls(id="gl_rpt_loss", tri=df, triangle=df)
-
 
     @classmethod
     def from_taylor_ashe(cls) -> "Triangle":
@@ -1319,13 +1323,15 @@ class Triangle:
 
         return diag
 
-    def ult(self,
+    def ult(
+        self,
         ave_type: str = "vwa",
         n: int = None,
         tail: float = 1.0,
         excludes: str = "hl",
         custom: np.ndarray = None,
-        round_to: int = 0,):
+        round_to: int = 0,
+    ):
         """
         Calculates the ultimate loss from the standard chain ladder method.
 
@@ -1360,9 +1366,11 @@ class Triangle:
             The number of decimal places to round the ultimate loss to. Default is 0.
         """
         diag = self.diag()
-        
+
         # calculate the age-to-ultimate factors and reverse the order
-        atu = self.atu(ave_type=ave_type, n=n, tail=tail, excludes=excludes, custom=custom)[::-1]
+        atu = self.atu(
+            ave_type=ave_type, n=n, tail=tail, excludes=excludes, custom=custom
+        )[::-1]
         atu.index = diag.index
 
         # calculate the ultimate loss
@@ -1371,8 +1379,6 @@ class Triangle:
         ult.index.name = "Accident Period"
 
         return ult.round(round_to)
-
-        
 
     def ata_summary(self) -> pd.DataFrame:
         """
@@ -1446,7 +1452,7 @@ class Triangle:
         ]
 
         # rename the columns to put a title above the df
-        out.columns.name = 'Age-to-Age Factors as of (months)'
+        out.columns.name = "Age-to-Age Factors as of (months)"
 
         return out
 
@@ -1701,15 +1707,16 @@ class Triangle:
             self.X_base_train = self.X_base_train.drop(columns="intercept")
             self.X_base_forecast = self.X_base_forecast.drop(columns="intercept")
 
-    def get_X(self,
-              split:str = None,
-              use_cal:bool = False,
-              X_type:str = None,
-              column_query:str = None
-              ) -> pd.DataFrame:
+    def get_X(
+        self,
+        split: str = None,
+        use_cal: bool = False,
+        X_type: str = None,
+        column_query: str = None,
+    ) -> pd.DataFrame:
         """
-        Get the design matrix for the given split. 
-        
+        Get the design matrix for the given split.
+
         Parameters:
         -----------
         split: str
@@ -1763,7 +1770,9 @@ class Triangle:
         Returns the calendar design matrix
         """
         df = self.get_X_id(split=split)
-        df["calendar_period"] = df["calendar_period"].astype(str).str.pad(4, fillchar="0")
+        df["calendar_period"] = (
+            df["calendar_period"].astype(str).str.pad(4, fillchar="0")
+        )
         df["calendar_period"] = df.calendar_period.apply(lambda x: f"{x}")
         df_cal = pd.get_dummies(df[["calendar_period"]], drop_first=True)
         out = df_cal.copy()
@@ -1789,7 +1798,7 @@ class Triangle:
         idx = self.get_X_id(split=split).index
         return out.loc[idx]
 
-    def get_X_exposure(self, split:str = None) -> pd.DataFrame:
+    def get_X_exposure(self, split: str = None) -> pd.DataFrame:
         """
         Returns the exposure design matrix
         """

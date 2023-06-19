@@ -11,7 +11,7 @@ import numpy as np
 
 import sklearn
 import xgboost
-from sklearn.linear_model import TweedieRegressor
+from sklearn.linear_model import TweedieRegressor, ElasticNet
 from sklearn.ensemble import RandomForestRegressor
 from xgboost import XGBRegressor
 from sklearn.metrics import mean_squared_error, mean_absolute_error, d2_tweedie_score
@@ -41,10 +41,12 @@ class TriangleTimeSeriesSplit:
         triangle: Triangle = None,
         n_splits: int = 5,
         tie_criterion: str = "ave_mse_test",
-        model_type: str = 'tweedie',
+        model_type: str = "tweedie",
+        log_transform: bool = False,
         tweedie_grid: dict = None,
         randomforest_grid: dict = None,
         xgboost_grid: dict = None,
+        model=None,
         **kwargs,
     ):
         self.tri = triangle
@@ -53,16 +55,18 @@ class TriangleTimeSeriesSplit:
         self.has_tuning_results = False
         self.is_tuned = False
         self.model_type = model_type
+        self.model = model
+        self.log_transform = log_transform
 
         # if no grid is provided, use the default grid
         if tweedie_grid is None:
-            if model_type=='tweedie':
+            if model_type == "tweedie":
                 self.tweedie_grid = {
                     "alpha": np.arange(0, 3.1, 0.1),
                     "power": np.array([0]) + np.arange(1, 3.1, 0.1),
                     "max_iter": 100000,
                 }
-            elif model_type=='loglinear':
+            elif model_type == "loglinear":
                 self.tweedie_grid = {
                     "alpha": np.arange(0, 3.1, 0.1),
                     "l1_ratio": np.arange(0, 1.05, 0.05),
@@ -134,6 +138,10 @@ class TriangleTimeSeriesSplit:
         # pareto optimal model
         self.tie_criterion = tie_criterion
 
+    def __repr__(self):
+        return f"TriangleTimeSeriesTuner(n_splits={self.n_splits_}, \
+model_type={self.model_type})"
+
     def GetSplit(self):
         """Yields the indices for the training and validation sets."""
         X_id = self.tri.get_X_id().reset_index(drop=True)
@@ -146,14 +154,19 @@ class TriangleTimeSeriesSplit:
             split_cal = current_cal - i
 
             # get the indices for training and validation set
-            train_indices = X_id.cal[X_id.cal.lt(split_cal)].index.to_numpy()
-            test_indices = X_id.cal[
-                X_id.cal.ge(split_cal) & X_id.cal.le(current_cal)
+            train_indices = X_id.calendar_period[
+                X_id.calendar_period.lt(split_cal)
+            ].index.to_numpy()
+            test_indices = X_id.calendar_period[
+                X_id.calendar_period.ge(split_cal)
+                & X_id.calendar_period.le(current_cal)
             ].index.to_numpy()
 
             yield train_indices, test_indices
 
-    def GridTweedie(self, alpha=None, power=None, l1_ratio=None, max_iter=None, model_type='tweedie'):
+    def GridTweedie(
+        self, alpha=None, power=None, l1_ratio=None, max_iter=None, model_type="tweedie"
+    ):
         """
         Sets the grid for the hyperparameters of the Tweedie models.
 
@@ -171,19 +184,19 @@ class TriangleTimeSeriesSplit:
         model_type : str, default='tweedie'
             The model type to use. Currently can be 'tweedie' or 'loglinear'.
         """
-        if model_type in ['tweedie', 'loglinear']:
+        if model_type in ["tweedie", "loglinear"]:
             if alpha is not None:
                 self.tweedie_grid["alpha"] = alpha
 
-        if model_type in ['loglinear']:
+        if model_type in ["loglinear"]:
             if l1_ratio is not None:
                 self.tweedie_grid["l1_ratio"] = l1_ratio
-        
-        if model_type in ['tweedie']:
+
+        if model_type in ["tweedie"]:
             if power is not None:
                 self.tweedie_grid["power"] = power
 
-        if model_type in ['tweedie', 'loglinear']:
+        if model_type in ["tweedie", "loglinear"]:
             if max_iter is not None:
                 self.tweedie_grid["max_iter"] = max_iter
 
@@ -234,14 +247,23 @@ class TriangleTimeSeriesSplit:
         result_dict = {}
 
         model_params = {
-            'tweedie': ['alpha', 'power']
-            , 'loglinear': ['alpha', 'l1_ratio']
+            "tweedie": ["alpha", "power"],
+            "loglinear": ["alpha", "l1_ratio"],
         }
 
-        param_map = {
-            'tweedie': itertools.product(self.tweedie_grid["alpha"], self.tweedie_grid["power"])
-            , 'loglinear': itertools.product(self.tweedie_grid["alpha"], self.tweedie_grid["l1_ratio"])
-        }
+        if self.model_type == "tweedie":
+            param_map = {
+                "tweedie": itertools.product(
+                    self.tweedie_grid["alpha"], self.tweedie_grid["power"]
+                )
+            }
+
+        elif self.model_type == "loglinear":
+            param_map = {
+                "loglinear": itertools.product(
+                    self.tweedie_grid["alpha"], self.tweedie_grid["l1_ratio"]
+                )
+            }
 
         parameters = list(param_map[self.model_type])
         n_parameters = len(parameters)
@@ -252,20 +274,33 @@ class TriangleTimeSeriesSplit:
         for param in model_params[self.model_type]:
             cur_params[param] = None
 
-############################ 6/14 right here ##########################################
+        ############################ 6/14 right here ##########################################
         # for **cur_params in parameters:
-        for alpha, power in parameters:
-            result_dict[f"alpha_{np.round(alpha, 2)}_power_{np.round(power, 2)}"] = {}
+        if self.model_type == "tweedie":
+            for alpha, power in parameters:
+                result_dict[
+                    f"alpha_{np.round(alpha, 2)}_power_{np.round(power, 2)}"
+                ] = {}
+        elif self.model_type == "loglinear":
+            for alpha, l1_ratio in parameters:
+                result_dict[
+                    f"alpha_{np.round(alpha, 2)}_l1_ratio_{np.round(l1_ratio, 2)}"
+                ] = {}
 
         for train, val in self.GetSplit():
             X_train = self.tri.get_X_base().iloc[train]
-            y_train = self.tri.get_y_base()[train]
-
             X_test = self.tri.get_X_base().iloc[val]
-            y_test = self.tri.get_y_base()[val]
+
+            if self.log_transform:
+                y_train = np.log(self.tri.get_y_base()[train])
+                y_test = np.log(self.tri.get_y_base()[val])
+            else:
+                y_train = self.tri.get_y_base()[train]
+                y_test = self.tri.get_y_base()[val]
+
             X_id_test = self.tri.get_X_id().iloc[val]
 
-            excl_cal = X_id_test.cal.min() + first_ay - 1
+            excl_cal = X_id_test.calendar_period.min() + first_ay - 1
 
             for alpha, power in tqdm(
                 parameters,
@@ -277,11 +312,19 @@ class TriangleTimeSeriesSplit:
                     with warnings.catch_warnings():
                         warnings.filterwarnings("error", category=ConvergenceWarning)
                         warnings.filterwarnings("error", category=RuntimeWarning)
-                        model = TweedieRegressor(
-                            power=np.round(power, 2),
-                            alpha=np.round(alpha, 2),
-                            max_iter=self.tweedie_grid["max_iter"],
-                        ).fit(X_train, y_train)
+                        warnings.filterwarnings("ignore", category=UserWarning)
+                        if self.model_type == "tweedie":
+                            model = TweedieRegressor(
+                                power=np.round(power, 2),
+                                alpha=np.round(alpha, 2),
+                                max_iter=self.tweedie_grid["max_iter"],
+                            ).fit(X_train, y_train)
+                        elif self.model_type == "loglinear":
+                            model = ElasticNet(
+                                alpha=np.round(alpha, 2),
+                                l1_ratio=np.round(power, 2),
+                                max_iter=self.tweedie_grid["max_iter"],
+                            ).fit(X_train, y_train)
                 except (ConvergenceWarning, RuntimeWarning):
                     # if n_failed_to_converge == 0:
                     #     tqdm.write("Failed to converge: ", end="")
@@ -289,44 +332,63 @@ class TriangleTimeSeriesSplit:
                     # tqdm.write(f"{n_failed_to_converge} ", end="")
                     continue
 
+                if self.model_type == "tweedie":
+                    p = {"alpha": np.round(alpha, 2), "power": np.round(power, 2)}
+                elif self.model_type == "loglinear":
+                    p = {"alpha": np.round(alpha, 2), "l1_ratio": np.round(l1_ratio, 2)}
+
                 # add mean squared error to result dictionary
-                result_dict[f"alpha_{np.round(alpha, 2)}_power_{np.round(power, 2)}"][
-                    f"cy_{excl_cal}_mse_train"
-                ] = mean_squared_error(y_train, model.predict(X_train))
-                result_dict[f"alpha_{np.round(alpha, 2)}_power_{np.round(power, 2)}"][
-                    f"cy_{excl_cal}_mse_test"
-                ] = mean_squared_error(y_test, model.predict(X_test))
+                if self.model_type == "tweedie":
+                    key = f"alpha_{np.round(alpha, 2)}_power_{np.round(power, 2)}"
+                elif self.model_type == "loglinear":
+                    key = f"alpha_{np.round(alpha, 2)}_l1_ratio_{np.round(l1_ratio, 2)}"
+
+                result_dict[key][f"cy_{excl_cal}_mse_train"] = mean_squared_error(
+                    y_train, model.predict(X_train)
+                )
+                result_dict[key][f"cy_{excl_cal}_mse_test"] = mean_squared_error(
+                    y_test, model.predict(X_test)
+                )
 
                 # add d2 score to result dictionary
-                result_dict[f"alpha_{np.round(alpha, 2)}_power_{np.round(power, 2)}"][
-                    f"cy_{excl_cal}_d2_train"
-                ] = d2_tweedie_score(
-                    y_train, model.predict(X_train), power=np.round(power, 2)
-                )
-                result_dict[f"alpha_{np.round(alpha, 2)}_power_{np.round(power, 2)}"][
-                    f"cy_{excl_cal}_d2_test"
-                ] = d2_tweedie_score(
-                    y_test, model.predict(X_test), power=np.round(power, 2)
-                )
+                if self.model_type == "tweedie":
+                    result_dict[key][f"cy_{excl_cal}_d2_train"] = d2_tweedie_score(
+                        y_train, model.predict(X_train), power=np.round(power, 2)
+                    )
+                    result_dict[key][f"cy_{excl_cal}_d2_test"] = d2_tweedie_score(
+                        y_test, model.predict(X_test), power=np.round(power, 2)
+                    )
 
                 # add MAE to result dictionary
-                result_dict[f"alpha_{np.round(alpha, 2)}_power_{np.round(power, 2)}"][
-                    f"cy_{excl_cal}_mae_train"
-                ] = mean_absolute_error(y_train, model.predict(X_train))
-                result_dict[f"alpha_{np.round(alpha, 2)}_power_{np.round(power, 2)}"][
-                    f"cy_{excl_cal}_mae_test"
-                ] = mean_absolute_error(y_test, model.predict(X_test))
+                result_dict[key][f"cy_{excl_cal}_mae_train"] = mean_absolute_error(
+                    y_train, model.predict(X_train)
+                )
+                result_dict[key][f"cy_{excl_cal}_mae_test"] = mean_absolute_error(
+                    y_test, model.predict(X_test)
+                )
 
             print(f"{n_failed_to_converge} / {n_parameters} models failed to converge.")
 
             tweedie_result = pd.DataFrame(result_dict).T
 
-            for m in "mse_train mse_test d2_train d2_test mae_train mae_test".split():
+            for m in "mse_train mse_test mae_train mae_test".split():
                 tweedie_result[f"ave_{m}"] = tweedie_result.filter(like=m).mean(axis=1)
                 tweedie_result[f"sd_{m}"] = tweedie_result.filter(like=m).std(axis=1)
                 tweedie_result[f"cv_{m}"] = (
                     tweedie_result[f"sd_{m}"] / tweedie_result[f"ave_{m}"]
                 )
+
+            if self.model_type == "tweedie":
+                for m in "d2_train d2_test".split():
+                    tweedie_result[f"ave_{m}"] = tweedie_result.filter(like=m).mean(
+                        axis=1
+                    )
+                    tweedie_result[f"sd_{m}"] = tweedie_result.filter(like=m).std(
+                        axis=1
+                    )
+                    tweedie_result[f"cv_{m}"] = (
+                        tweedie_result[f"sd_{m}"] / tweedie_result[f"ave_{m}"]
+                    )
 
             cols_to_drop = [c for c in tweedie_result.columns if "cy_" in c]
 
@@ -335,9 +397,15 @@ class TriangleTimeSeriesSplit:
             tweedie_result = tweedie_result.T
 
             for c in tweedie_result.columns.tolist():
-                _, a, _, power = c.split("_")
-                tweedie_result.loc["alpha", c] = np.round(float(a), 2)
-                tweedie_result.loc["power", c] = np.round(float(power), 2)
+                if self.model_type == "tweedie":
+                    _, a, _, power = c.split("_")
+                    tweedie_result.loc["alpha", c] = np.round(float(a), 2)
+                    tweedie_result.loc["power", c] = np.round(float(power), 2)
+                elif self.model_type == "loglinear":
+                    print(c)
+                    _, a, _, l1 = c.split("_")
+                    tweedie_result.loc["alpha", c] = np.round(float(a), 2)
+                    tweedie_result.loc["l1_ratio", c] = np.round(float(l1), 2)
 
             self.tweedie_result = tweedie_result.T.sort_values("ave_mse_test")
 
@@ -434,11 +502,19 @@ class TriangleTimeSeriesSplit:
             optimal_model = self.tweedie_optimal.iloc[0]
 
         # get the optimal set of hyperparameters
-        alpha = optimal_model["alpha"]
-        power = optimal_model["power"]
+        if self.model_type == "tweedie":
+            alpha = optimal_model["alpha"]
+            power = optimal_model["power"]
+        elif self.model_type == "loglinear":
+            alpha = optimal_model["alpha"]
+            l1_ratio = optimal_model["l1_ratio"]
 
         # Re-fit a model with the optimal hyperparameters, and return it
-        best_model = TweedieRegressor(alpha=alpha, power=power, link="log")
+        if self.model_type == "tweedie":
+            best_model = TweedieRegressor(alpha=alpha, power=power, link="log")
+        elif self.model_type == "loglinear":
+            best_model = ElasticNet(alpha=alpha, l1_ratio=l1_ratio)
+
         best_model.fit(self.tri.get_X_base("train"), self.tri.get_y_base("train"))
         return best_model
 
@@ -583,7 +659,7 @@ class TriangleTimeSeriesSplit:
             X_id_test = self.tri.get_X_id().iloc[val]
 
             # get the breakpoint year for the current train/val split
-            excl_cal = X_id_test.cal.min() + first_ay.year - 1
+            excl_cal = X_id_test.calendar_period.min() + first_ay.year - 1
 
             # loop through all combinations of hyperparameters in the current
             # train/val split

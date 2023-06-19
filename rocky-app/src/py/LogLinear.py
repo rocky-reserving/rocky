@@ -119,6 +119,7 @@ selecting carried reserves."
         param_grid=None,
         measures=None,
         tie_criterion="ave_mse_test",
+        model_type="loglinear",
         **kwargs,
     ):
         # set the parameter grid to default if none is provided
@@ -139,13 +140,13 @@ selecting carried reserves."
 
         # set the cross-validation object
         cv = TriangleTimeSeriesSplit(
-            self.tri, n_splits=n_splits, tweedie_grid=param_grid
+            self.tri, n_splits=n_splits, tweedie_grid=param_grid, model_type=model_type
         )
 
         # set the parameter search grid
         cv.GridTweedie(
             alpha=param_grid["alpha"],
-            power=param_grid["l1_ratio"],
+            l1_ratio=param_grid["l1_ratio"],
             max_iter=param_grid["max_iter"],
         )
 
@@ -190,6 +191,10 @@ selecting carried reserves."
         alpha: float = None,
         l1_ratio: float = None,
         max_iter: int = None,
+        n_splits=5,
+        param_grid=None,
+        measures=None,
+        tie_criterion="ave_mse_test",
         **kwargs,
     ) -> None:
         """
@@ -261,7 +266,14 @@ selecting carried reserves."
                     message += " is/are not set. Running `TuneFitHyperparameters()`..."
 
                 warnings.warn(message)
-                self.TuneFitHyperparameters()
+                self.TuneFitHyperparameters(
+                    n_splits=n_splits,
+                    param_grid=param_grid,
+                    measures=measures,
+                    tie_criterion=tie_criterion,
+                    model_type="loglinear",
+                    model=self,
+                )
 
         # now either alpha and l1_ratio are set or they were provided to begin with
         alpha = self.alpha if alpha is None else alpha
@@ -1199,7 +1211,7 @@ selecting carried reserves."
         res_gps["residStd"] -= res_gps["residStd_mean"]
 
         # calculate variance of residuals over each group then format to data frame
-        wGpVar = res_gps.groupby('gp')['residStd'].var(ddof=0).reset_index()
+        wGpVar = res_gps.groupby("gp")["residStd"].var(ddof=0).reset_index()
 
         # Check if there were errors in calculating variance. If so, exit.
         if wGpVar["residStd"].isna().any() or (wGpVar["residStd"] == 0).any():

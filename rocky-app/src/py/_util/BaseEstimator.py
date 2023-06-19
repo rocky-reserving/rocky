@@ -226,13 +226,25 @@ class BaseEstimator:
         self.acc = self.tri.get_X_id("train")["accident_period"]
         self.dev = self.tri.get_X_id("train")["development_period"]
         self.cal = self.tri.get_X_id("train")["calendar_period"]
-        self.exposure = self.tri.get_X_id("train")["exposure"]
+        exp = pd.DataFrame(
+            {"acc": self.tri.acc.dt.year.values, "exposure": self.tri.exposure.values}
+        )
+        exp2 = pd.DataFrame(
+            {"acc": self.tri.get_X_id("train")["accident_period"]}
+        ).merge(exp, on="acc", how="left")
+        self.exposure = exp2["exposure"]
 
         # initialize forecasting attributes
         self.acc_forecast = self.tri.get_X_id("forecast")["accident_period"]
         self.dev_forecast = self.tri.get_X_id("forecast")["development_period"]
         self.cal_forecast = self.tri.get_X_id("forecast")["calendar_period"]
-        self.exposure_forecast = self.tri.get_X_id("forecast")["exposure"]
+        exp_f = pd.DataFrame(
+            {"acc": self.tri.acc.dt.year.values, "exposure": self.tri.exposure.values}
+        )
+        exp2_f = pd.DataFrame(
+            {"acc": self.tri.get_X_id("forecast")["accident_period"]}
+        ).merge(exp_f, on="acc", how="left")
+        self.exposure_forecast = exp2_f["exposure"]
 
     def combine_indices(self, *args):
         """
