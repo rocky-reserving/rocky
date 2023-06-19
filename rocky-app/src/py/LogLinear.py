@@ -127,7 +127,7 @@ selecting carried reserves."
             param_grid = {
                 "alpha": np.arange(0, 3.1, 0.1),
                 "l1ratio": np.arange(0, 1.05, 0.05),
-                "max_iter": 100000,
+                "max_iter": [100000],
             }
 
         # if kwargs for alpha, p and max_iter are provided, use those
@@ -140,7 +140,11 @@ selecting carried reserves."
 
         # set the cross-validation object
         cv = TriangleTimeSeriesSplit(
-            self.tri, n_splits=n_splits, tweedie_grid=param_grid, model_type='loglinear', model=self
+            self.tri,
+            n_splits=n_splits,
+            tweedie_grid=param_grid,
+            model_type="loglinear",
+            model=self,
         )
 
         # set the parameter search grid
