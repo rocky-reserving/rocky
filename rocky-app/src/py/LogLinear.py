@@ -126,27 +126,27 @@ selecting carried reserves."
         if param_grid is None:
             param_grid = {
                 "alpha": np.arange(0, 3.1, 0.1),
-                "l1_ratio": np.arange(0, 1.05, 0.05),
+                "l1ratio": np.arange(0, 1.05, 0.05),
                 "max_iter": 100000,
             }
 
         # if kwargs for alpha, p and max_iter are provided, use those
         if "alpha" in kwargs:
             param_grid["alpha"] = kwargs["alpha"]
-        if "l1_ratio" in kwargs:
-            param_grid["l1_ratio"] = kwargs["l1_ratio"]
+        if "l1ratio" in kwargs:
+            param_grid["l1ratio"] = kwargs["l1ratio"]
         if "max_iter" in kwargs:
             param_grid["max_iter"] = kwargs["max_iter"]
 
         # set the cross-validation object
         cv = TriangleTimeSeriesSplit(
-            self.tri, n_splits=n_splits, tweedie_grid=param_grid, model_type=model_type
+            self.tri, n_splits=n_splits, tweedie_grid=param_grid, model_type='loglinear', model=self
         )
 
         # set the parameter search grid
         cv.GridTweedie(
             alpha=param_grid["alpha"],
-            l1_ratio=param_grid["l1_ratio"],
+            l1ratio=param_grid["l1ratio"],
             max_iter=param_grid["max_iter"],
         )
 
@@ -156,7 +156,6 @@ selecting carried reserves."
         # set the optimal hyperparameters
         self.alpha = opt_tweedie.alpha
         self.l1_ratio = opt_tweedie.l1_ratio
-        self.link = opt_tweedie.link
 
         # save cv object
         self.cv = cv

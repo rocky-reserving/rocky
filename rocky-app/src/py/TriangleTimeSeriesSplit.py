@@ -11,10 +11,21 @@ import numpy as np
 
 import sklearn
 import xgboost
-from sklearn.linear_model import TweedieRegressor, ElasticNet
+from sklearn.linear_model import (TweedieRegressor,
+                                  ElasticNet,
+                                  Lasso,
+                                  Ridge,
+                                  LinearRegression
+                                  )
+
+from sklearn.metrics import (mean_squared_error,
+                             mean_absolute_error,
+                             d2_tweedie_score
+                             )
+
 from sklearn.ensemble import RandomForestRegressor
 from xgboost import XGBRegressor
-from sklearn.metrics import mean_squared_error, mean_absolute_error, d2_tweedie_score
+
 from sklearn.exceptions import ConvergenceWarning
 import warnings
 
@@ -24,7 +35,9 @@ from tqdm import tqdm
 
 class TriangleTimeSeriesSplit:
     """
-    Class for splitting a triangle into training and validation sets.
+    Class for splitting a triangle into training and validation sets, and
+    tuning the hyperparameters of a model using a grid search with a cross
+    validation approach (modified for the triangle structure).
 
     Methods
     -------
@@ -47,8 +60,9 @@ class TriangleTimeSeriesSplit:
         randomforest_grid: dict = None,
         xgboost_grid: dict = None,
         model=None,
+        n_failed_to_converge:int = 0,
         **kwargs,
-    ):
+        ):
         self.tri = triangle
         self.n_splits_ = n_splits
         self.split = []
@@ -57,6 +71,7 @@ class TriangleTimeSeriesSplit:
         self.model_type = model_type
         self.model = model
         self.log_transform = log_transform
+        self.n_failed_to_converge = n_failed_to_converge
 
         # if no grid is provided, use the default grid
         if tweedie_grid is None:
@@ -69,7 +84,7 @@ class TriangleTimeSeriesSplit:
             elif model_type == "loglinear":
                 self.tweedie_grid = {
                     "alpha": np.arange(0, 3.1, 0.1),
-                    "l1_ratio": np.arange(0, 1.05, 0.05),
+                    "l1ratio": np.arange(0, 1.05, 0.05),
                     "max_iter": 100000,
                 }
         else:
@@ -105,8 +120,8 @@ class TriangleTimeSeriesSplit:
             self.xgboost_grid["alpha"] = kwargs["alpha"]
         if "power" in kwargs:
             self.tweedie_grid["power"] = kwargs["power"]
-        if "l1_ratio" in kwargs:
-            self.tweedie_grid["l1_ratio"] = kwargs["l1_ratio"]
+        if "l1ratio" in kwargs:
+            self.tweedie_grid["l1ratio"] = kwargs["l1ratio"]
         if "max_iter" in kwargs:
             self.tweedie_grid["max_iter"] = kwargs["max_iter"]
         if "n_estimators" in kwargs:
@@ -165,7 +180,7 @@ model_type={self.model_type})"
             yield train_indices, test_indices
 
     def GridTweedie(
-        self, alpha=None, power=None, l1_ratio=None, max_iter=None, model_type="tweedie"
+        self, alpha=None, power=None, l1ratio=None, max_iter=None, model_type="tweedie"
     ):
         """
         Sets the grid for the hyperparameters of the Tweedie models.
@@ -179,7 +194,7 @@ model_type={self.model_type})"
         ----------
         alpha : array-like, default=None
         power : array-like, default=None
-        l1_ratio : array-like, default=None
+        l1ratio : array-like, default=None
         max_iter : int, default=None
         model_type : str, default='tweedie'
             The model type to use. Currently can be 'tweedie' or 'loglinear'.
@@ -189,8 +204,8 @@ model_type={self.model_type})"
                 self.tweedie_grid["alpha"] = alpha
 
         if model_type in ["loglinear"]:
-            if l1_ratio is not None:
-                self.tweedie_grid["l1_ratio"] = l1_ratio
+            if l1ratio is not None:
+                self.tweedie_grid["l1ratio"] = l1ratio
 
         if model_type in ["tweedie"]:
             if power is not None:
@@ -241,6 +256,8 @@ model_type={self.model_type})"
 
         The results are stored in the self.split list, which is a list of dictionaries
         """
+        self.n_failed_to_converge = 0
+
         # get the minimum and maximum values of ay
         first_ay = self.tri.ay.min()
 
@@ -248,7 +265,7 @@ model_type={self.model_type})"
 
         model_params = {
             "tweedie": ["alpha", "power"],
-            "loglinear": ["alpha", "l1_ratio"],
+            "loglinear": ["alpha", "l1ratio"],
         }
 
         if self.model_type == "tweedie":
@@ -261,12 +278,15 @@ model_type={self.model_type})"
         elif self.model_type == "loglinear":
             param_map = {
                 "loglinear": itertools.product(
-                    self.tweedie_grid["alpha"], self.tweedie_grid["l1_ratio"]
+                    self.tweedie_grid["alpha"], self.tweedie_grid["l1ratio"]
                 )
             }
 
-        parameters = list(param_map[self.model_type])
-        n_parameters = len(parameters)
+        parameters = param_map[self.model_type]
+        n_parameters = 1
+        for _, v in self.tweedie_grid.items():
+            if isinstance(v, list):
+                n_parameters *= len(v)
 
         n_failed_to_converge = 0
 
@@ -274,17 +294,15 @@ model_type={self.model_type})"
         for param in model_params[self.model_type]:
             cur_params[param] = None
 
-        ############################ 6/14 right here ##########################################
-        # for **cur_params in parameters:
         if self.model_type == "tweedie":
             for alpha, power in parameters:
                 result_dict[
                     f"alpha_{np.round(alpha, 2)}_power_{np.round(power, 2)}"
                 ] = {}
         elif self.model_type == "loglinear":
-            for alpha, l1_ratio in parameters:
+            for alpha, l1ratio in parameters:
                 result_dict[
-                    f"alpha_{np.round(alpha, 2)}_l1_ratio_{np.round(l1_ratio, 2)}"
+                    f"alpha_{np.round(alpha, 2)}_l1ratio_{np.round(l1ratio, 2)}"
                 ] = {}
 
         for train, val in self.GetSplit():
@@ -302,70 +320,7 @@ model_type={self.model_type})"
 
             excl_cal = X_id_test.calendar_period.min() + first_ay - 1
 
-            for alpha, power in tqdm(
-                parameters,
-                total=n_parameters,
-                desc=f"Training models with data through {excl_cal}",
-            ):
-                try:
-                    # catch warnings related to convergence
-                    with warnings.catch_warnings():
-                        warnings.filterwarnings("error", category=ConvergenceWarning)
-                        warnings.filterwarnings("error", category=RuntimeWarning)
-                        warnings.filterwarnings("ignore", category=UserWarning)
-                        if self.model_type == "tweedie":
-                            model = TweedieRegressor(
-                                power=np.round(power, 2),
-                                alpha=np.round(alpha, 2),
-                                max_iter=self.tweedie_grid["max_iter"],
-                            ).fit(X_train, y_train)
-                        elif self.model_type == "loglinear":
-                            model = ElasticNet(
-                                alpha=np.round(alpha, 2),
-                                l1_ratio=np.round(power, 2),
-                                max_iter=self.tweedie_grid["max_iter"],
-                            ).fit(X_train, y_train)
-                except (ConvergenceWarning, RuntimeWarning):
-                    # if n_failed_to_converge == 0:
-                    #     tqdm.write("Failed to converge: ", end="")
-                    n_failed_to_converge += 1
-                    # tqdm.write(f"{n_failed_to_converge} ", end="")
-                    continue
-
-                if self.model_type == "tweedie":
-                    p = {"alpha": np.round(alpha, 2), "power": np.round(power, 2)}
-                elif self.model_type == "loglinear":
-                    p = {"alpha": np.round(alpha, 2), "l1_ratio": np.round(l1_ratio, 2)}
-
-                # add mean squared error to result dictionary
-                if self.model_type == "tweedie":
-                    key = f"alpha_{np.round(alpha, 2)}_power_{np.round(power, 2)}"
-                elif self.model_type == "loglinear":
-                    key = f"alpha_{np.round(alpha, 2)}_l1_ratio_{np.round(l1_ratio, 2)}"
-
-                result_dict[key][f"cy_{excl_cal}_mse_train"] = mean_squared_error(
-                    y_train, model.predict(X_train)
-                )
-                result_dict[key][f"cy_{excl_cal}_mse_test"] = mean_squared_error(
-                    y_test, model.predict(X_test)
-                )
-
-                # add d2 score to result dictionary
-                if self.model_type == "tweedie":
-                    result_dict[key][f"cy_{excl_cal}_d2_train"] = d2_tweedie_score(
-                        y_train, model.predict(X_train), power=np.round(power, 2)
-                    )
-                    result_dict[key][f"cy_{excl_cal}_d2_test"] = d2_tweedie_score(
-                        y_test, model.predict(X_test), power=np.round(power, 2)
-                    )
-
-                # add MAE to result dictionary
-                result_dict[key][f"cy_{excl_cal}_mae_train"] = mean_absolute_error(
-                    y_train, model.predict(X_train)
-                )
-                result_dict[key][f"cy_{excl_cal}_mae_test"] = mean_absolute_error(
-                    y_test, model.predict(X_test)
-                )
+            result_dict = self._loop(parameters=parameters, X_train=X_train, y_train=y_train, X_test=X_test, y_test=y_test, excl_cal=excl_cal, result_dict=result_dict, n_parameters=n_parameters)
 
             print(f"{n_failed_to_converge} / {n_parameters} models failed to converge.")
 
@@ -402,14 +357,189 @@ model_type={self.model_type})"
                     tweedie_result.loc["alpha", c] = np.round(float(a), 2)
                     tweedie_result.loc["power", c] = np.round(float(power), 2)
                 elif self.model_type == "loglinear":
-                    print(c)
                     _, a, _, l1 = c.split("_")
                     tweedie_result.loc["alpha", c] = np.round(float(a), 2)
-                    tweedie_result.loc["l1_ratio", c] = np.round(float(l1), 2)
+                    tweedie_result.loc["l1ratio", c] = np.round(float(l1), 2)
 
             self.tweedie_result = tweedie_result.T.sort_values("ave_mse_test")
 
         self.has_tuning_results = True
+
+    def _loop_fit(self, X_train, y_train, **kwargs):
+        alpha = kwargs["alpha"] if "alpha" in kwargs else None
+        power = kwargs["power"] if "power" in kwargs else None
+        l1ratio = kwargs["l1ratio"] if "l1ratio" in kwargs else None
+
+        try:
+            # catch warnings related to convergence
+            with warnings.catch_warnings():
+                warnings.filterwarnings("error", category=ConvergenceWarning)
+                warnings.filterwarnings("error", category=RuntimeWarning)
+                warnings.filterwarnings("ignore", category=UserWarning)
+                if self.model_type == "tweedie":
+                    m = TweedieRegressor(
+                        power=np.round(power, 2),
+                        alpha=np.round(alpha, 2),
+                        max_iter=self.tweedie_grid["max_iter"],
+                    ).fit(X_train, y_train)
+                elif self.model_type == "loglinear":
+                    if alpha==0:
+                        m = LinearRegression().fit(X_train, y_train)
+                    else:
+                        if l1ratio==0:
+                            m = Ridge(
+                                alpha=np.round(alpha, 2),
+                                max_iter=self.tweedie_grid["max_iter"],
+                            ).fit(X_train, y_train)
+                        elif l1ratio==1:
+                            m = Lasso(
+                                alpha=np.round(alpha, 2),
+                                max_iter=self.tweedie_grid["max_iter"],
+                            ).fit(X_train, y_train)
+                        else:
+                            m = ElasticNet(
+                                alpha=np.round(alpha, 2),
+                                l1_ratio=np.round(l1ratio, 2),
+                                max_iter=self.tweedie_grid["max_iter"],
+                            ).fit(X_train, y_train)
+        except (ConvergenceWarning, RuntimeWarning):
+            self.n_failed_to_converge += 1
+            m = None
+        return m
+
+    def _loop(self,
+              parameters: list = None,
+              n_parameters: int = None,
+              excl_cal: int = None,
+              X_train: pd.DataFrame = None,
+              y_train: pd.Series = None,
+              X_test: pd.DataFrame = None,
+              y_test: pd.Series = None,
+              result_dict:dict = None
+              ) -> dict:
+        """
+        Run the loop for the tuning of the model.
+
+        Parameters
+        ----------
+        parameters : list, optional
+            List of parameters to loop over, by default None
+            If None, the parameters are taken from the tweedie_grid attribute
+        n_parameters : int, optional
+            Number of parameters to loop over, by default None
+            If None, the number of parameters is taken from the tweedie_grid attribute
+            (excluding the max_iter parameter) 
+        excl_cal : int, optional
+            The calendar period to exclude from the training set, by default None
+        X_train : pd.DataFrame, optional
+            The training set, by default None
+            If None, the training set is taken from the tri attribute
+        y_train : pd.Series, optional
+            The training target, by default None
+            If None, the training target is taken from the tri attribute
+        X_test : pd.DataFrame, optional
+            The test set, by default None
+            If None, the test set is taken from the tri attribute
+        y_test : pd.Series, optional
+            The test target, by default None
+            If None, the test target is taken from the tri attribute
+        result_dict : dict, optional
+            The dictionary to store the results, by default None
+            If None, the dictionary is taken from the result_dict attribute
+
+        Returns
+        -------
+        dict
+            The dictionary with the results
+        """
+        # handle parameters that are not passed
+        if parameters is None:
+            parameters = list(self.tweedie_grid[self.model_type].keys())
+        if n_parameters is None:
+            n_parameters = len(parameters)
+        if excl_cal is None:
+            raise ValueError("excl_cal must be specified")
+        
+        ## TODO: handle the remaining default values (for now raise an error)
+        if X_train is None:
+            raise ValueError("X_train must be specified")
+        if y_train is None:
+            raise ValueError("y_train must be specified")
+        if X_test is None:
+            raise ValueError("X_test must be specified")
+        if y_test is None:
+            raise ValueError("y_test must be specified")
+        if result_dict is None:
+            raise ValueError("result_dict must be specified")
+        
+        # loop is very slightly different depending on the model type
+        if self.model_type=='tweedie':
+            # tweedie has alpha and power parameters
+            for alpha, power in tqdm(
+                    parameters,
+                    total=n_parameters,
+                    desc=f"Training models with data through {excl_cal}",
+                ):
+                # fit models
+                model = self._loop_fit(X_train=X_train, y_train=y_train, alpha=alpha, power=power)
+
+                # create key for result dictionary
+                # p = {"alpha": np.round(alpha, 2), "power": np.round(power, 2)}
+                key = f"alpha_{np.round(alpha, 2)}_power_{np.round(power, 2)}"
+                
+                # add mse for train & test to result dictionary
+                result_dict[key][f"cy_{excl_cal}_mse_train"] = mean_squared_error(
+                    y_train, model.predict(X_train)
+                )
+                result_dict[key][f"cy_{excl_cal}_mse_test"] = mean_squared_error(
+                    y_test, model.predict(X_test)
+                )
+
+                # add MAE to result dictionary
+                result_dict[key][f"cy_{excl_cal}_mae_train"] = mean_absolute_error(
+                    y_train, model.predict(X_train)
+                )
+                result_dict[key][f"cy_{excl_cal}_mae_test"] = mean_absolute_error(
+                    y_test, model.predict(X_test)
+                )
+
+                # add d2 score to result dictionary
+                if self.model_type == "tweedie":
+                    result_dict[key][f"cy_{excl_cal}_d2_train"] = d2_tweedie_score(
+                        y_train, model.predict(X_train), power=np.round(power, 2)
+                    )
+                    result_dict[key][f"cy_{excl_cal}_d2_test"] = d2_tweedie_score(
+                        y_test, model.predict(X_test), power=np.round(power, 2)
+                    )
+
+        elif self.model_type=='loglinear':
+            for alpha, l1ratio in tqdm(
+                parameters,
+                total=n_parameters,
+                desc=f"Training models with data through {excl_cal}",
+                ):
+
+                # fit models
+                model = self._loop_fit(X_train=X_train, y_train=y_train, alpha=alpha, l1ratio=l1ratio)
+
+                # create key for result dictionary
+                key = f"alpha_{np.round(alpha, 2)}_l1ratio_{np.round(l1ratio, 2)}"
+                
+                # add mse and mae to result dictionary
+                result_dict[key][f"cy_{excl_cal}_mse_train"] = mean_squared_error(y_train, model.predict(X_train))
+                result_dict[key][f"cy_{excl_cal}_mse_test"] = mean_squared_error(
+                    y_test, model.predict(X_test)
+                )
+
+                # add MAE to result dictionary
+                result_dict[key][f"cy_{excl_cal}_mae_train"] = mean_absolute_error(
+                    y_train, model.predict(X_train)
+                )
+                result_dict[key][f"cy_{excl_cal}_mae_test"] = mean_absolute_error(
+                    y_test, model.predict(X_test)
+                )
+        
+        return result_dict
 
     def TweedieParetoFront(self, measures=None):
         """
@@ -507,13 +637,13 @@ model_type={self.model_type})"
             power = optimal_model["power"]
         elif self.model_type == "loglinear":
             alpha = optimal_model["alpha"]
-            l1_ratio = optimal_model["l1_ratio"]
+            l1ratio = optimal_model["l1ratio"]
 
         # Re-fit a model with the optimal hyperparameters, and return it
         if self.model_type == "tweedie":
             best_model = TweedieRegressor(alpha=alpha, power=power, link="log")
         elif self.model_type == "loglinear":
-            best_model = ElasticNet(alpha=alpha, l1_ratio=l1_ratio)
+            best_model = ElasticNet(alpha=alpha, l1_ratio=l1ratio)
 
         best_model.fit(self.tri.get_X_base("train"), self.tri.get_y_base("train"))
         return best_model
@@ -902,6 +1032,8 @@ model_type={self.model_type})"
         # create and fit the model with the optimal hyperparameters, and return it
         if model_type.lower() == "tweedie":
             best_model = TweedieRegressor(**hyperparameters, link="log")
+        elif model_type.lower() == 'loglinear':
+            best_model = ElasticNet(**hyperparameters)
         elif model_type.lower() == "randomforest":
             best_model = RandomForestRegressor(**hyperparameters)
         elif model_type.lower() == "xgboost":
