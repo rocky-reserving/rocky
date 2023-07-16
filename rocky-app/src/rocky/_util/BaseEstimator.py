@@ -2,15 +2,13 @@
 This module contains the BaseEstimator class, which is the base class for all
 models and estimators in the rocky package.
 """
-from triangle import Triangle
-from TriangleTimeSeriesSplit import TriangleTimeSeriesSplit
+from rocky.triangle import Triangle
+from rocky.TriangleTimeSeriesSplit import TriangleTimeSeriesSplit
+from rocky.ModelPlot import Plot
 
 from dataclasses import dataclass
 import numpy as np
 import pandas as pd
-
-from ModelPlot import Plot
-
 
 @dataclass
 class BaseEstimator:

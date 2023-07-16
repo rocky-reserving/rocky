@@ -1,21 +1,21 @@
 import sys
-import os
-
-curdir = os.path.abspath(os.path.dirname("."))
-sys.path.append(curdir)
-
-from util import count_rocky
-from triangle import Triangle
-from GLM import glm
-from LogLinear import Loglinear
 
 
-from dataclasses import dataclass
+
+from rocky.util import count_rocky
+from rocky.triangle import Triangle
+from rocky.GLM import glm
+from rocky.LogLinear import LogLinear
+
+
+from dataclasses import dataclass, field
 from typing import Any
 
 from warnings import filterwarnings
 
 import pandas as pd
+
+sys.path.append("./")
 
 filterwarnings("ignore", category=UserWarning, module="openpyxl")
 
@@ -59,10 +59,10 @@ class rocky:
     # initialize the model attribute, triangle attribute, forecast attribute,
     # validation attribute, and plotting attribute
     id: str = None
-    mod: Any = rockyContainer()  # models
-    f: Any = rockyContainer()  # forecasts
-    plot: Any = rockyContainer()  # plots
-    t: Any = rockyContainer()  # triangles
+    mod: Any = field(default_factory=rockyContainer)  # models
+    f: Any = field(default_factory=rockyContainer)  # forecasts
+    plot: Any = field(default_factory=rockyContainer)  # plots
+    t: Any = field(default_factory=rockyContainer)  # triangles
     # rockylog: Any = None  # rockylog -- not implemented yet
 
     def __post_init__(self) -> None:
@@ -305,9 +305,8 @@ class rocky:
             if model_class.lower() in all_models:
                 id = "PaidLossGLM" + ("_Cal" if cal else "")
             else:
-                raise ValueError(
-                    f"Model class {model_class} not recognized. Please choose from {all_models}"
-                )
+                raise ValueError(f"""
+Model class {model_class} not recognized. Please choose from {all_models}""")
         if tri is None:
             raise ValueError("Triangle object must be provided")
 
@@ -331,7 +330,7 @@ class rocky:
             )
         elif model_class.lower() in ["loglinear"]:
             self.mod.add(
-                Loglinear(
+                LogLinear(
                     id=id,
                     model_class=model_class,
                     tri=tri,

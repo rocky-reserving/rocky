@@ -1,8 +1,8 @@
 # rocky code
-from triangle import Triangle
-from TriangleTimeSeriesSplit import TriangleTimeSeriesSplit
-from ModelPlot import Plot
-from _util.BaseEstimator import BaseEstimator
+from rocky.triangle import Triangle
+from rocky.TriangleTimeSeriesSplit import TriangleTimeSeriesSplit
+from rocky.ModelPlot import Plot
+from rocky._util.BaseEstimator import BaseEstimator
 
 # for class attributes/definitions
 from dataclasses import dataclass
@@ -28,7 +28,8 @@ class LogLinear(BaseEstimator):
     """
     Loglinear class. For compatability and testing only. Please exercise caution when
     using these estimates, and ensure that you have a good understanding of the
-    underlying model and require it before using them in production.
+    underlying model and require it before using these estimates in production,
+    particularly when selecting carried reserves.
     """
 
     id: str
@@ -61,15 +62,13 @@ class LogLinear(BaseEstimator):
     def __post_init__(self):
         super().__post_init__()
         print(
-            "This is for testing only. \
-Please do not recommend assigning much credibility to these estimates for the purposes \
+            "This is for testing and compatability only. \
+Please do not assign much credibility to these estimates for the purposes \
 selecting carried reserves."
         )
         self.dy_w_gp = pd.Series(np.zeros_like(self.dev))
-        idx = self.GetX("train").columns.to_series()
-        # self.dy_w_gp.index = idx[]
-        # self.dy_w_gp =
-        # self.dy_w_gp.name = 'DYweightGp'
+        # idx = self.GetX("train").columns.to_series()
+        
 
     def __repr__(self):
         if self.alpha is None:
@@ -167,7 +166,7 @@ selecting carried reserves."
         # fit the model
         self.Fit()
 
-    def GetY(self, kind="train", log=False):
+    def GetY(self, kind="train", log=True):
         """
         Getter for the model's y data. If there is no y data, take the y vector
         directly from the triangle.
@@ -282,11 +281,6 @@ selecting carried reserves."
         alpha = self.alpha if alpha is None else alpha
         l1_ratio = self.l1_ratio if l1_ratio is None else l1_ratio
         max_iter = self.max_iter if max_iter is None else max_iter
-        # if max_iter is None:
-        #     if self.max_iter is None:
-        #         max_iter = 100000
-        #     else:
-        #         max_iter = self.max_iter
 
         # ElasticNet object
         self.model = ElasticNet(

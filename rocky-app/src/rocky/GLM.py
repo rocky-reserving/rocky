@@ -1,8 +1,8 @@
 # rocky code
-from triangle import Triangle
-from TriangleTimeSeriesSplit import TriangleTimeSeriesSplit
-from ModelPlot import Plot
-from _util.BaseEstimator import BaseEstimator
+from rocky.triangle import Triangle
+from rocky.TriangleTimeSeriesSplit import TriangleTimeSeriesSplit
+from rocky.ModelPlot import Plot
+from rocky._util.BaseEstimator import BaseEstimator
 
 # for class attributes/definitions
 from dataclasses import dataclass
