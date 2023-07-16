@@ -7,10 +7,6 @@ from rocky._util.BaseEstimator import BaseEstimator
 # for class attributes/definitions
 from dataclasses import dataclass
 
-# for working with data
-import numpy as np
-import pandas as pd
-
 # for fitting the model
 from sklearn.linear_model import ElasticNet
 
@@ -21,6 +17,11 @@ import plotly.graph_objs as go
 
 # for warnings
 import warnings
+
+# for working with data
+import numpy as np
+import pandas as pd
+pd.options.plotting.backend = "plotly"
 
 
 @dataclass
@@ -68,6 +69,21 @@ selecting carried reserves."
         )
         self.dy_w_gp = pd.Series(np.zeros_like(self.dev))
         # idx = self.GetX("train").columns.to_series()
+
+        # turn development period into dummy variables for the base hetero
+        # adjustment
+        self.hetero_gp = pd.get_dummies(self.tri
+                                        .get_X_id()['development_period']
+                                        .astype(str)
+                                        .str.zfill(3))
+        self.hetero_gp = pd.concat([self.tri.get_X_id()['development_period'],
+                                    self.hetero_gp], axis=1)
+        for c in self.hetero_gp.columns.tolist():
+            self.hetero_gp.rename(columns={c: f"hetero_{c}"}, inplace=True)
+        self.hetero_gp.rename(
+            columns={"hetero_development_period": "development_period"},
+            inplace=True)
+        self.hetero_weights = pd.Series(np.ones_like(self.dev))
         
 
     def __repr__(self):
@@ -106,6 +122,83 @@ selecting carried reserves."
                 setattr(self.plot, arg, kwargs[arg])
         else:
             raise AttributeError(f"{self.id} model object has no plot attribute.")
+
+    def GetHeteroGp(self, kind="train"):
+        # Development year groupings are the same as the development years
+        # themselves, available in the design matrix
+        df = self.hetero_gp
+        cols = df.columns.to_series()
+
+        # Get the development year columns
+        cols = cols[cols.str.contains("dev")]
+        
+        
+        df = df[cols]
+        
+        return df
+    
+    def GetWeights(self, kind="train"):
+        """
+        Get the weights for the model.
+        """
+        weight_df = (self.hetero_gp
+                     .columns[1:]
+                     .to_series()
+                     .str.replace("hetero_", "")
+                     .astype(int)
+                     .reset_index(drop=True)
+                     .to_frame()
+                     .rename(columns={0: "development_period"})
+                     .assign(weights = self.weights)
+        )
+        if kind == "train":
+            out = pd.DataFrame({"development_period": self.GetDev('train')})
+        elif kind == "forecast":
+            out = pd.DataFrame({"development_period": self.GetDev('forecast')})
+        else:
+            raise ValueError("kind must be either 'train' or 'forecast'")
+        
+        out = out.merge(weight_df, on="development_period", how="left")
+        out["weights"] = out["weights"].fillna(1)
+        return out[["weights"]  ]
+
+        
+    def GetHeteroAdjustment(self):
+        # Step 1: Merge development year groupings with the training data
+        training_data = self.GetX("train")
+        dev_year_group = self.GetHeteroGp()
+        merged_data = training_data.merge(dev_year_group, on="development_period")
+
+        # Step 2: Calculate standardized residuals
+        residuals = self.GetY(kind="train", log=True) - self.GetYhat(kind="train", log=True)
+        se = self._StandardError()
+        standardized_residuals = residuals / se
+
+        # Add standardized residuals to the data
+        merged_data["residStd"] = standardized_residuals
+
+        # Step 3: Calculate the variance of standardized residuals for each group
+        group_variance = merged_data.groupby("gp")["residStd"].var(ddof=0).reset_index()
+
+        # Step 4: Raise error if any group's variance is 0 or NaN
+        if group_variance["residStd"].isna().any() or (group_variance["residStd"] == 0).any():
+            raise ValueError("Variance of group either 0 or NA")
+
+        # Step 5: Calculate a weight for each group (inverse of variance)
+        group_variance["wAdj"] = group_variance["residStd"] ** (-1)
+
+        # Step 6: Rescale the weights
+        group_variance["wAdj"] /= group_variance["wAdj"].iloc[0]
+
+        # Step 7: Update the weights in the model
+        weights = self.GetWeights("train")
+        weights *= group_variance["wAdj"]
+
+        # Update development year weights
+        hetero_gp = self.GetHeteroGp()
+        hetero_gp["w"] = weights
+        self.SetHeteroGp(hetero_gp)
+
 
     def SetHyperparameters(self, alpha, l1_ratio, max_iter=100000):
         self.alpha = alpha
@@ -185,6 +278,37 @@ selecting carried reserves."
             return np.log(out)
         else:
             return out
+        
+    def GetYhat(self, kind="train", log=True):
+        """
+        Getter for the model's yhat data. Yhat is calculated from the fitted model.
+        """
+
+        if kind.lower() in ["train", "forecast"]:
+            if kind.lower() == "train":
+                out = self.Predict(X=self.GetX(kind="train"))
+            elif kind.lower() == "forecast":
+                out = self.Predict(X=self.GetX(kind="forecast"))
+        else:
+            raise ValueError("kind must be 'train' or 'forecast' for `yhat`")
+
+        if log:
+            return out
+        else:
+            return np.exp(out)
+        
+    def GetParameters(self):
+        """
+        Getter for the model's parameters. If the parameters are taken directly from
+        the current model object.
+        """
+        coef = self.model.coef_
+        intercept = self.model.intercept_
+        names = self.model.feature_names_in_
+        df = pd.DataFrame({"names": names, "param": coef})
+        df['param_type'] = df.names.apply(lambda x: x.split('_')[0])
+
+        return df
 
     def Fit(
         self,
@@ -324,6 +448,10 @@ selecting carried reserves."
 
         yhat = np.exp(self.model.predict(X))
         return pd.Series(yhat)
+    
+    def RawResiduals(self, log:bool = True) -> pd.Series:
+        out = self.GetY("train", log=log) - self.GetYhat("train", log=log)
+        return out.dropna()
 
     ###################################################################################
     ### In the next section, I reproduce the code from Josh Brady's ###################
@@ -909,10 +1037,10 @@ selecting carried reserves."
         procVarUBE <- sum((fitDat$logvalueAct - fitted(model))^2 * fitDat$w)/model$df.residual
         resObj$procVarUBE <- procVarUBE
         """
-        y = self.GetY(kind="train", log=True) - self.GetYhat(kind="train", log=True)
-        num = y**2 * self.GetWeights(kind="train")
+        y = self.RawResiduals(log=True)
+        num = (y**2) * self.GetWeights(kind="train")
         num = num.sum()
-        den = self.GetDegreesOfFreedom(kind="train")
+        den = self.GetDegreesOfFreedom()
         return num / den if den > 0 else np.nan
 
     def _ProcessVarMLE(self):
@@ -978,7 +1106,7 @@ selecting carried reserves."
         W_vec = self.GetWeights(kind="train")
 
         # get the diagonal matrix of weights
-        W = np.diag(W_vec)
+        W = np.diag(W_vec.values.flatten())
 
         # get the X matrix (design matrix)
         X = self.GetX(kind="train").values
@@ -1187,12 +1315,12 @@ selecting carried reserves."
         """
         # Initialize variables from res_obj
         dat = self.GetX("train")
-        DYwGp = self.GetHeteroGp()
-        DYwGp.columns.values[1] = "gp"
+        DYwGp = pd.concat([self.GetDev('train'), self.GetHeteroGp().loc[self.GetIdx('train')]], axis=1)
+        DYwGp.rename(columns={DYwGp.columns[0]: "gp"}, inplace=True)
         DYw = self.GetWeights("train")
 
         # join weight groups to data frame
-        dat = dat.merge(DYwGp, on="development_period")
+        dat = DYwGp.join(dat)
 
         # For calculating standardized residuals we need to restrict to data used
         # to fit the model (this is already done by the GetX method)

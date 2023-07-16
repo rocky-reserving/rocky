@@ -16,7 +16,7 @@ from sklearn.linear_model import (
 from sklearn.metrics import (
     mean_squared_error,
     mean_absolute_error,
-    d2_tweedie_score,
+    # d2_tweedie_score,
     r2_score,
 )
 
@@ -25,9 +25,6 @@ from sklearn.model_selection import ParameterGrid
 
 from sklearn.ensemble import RandomForestRegressor
 from xgboost import XGBRegressor
-
-from sklearn.exceptions import ConvergenceWarning
-import warnings
 
 import itertools
 from tqdm import tqdm
@@ -436,7 +433,7 @@ model_type={self.model_type})"
                 mse_values = mean_squared_error(y_val, y_val_pred)
                 mae_values = mean_absolute_error(y_val, y_val_pred)
                 if self.model_type == "tweedie":
-                    d2_values = d2_tweedie_score(y_val, y_val_pred, params["power"])
+                    d2_values = 0
                     r2_values = 0
                 elif self.model_type == "loglinear":
                     d2_values = 0
@@ -991,18 +988,18 @@ model_type={self.model_type})"
             return result_dict
 
         # add d2 score to result dictionary
-        def add_d2(result_dict, grid, parameters, para, y_train, y_test, power):
-            result_dict[get_key(grid, parameters[parameters.index(para)])][
-                f"cy_{excl_cal}_d2_train"
-            ] = d2_tweedie_score(
-                y_train, model.predict(X_train), power=np.round(power, 2)
-            )
-            result_dict[get_key(grid, parameters[parameters.index(para)])][
-                f"cy_{excl_cal}_d2_test"
-            ] = d2_tweedie_score(
-                y_test, model.predict(X_test), power=np.round(power, 2)
-            )
-            return result_dict
+        # def add_d2(result_dict, grid, parameters, para, y_train, y_test, power):
+            # result_dict[get_key(grid, parameters[parameters.index(para)])][
+            #     f"cy_{excl_cal}_d2_train"
+            # ] = d2_tweedie_score(
+            #     y_train, model.predict(X_train), power=np.round(power, 2)
+            # )
+            # result_dict[get_key(grid, parameters[parameters.index(para)])][
+            #     f"cy_{excl_cal}_d2_test"
+            # ] = d2_tweedie_score(
+            #     y_test, model.predict(X_test), power=np.round(power, 2)
+            # )
+            # return result_dict
 
         def add_mae(result_dict, grid, parameters, para, y_train, y_test, y_pred):
             result_dict[get_key(grid, parameters[parameters.index(para)])][
@@ -1055,11 +1052,11 @@ model_type={self.model_type})"
                     result_dict, grid, parameters, para, y_train, y_test, y_pred
                 )
 
-                # add d2 score to result dictionary if tweedie
-                if model.__class__.__name__ == "TweedieRegressor":
-                    result_dict = add_d2(
-                        result_dict, grid, parameters, para, y_train, y_test, y_pred
-                    )
+                # # add d2 score to result dictionary if tweedie
+                # if model.__class__.__name__ == "TweedieRegressor":
+                    # result_dict = add_d2(
+                    #     result_dict, grid, parameters, para, y_train, y_test, y_pred
+                    # )
 
                 # add MAE to result dictionary
                 result_dict = add_mae(
@@ -1072,8 +1069,8 @@ model_type={self.model_type})"
 
         # list of methods to loop through
         methods = "mse_train mse_test mae_train mae_test".split()
-        if model.__class__.__name__ == "TweedieRegressor":
-            methods += "d2_train d2_test".split()
+        # if model.__class__.__name__ == "TweedieRegressor":
+        #     methods += "d2_train d2_test".split()
 
         for m in methods:
             result[f"ave_{m}"] = result.filter(like=m).mean(axis=1)

@@ -7,10 +7,6 @@ from rocky._util.BaseEstimator import BaseEstimator
 # for class attributes/definitions
 from dataclasses import dataclass
 
-# for working with data
-import numpy as np
-import pandas as pd
-
 # for fitting the model
 from sklearn.linear_model import TweedieRegressor
 
@@ -19,6 +15,11 @@ import plotly.express as px
 
 # for warnings
 import warnings
+
+# for working with data
+import numpy as np
+import pandas as pd
+pd.options.plotting.backend = "plotly"
 
 @dataclass
 class glm(BaseEstimator):
@@ -126,7 +127,7 @@ class glm(BaseEstimator):
             param_grid = {
                 "alpha": np.arange(0, 3.1, 0.1),
                 "power": np.array([0]) + np.arange(1, 3.1, 0.1),
-                "max_iter": 100000,
+                "max_iter": [100000],
             }
 
         # if kwargs for alpha, p and max_iter are provided, use those

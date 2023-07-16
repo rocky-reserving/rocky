@@ -1575,6 +1575,13 @@ class Triangle:
         melted.rename(columns={f"{_acc}": acc, f"{_dev}": dev}, inplace=True)
         # melted[acc]
 
+        print(f"acc: {acc}")
+        print(f"dev: {dev}")
+        print(f"melted: {melted.head()}")
+
+        print(f"melted[acc]: {melted[acc].head()}")
+        print(f"melted[dev]: {melted[dev].head()}")
+
         # convert the origin and development periods to zero-padded categorical variables
         melted[acc] = melted[acc].astype(str).str.zfill(4).astype("category")
         melted[dev] = melted[dev].astype(str).str.zfill(4).astype("category")
@@ -1693,6 +1700,54 @@ class Triangle:
         if not intercept_:
             self.X_base_train = self.X_base_train.drop(columns="intercept")
             self.X_base_forecast = self.X_base_forecast.drop(columns="intercept")
+
+    # def reset_base_linear_model(
+    #     self,
+    #     id_cols: list = None,
+    #     var_name: str = "development_period",
+    #     value_name: str = None,
+    #     trends: bool = False,
+    #     incr_tri: bool = True,
+    #     intercept_: bool = True,
+    # ) -> None:
+    #     """
+    #     Resets the base linear model.
+
+    #     Parameters:
+    #     -----------
+    #     (See base_linear_model() for parameter descriptions)
+
+    #     Returns:
+    #     --------
+    #     None. Modifies self.X_base, self.y_base, self.X_base_train, self.y_base_train,
+    #     self.X_base_forecast, self.X_id_train, and self.X_id_forecast in place.
+    #     """
+    #     # reset the base design matrix
+    #     self.base_design_matrix(
+    #         id_cols=id_cols,
+    #         var_name=var_name,
+    #         value_name=value_name,
+    #         trends=trends,
+    #         _return=False,
+    #         incr_tri=incr_tri,
+    #     )
+
+    #     # create the train/forecast data split based on whether or not the
+    #     # target variable is null
+    #     self.X_base_train = self.X_base[self.X_base.is_observed.eq(1)]
+    #     self.y_base_train = self.y_base[self.X_base.is_observed.eq(1)]
+    #     self.X_base_forecast = self.X_base[self.X_base.is_observed.eq(0)].assign(
+    #         intercept=1
+    #     )
+
+    #     self.X_id_train = self.X_id[self.X_base.is_observed.eq(1)]
+    #     self.X_id_forecast = self.X_id[self.X_base.is_observed.eq(0)]
+
+    #     # if intercept_ is False, drop the intercept column
+    #     if not intercept_:
+    #         self.X_base_train = self.X_base_train.drop(columns="intercept")
+    #         self.X_base_forecast = self.X_base_forecast.drop(columns="intercept")
+
 
     def get_X(
         self,

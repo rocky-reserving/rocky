@@ -9,6 +9,7 @@ from rocky.ModelPlot import Plot
 from dataclasses import dataclass
 import numpy as np
 import pandas as pd
+pd.options.plotting.backend = "plotly"
 
 @dataclass
 class BaseEstimator:
@@ -993,7 +994,7 @@ class BaseEstimator:
         return self.GetY(kind=kind) - self.GetYhat(kind=kind)
 
     def PearsonResiduals(self, kind="train"):
-        res = np.divide(self.RawResiduals(kind=kind), np.sqrt(self.VarY(kind=kind)))
+        res = np.divide(self.RawResiduals(kind=kind), np.sqrt(self.GetVarY(kind=kind)))
         return res
 
     def DevianceResiduals(self):
