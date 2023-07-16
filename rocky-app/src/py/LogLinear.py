@@ -24,7 +24,7 @@ import warnings
 
 
 @dataclass
-class Loglinear(BaseEstimator):
+class LogLinear(BaseEstimator):
     """
     Loglinear class. For compatability and testing only. Please exercise caution when
     using these estimates, and ensure that you have a good understanding of the
