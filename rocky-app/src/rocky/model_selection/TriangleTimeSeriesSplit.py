@@ -144,7 +144,7 @@ class TriangleTimeSeriesSplit:
         if clustering_grid is None:
             # calculate reasonable upper bound based on the number of development 
             # periods that are being clustered
-            n_devs = self.tri.n_devs
+            n_devs = self.tri.n_dev
 
             upper_bound = int(np.ceil(n_devs / 2))+1
             

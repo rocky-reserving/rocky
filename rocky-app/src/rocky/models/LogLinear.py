@@ -250,30 +250,47 @@ selecting carried reserves."
         cv = TriangleTimeSeriesSplit(
             self.tri,
             n_splits=n_splits,
-            tweedie_grid=param_grid,
+            loglinear_grid=param_grid,
             model_type="loglinear",
             model=self,
         )
 
         # set the parameter search grid
-        cv.GridTweedie(
+        cv.SetParameterGrid(
             alpha=param_grid["alpha"],
             l1ratio=param_grid["l1ratio"],
             max_iter=param_grid["max_iter"],
         )
 
         # grid search & return the optimal model
-        opt_tweedie = cv.OptimalTweedie(measures=measures, tie_criterion=tie_criterion)
+        optimal_model = cv.OptimalParameters(measures=measures, tie_criterion=tie_criterion)
 
         # set the optimal hyperparameters
-        self.alpha = opt_tweedie.alpha
-        self.l1_ratio = opt_tweedie.l1_ratio
+        self.alpha = optimal_model.alpha
+        self.l1_ratio = optimal_model.l1_ratio
 
         # save cv object
         self.cv = cv
 
         # fit the model
         self.Fit()
+
+    # def TuneDevWeightGroups(self,
+    #                         n_splits=5,
+    #                         param_grid=None,
+    #                         measures=None,
+    #                         tie_criterion="ave_mse_test",
+    #                         **kwargs):
+    #     """
+    #     Tune the development year weight groups.
+    #     """
+    #     cv = TriangleTimeSeriesSplit(
+    #         self.tri,
+    #         n_splits=n_splits,
+    #         loglinear_grid=param_grid,
+    #         model_type="loglinear",
+    #         model=self,
+    #     )
 
     def GetY(self, kind="train", log=True):
         """
