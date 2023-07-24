@@ -10,6 +10,9 @@ from dataclasses import dataclass
 # for fitting the model
 from sklearn.linear_model import ElasticNet
 
+# hetero adjustment
+from sklearn.cluster import KMeans
+
 # for plotting
 import plotly.express as px
 import plotly.subplots as sp
@@ -31,6 +34,27 @@ class LogLinear(BaseEstimator):
     using these estimates, and ensure that you have a good understanding of the
     underlying model and require it before using these estimates in production,
     particularly when selecting carried reserves.
+
+    Model
+    -----
+    i = accident period
+    j = development period
+    k = i + j = calendar period
+    
+    beta = parameter vector
+    X = design matrix
+    y = response vector
+
+    alpha = accident period level
+    gamma = development period trend (log scale)
+    iota = calendar period trend (log scale)
+
+    E[y_i] = exp(X_{i} * beta)
+
+    E[beta_{i,j}] = alpha_i + sum_{m=1}^{j} gamma_m + sum_{n=1}^{i+j} iota_n
+
+
+
     """
 
     id: str
@@ -42,6 +66,7 @@ class LogLinear(BaseEstimator):
     is_fitted: bool = False
     n_validation: int = 0
     saturated_model = None
+    hetero_clusters: pd.Series = None
     weights: pd.Series = None
     distribution_family: str = None
     alpha: float = None
@@ -123,6 +148,7 @@ selecting carried reserves."
         else:
             raise AttributeError(f"{self.id} model object has no plot attribute.")
 
+
     def GetHeteroGp(self):
         # Development year groupings are the same as the development years
         # themselves, available in the design matrix
@@ -164,40 +190,30 @@ selecting carried reserves."
 
         
     def GetHeteroAdjustment(self):
-        # Step 1: Merge development year groupings with the training data
-        training_data = self.GetX("train")
-        dev_year_group = self.GetHeteroGp()
-        merged_data = training_data.merge(dev_year_group, on="development_period")
+        """
+        Clusters development periods with similar residual variances.
+        
+        Parameters
+        ----------
+        n_clusters : int
+            The number of clusters to form.
+        """
+        # Ensure the model is fitted before trying to cluster
+        if not self.is_fitted:
+            raise RuntimeError("The model is not fitted yet.")
 
-        # Step 2: Calculate standardized residuals
-        residuals = self.GetY(kind="train", log=True) - self.GetYhat(kind="train", log=True)
-        se = self._StandardError()
-        standardized_residuals = residuals / se
+        # Calculate residual variances for each development period
+        # This code depends on your specific implementation
+        # residual_variances = ...
 
-        # Add standardized residuals to the data
-        merged_data["residStd"] = standardized_residuals
-
-        # Step 3: Calculate the variance of standardized residuals for each group
-        group_variance = merged_data.groupby("gp")["residStd"].var(ddof=0).reset_index()
-
-        # Step 4: Raise error if any group's variance is 0 or NaN
-        if group_variance["residStd"].isna().any() or (group_variance["residStd"] == 0).any():
-            raise ValueError("Variance of group either 0 or NA")
-
-        # Step 5: Calculate a weight for each group (inverse of variance)
-        group_variance["wAdj"] = group_variance["residStd"] ** (-1)
-
-        # Step 6: Rescale the weights
-        group_variance["wAdj"] /= group_variance["wAdj"].iloc[0]
-
-        # Step 7: Update the weights in the model
-        weights = self.GetWeights("train")
-        weights *= group_variance["wAdj"]
-
-        # Update development year weights
-        hetero_gp = self.GetHeteroGp()
-        hetero_gp["w"] = weights
-        self.SetHeteroGp(hetero_gp)
+        # Reshape for clustering
+        variances = self.residual_variances.values.reshape(-1, 1)
+        
+        # Apply KMeans clustering
+        kmeans = KMeans(n_clusters=self.hetero_clusters, random_state=0).fit(variances)
+        
+        # Store cluster labels back into the dataframe
+        self.hetero_gp['cluster'] = kmeans.labels_
 
 
     def SetHyperparameters(self, alpha, l1_ratio, max_iter=100000):
