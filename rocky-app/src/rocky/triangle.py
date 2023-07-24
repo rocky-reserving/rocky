@@ -1,23 +1,22 @@
 """
-This module implements the Triangle class, which is used to store and manipulate
-triangle data.
+This module implements the Triangle class, which is used to store and
+manipulate triangle data.
 
-This class also includes methods for perfoming basic loss triangle analysis using
-the chain ladder method.
+This class also includes methods for perfoming basic loss triangle analysis
+using the chain ladder method.
 """
 
-import os
 import json
-import numpy as np
-import pandas as pd
-from datetime import datetime
+import os
 
 # import torch
 # from torch.utils.data import DataLoader
-
 from dataclasses import dataclass
-from typing import Optional, Any
+from datetime import datetime
+from typing import Any, Optional
 
+import numpy as np
+import pandas as pd
 from openpyxl.utils import range_to_tuple
 
 triangle_type_aliases = ["paid", "reported", "case", "incurred"]
@@ -26,51 +25,70 @@ triangle_type_aliases = ["paid", "reported", "case", "incurred"]
 @dataclass
 class Triangle:
     """
-    Create a `Triangle` object. The `Triangle` object is used to store and manipulate
-    triangle data.
+    Create a `Triangle` object. The `Triangle` object is used to store and
+    manipulate triangle data.
+
     Attributes:
     -----------
     id : str
-        The type of triangle the object represents - paid loss, reported loss, etc.
+        The type of triangle the object represents - paid loss, reported
+        loss, etc.
     tri : pd.DataFrame, default=None
         The triangle data. Must be a pandas DataFrame with:
             1. The origin period set as the index.
             2. The development periods set as the column names.
             3. The values set as the values in the DataFrame.
-        If any of these conditions are not met, the triangle data will be set to None.
+        If any of these conditions are not met, the triangle data will
+        be set to None.
     triangle : pd.DataFrame, default=None
         Alias for `tri`.
     acc : pd.Series, default=None
-        The accident period labels. Default is None, in which case the accident period
-        labels will be set to the index of the triangle data.
+        The accident period labels. Default is None, in which case the
+        accident period labels will be set to the index of the triangle
+        data.
     dev : pd.Series, default=None
-        The development period labels. Default is None, in which case the development
-        period labels will be set to the column names of the triangle data.
+        The development period labels. Default is None, in which case the
+        development period labels will be set to the column names of the
+        triangle data.
     cal : pd.DataFrame, default=None
-        The calendar period labels. Default is None, in which case the calendar period
-        labels will be calculated from the acc and dev attributes.
+        The calendar period labels. Default is None, in which case the
+        calendar period labels will be calculated from the acc and dev
+        attributes.
     n_acc : int, default=None
-        The number of accident periods in the triangle data. Default is None, in which
-        case the number of accident periods will be calculated from `tri.shape[0]`.
+        The number of accident periods in the triangle data. Default is
+        None, in which case the number of accident periods will be calculated
+        from `tri.shape[0]`.
     n_dev : int, default=None
-        The number of development periods in the triangle data. Default is None, in
-        which case the number of development periods will be calculated from
-        `tri.shape[1]`.
+        The number of development periods in the triangle data. Default is
+        None, in which case the number of development periods will be
+        calculated from `tri.shape[1]`.
     n_cal : int, default=None
-        The number of calendar periods in the triangle data. Default is None, in which
-        case the number of calendar periods will be calculated from the number of unique
-        calendar periods in the `cal` attribute.
+        The number of calendar periods in the triangle data. Default is None,
+        in which case the number of calendar periods will be calculated from
+        the number of unique calendar periods in the `cal` attribute.
+    acc_trends : bool, default=False
+        Whether or not to model the accident period effects as trends. If
+        True, linear trends will be used to model the accident periods. 
+        Default is False, in which case the accident period effects will be
+        modeled as levels unrelated to the previous accident period.
+    dev_trends : bool, default=True
+        Whether or not to model the development period effects as trends. See
+        `acc_trends` for more information.
+    cal_trends : bool, default=True
+        Whether or not to model the calendar period effects as trends. See
+        `acc_trends` for more information.
     n_vals : int, default=3
-        The number of diagonals used for time-series validation. Default is 3, which
-        corresponds to the 3 most recent diagonals. If `n_vals` is set to 0 or None, no
-        time-series validation will be performed.
+        The number of diagonals used for time-series validation. Default is 3,
+        which corresponds to the 3 most recent diagonals. If `n_vals` is set
+        to 0 or None, no time-series validation will be performed.
     incr_triangle : pd.DataFrame, default=None
-        The incremental triangle data. Default is None, in which case the incremental
-        triangle data will be calculated from the triangle data.
+        The incremental triangle data. Default is None, in which case the
+        incremental triangle data will be calculated from the triangle data.
     X_base : pd.DataFrame, default=None
-        The design matrix for the "base" model, eg a model with accident and development
-        periods as features, and no calendar period effect. Default is None, in which
-        case the design matrix will be calculated from the triangle data.
+        The design matrix for the "base" model, eg a model with accident and
+        development periods as features, and no calendar period effect.
+        Default is None, in which case the design matrix will be calculated
+        from the triangle data.
     y_base : np.ndarray, default=None
         The response vector for the "base" model.
     X_base_train : pd.DataFrame, default=None
@@ -94,6 +112,10 @@ class Triangle:
     n_acc: int = None
     n_dev: int = None
     n_cal: int = None
+    acc_trends: bool = False
+    dev_trends: bool = True
+    cal_trends: bool = True
+    use_cal: bool = True
     n_vals: int = 3
     incr_triangle: pd.DataFrame = None
     X_base: pd.DataFrame = None
@@ -161,8 +183,7 @@ class Triangle:
             # set the n_cal attribute
             self.n_cal = self.cal.max().max() - self.cal.min().min() + 1
 
-        # convert triangle data to float
-        if self.tri is not None:
+            # convert triangle data to float
             for c in self.tri.columns:
                 try:
                     self.tri[c] = self.tri[c].astype(float)
@@ -179,10 +200,10 @@ class Triangle:
             if self.incr_triangle is None:
                 self.incr_triangle = self.cum_to_inc(_return=True)
 
-        # create alias for self.tri as self.df that matches the triangle as it is
-        # updated, and does not need to be updated separately
+        # create alias for self.tri as self.df that matches the triangle as
+        # it is updated, and does not need to be updated separately
         self.df = self.tri
-        self.base_linear_model()
+        self.base_design_matrix()
         self.positive_y = self.y_base.loc[self.y_base > 0].index.values
         self.is_observed = self.X_base.is_observed
         self.tri0 = self.tri.round(0)
@@ -236,7 +257,8 @@ class Triangle:
             if id.lower().replace(" ", "_") in triangle_type_aliases:
                 self.id = id.lower().replace(" ", "_")
             else:
-                print(f"The id {id} is not allowed. It must be one of the following:")
+                print(f"""The id {id} is not allowed.
+                It must be one of the following:""")
                 for alias in triangle_type_aliases:
                     print(f"  - {alias}")
                 print()
@@ -325,19 +347,20 @@ class Triangle:
                                   nor the quarter are between 1 and 4.
                      5. 2023q0 -> Raise an error because neither the year
                                   nor the quarter are between 1 and 4.
-                     6. 2q2002 -> year = 2002, quarter = 2, month = 4, day = 1
+                     6. 2q2002 -> year = 2002, quarter = 2, month = 4, day =1
                      7. 2q02   -> Raise an error because the origin column
                                   is ambiguous.
                 4. does the string contain a Q or a q and a dash? If so,
                    assume the dash is separating the year from the quarter,
                    and that the Q or q is closer to the quarter than to the
                    year.
-                     Examples:
-                     --------
-                     1. 2023-Q1 -> year = 2023, quarter = 1, month = 1, day = 1
-                     2. 2021-2q -> year = 2021, quarter = 1, month = 1, day = 1
-                     3. 3q-03   -> year = 2003, quarter = 3, month = 7, day = 1
-                     4. q4-04   -> year = 2004, quarter = 4, month = 10, day = 1
+
+                Examples:
+                --------
+                1. 2023-Q1 -> year = 2023, quarter = 1, month = 1, day = 1
+                2. 2021-2q -> year = 2021, quarter = 1, month = 1, day = 1
+                3. 3q-03   -> year = 2003, quarter = 3, month = 7, day = 1
+                4. q4-04   -> year = 2004, quarter = 4, month = 10, day = 1
         Parameters:
         -----------
         None
@@ -346,6 +369,7 @@ class Triangle:
         None
         """
         import re
+
         import pandas as pd
 
         # Function to convert a given year, month, and day to a datetime object
@@ -356,42 +380,59 @@ class Triangle:
 
         # Function to convert origin values to datetime objects
         def convert_origin_to_datetime(origin):
+            # default values -- these will be overwritten if the origin column
+            # can be converted to integers
+            year = None
+            month = 1
+
             try:
-                # Attempt to convert the origin value to an integer
-                value = int(origin)
+                # if the origin value is already datetime, extract year, month, day
+                if isinstance(origin, pd.Timestamp):
+                    return convert_to_datetime(origin.year,
+                                               origin.month,
+                                               origin.day)
+                else:
 
-                # Check if the value is a 4-digit integer
-                if 1000 <= value <= 9999:
-                    # Convert the 4-digit integer to a datetime object
-                    # assuming January as the month and the first day of the month
-                    return convert_to_datetime(value, 1)
-                # Check if the value is a 2-digit integer
-                elif 0 <= value <= 99:
-                    # Convert the 2-digit integer to a datetime object
-                    # assuming January as the month and the first day of the month
-                    return convert_to_datetime(value + 2000, 1)
-                # Check if the value is a 5-digit integer
-                elif 10000 <= value <= 99999:
-                    # Split the value into a 4-digit year and 1-digit quarter
-                    year, quarter = divmod(value, 10)
+                    # Attempt to convert the origin value to an integer
+                    value = int(origin)
 
-                    # Convert the year-quarter value to a datetime object
-                    # assuming the quarter is the last digit, the year is
-                    # the first 4 digits, and the month is the first month
-                    # of the quarter
-                    return convert_to_datetime(year, quarter * 3 - 2)
-                # Check if the value is a 6-digit integer
-                elif 100000 <= value <= 999999:
-                    # Split the value into a 4-digit year and 2-digit month
-                    year, month = divmod(value, 100)
+                    # Check if the value is a 4-digit integer
+                    if 1000 <= value <= 9999:
+                        # Convert the 4-digit integer to a datetime object
+                        # assuming January as the month and the first day of the
+                        # month
+                        return convert_to_datetime(value, 1)
+                    # Check if the value is a 2-digit integer
+                    elif 0 <= value <= 99:
+                        # Convert the 2-digit integer to a datetime object
+                        # assuming January as the month and the first day of the
+                        # month
+                        return convert_to_datetime(value + 2000, 1)
+                    # Check if the value is a 5-digit integer
+                    elif 10000 <= value <= 99999:
+                        # Split the value into a 4-digit year and 1-digit quarter
+                        year, quarter = divmod(value, 10)
 
-                    # Convert the year-month value to a datetime object
-                    # assuming the month is the last 2 digits, the year is
-                    # the first 4 digits, and the day is the first day of the month
-                    return convert_to_datetime(year, month)
-            except:
-                # If the origin value cannot be converted to an integer, continue
+                        # Convert the year-quarter value to a datetime object
+                        # assuming the quarter is the last digit, the year is
+                        # the first 4 digits, and the month is the first month
+                        # of the quarter
+                        return convert_to_datetime(year, quarter * 3 - 2)
+                    # Check if the value is a 6-digit integer
+                    elif 100000 <= value <= 999999:
+                        # Split the value into a 4-digit year and 2-digit month
+                        year, month = divmod(value, 100)
+
+                        # Convert the year-month value to a datetime object
+                        # assuming the month is the last 2 digits, the year is
+                        # the first 4 digits, and the day is the first day of
+                        # the month
+                        return convert_to_datetime(year, month)
+            except ValueError:
+                # If the origin value cannot be converted to an integer,
+                # continue
                 # to the string processing section below
+                print(f"Could not convert {origin} to an integer.")
                 pass
 
             # Function to extract year, month, and quarter from a string
@@ -408,21 +449,25 @@ class Triangle:
                     # an integer, return None values
                     return None, None, None
 
-                # Check if the first part is a month and the second part is a year
+                # Check if the first part is a month and the second part is a
+                # year
                 if 1 <= a <= 12 and 1000 <= b <= 9999:
                     return b, a, None
-                # Check if the first part is a year and the second part is a month
+                # Check if the first part is a year and the second part is a
+                # month
                 elif 1000 <= a <= 9999 and 1 <= b <= 12:
                     return a, b, None
-                # Check if the first part is a quarter and the second part is a year
+                # Check if the first part is a quarter and the second part is
+                # a year
                 elif 1 <= a <= 4 and 1000 <= b <= 9999:
                     return b, None, a
-                # Check if the first part is a year and the second part is a quarter
+                # Check if the first part is a year and the second part is a
+                # quarter
                 elif 1000 <= a <= 9999 and 1 <= b <= 4:
                     return a, None, b
 
-                # If neither of the above conditions are met, raise a ValueError
-                # indicating that the origin column is ambiguous
+                # If neither of the above conditions are met, raise a
+                # ValueError indicating that the origin column is ambiguous
                 raise ValueError("Ambiguous origin column")
 
             # Determine which type of string the origin is and convert
@@ -436,19 +481,24 @@ class Triangle:
                 # and month
                 year, month, _ = get_year_month_quarter(origin, "/")
             elif "Q" in origin.upper() and "-" not in origin:
-                # If the origin contains 'Q' and no dash, assume the 'Q' separates
-                # the year and quarter
+                # If the origin contains 'Q' and no dash, assume the 'Q'
+                # separates the year and quarter
                 origin = re.sub("[-qQ]", "", origin)
                 year, _, quarter = get_year_month_quarter(origin, "Q")
                 if quarter:
                     month = quarter * 3 - 2
             elif "Q" in origin.upper() and "-" in origin:
-                # If the origin contains 'Q' and a dash, assume the dash separates
-                # the year and quarter
+                # If the origin contains 'Q' and a dash, assume the dash
+                # separates the year and quarter
                 origin = origin.upper().replace("Q", "")
                 year, _, quarter = get_year_month_quarter(origin, "-")
                 if quarter:
                     month = quarter * 3 - 2
+
+            # If the year value is None, raise a ValueError indicating that
+            # the origin column is invalid
+            if year is None:
+                raise ValueError(f"Invalid origin: {origin}")
 
             # If both year and month values are found, convert them to a
             # datetime object
@@ -457,20 +507,20 @@ class Triangle:
 
             # If none of the above conditions are met, raise a ValueError
             # indicating that the origin column is invalid
-            raise ValueError("Invalid origin column")
+            raise ValueError(f"Invalid origin column: {origin}")
 
-        # Map the convert_origin_to_datetime function to each value in the index
-        # and replace the original index with the new datetime index
+        # Map the convert_origin_to_datetime function to each value in the
+        # index and replace the original index with the new datetime index
         self.tri.index = self.tri.index.map(convert_origin_to_datetime)
 
     def _set_frequency(self) -> None:
         """
         Sets the .frequency attribute by checking if the origin column is in
         monthly, quarterly, or annual frequency:
-            1. If all of the origin values have a month of 1, the origin column is
-            assumed to be in annual frequency.
-            2. Elif all of the origin values have a month of 1, 4, 7, or 10, the
-            origin column is assumed to be in quarterly frequency.
+            1. If all of the origin values have a month of 1, the origin
+            column is assumed to be in annual frequency.
+            2. Elif all of the origin values have a month of 1, 4, 7, or 10,
+            the origin column is assumed to be in quarterly frequency.
             3. Else, the origin column is assumed to be in monthly frequency.
         """
 
@@ -515,7 +565,10 @@ class Triangle:
         if self.frequency == "A":
             formatted_df.index = self.tri.index.strftime("%Y")
         elif self.frequency == "Q":
-            formatted_df.index = self.tri.index.to_period("Q").strftime("%YQ%q")
+            formatted_df.index = (self.tri
+                                  .index
+                                  .to_period("Q")
+                                  .strftime("%YQ%q"))
         else:
             formatted_df.index = self.tri.index.strftime("%Y-%m")
 
@@ -525,16 +578,16 @@ class Triangle:
         """
         Converts the triangle object to json, to prepare for an API call
         """
+        
         # start from a dictionary
         out_dict = {
-            "id": self.id if self.id is not None else None,
-            # "tri": self.tri.to_dict() if self.tri is not None else None,
-            # "triangle": self.triangle.to_dict() if self.triangle is not None else None,
-            # "incrTriangle": self.incr_triangle.to_dict()
-            # if self.incr_triangle is not None
-            # else None,
-            "XBase": self.X_base.to_dict() if self.X_base is not None else None,
-            "yBase": self.y_base.tolist() if self.y_base is not None else None,
+            "id": self.id,
+            "XBase": self.X_base.to_dict()
+            if self.X_base is not None
+            else None,
+            "yBase": self.y_base.tolist()
+            if self.y_base is not None
+            else None,
             "XBaseTrain": self.X_base_train.to_dict()
             if self.X_base_train is not None
             else None,
@@ -550,16 +603,24 @@ class Triangle:
             "hasCumModelFile": self.has_cum_model_file
             if self.has_cum_model_file is not None
             else None,
-            "isCumModel": self.is_cum_model if self.is_cum_model is not None else None,
-            "nCols": self.n_cols if self.n_cols is not None else None,
-            "nRows": self.n_rows if self.n_rows is not None else None,
+            "isCumModel": self.is_cum_model
+            if self.is_cum_model is not None
+            else None,
+            "nCols": self.n_cols
+            if self.n_cols is not None
+            else None,
+            "nRows": self.n_rows
+            if self.n_rows is not None
+            else None,
         }
 
         # convert datetime index to string
         if self.tri is not None:
             temp_tri = self.tri.copy()
             temp_tri.index = temp_tri.index.strftime("%Y-%m")
-            out_dict["tri"] = temp_tri.to_dict() if self.tri is not None else None
+            out_dict["tri"] = (temp_tri.to_dict()
+                               if self.tri is not None
+                               else None)
         else:
             out_dict["tri"] = None
 
@@ -572,7 +633,8 @@ class Triangle:
 
         if self.incr_triangle is not None:
             temp_incr_triangle = self.incr_triangle.copy()
-            temp_incr_triangle.index = temp_incr_triangle.index.strftime("%Y-%m")
+            temp_incr_triangle.index = (temp_incr_triangle.index
+                                        .strftime("%Y-%m"))
             out_dict["incrTriangle"] = temp_incr_triangle.to_dict()
         else:
             out_dict["incrTriangle"] = None
@@ -583,7 +645,10 @@ class Triangle:
         return out_json
 
     @classmethod
-    def from_dataframe(cls, df: pd.DataFrame, id: Optional[str] = None) -> "Triangle":
+    def from_dataframe(cls,
+                       df: pd.DataFrame,
+                       id: Optional[str] = None,
+                       use_cal:bool = True) -> "Triangle":
         """
         Create a Triangle object from a pandas DataFrame.
 
@@ -598,18 +663,24 @@ class Triangle:
                 3. The values set as the values in the DataFrame.
             If any of these conditions are not met, the triangle data will
             be set to None.
+        use_cal : bool
+            Whether or not to use calendar period effects in the linear
+            model representation. Default is True.
+
         Returns:
         --------
         Triangle
             A Triangle object with data loaded from the DataFrame.
         """
         # Create and return a Triangle object
-        return cls(id=id, tri=df, triangle=df)
+        return cls(id=id, tri=df, triangle=df, use_cal=use_cal)
 
     @classmethod
-    def from_clipboard(
-        cls, origin_columns: int = 1, headers: list = None, id: Optional[str] = None
-    ) -> "Triangle":
+    def from_clipboard(cls,
+                       origin_columns: int = 1,
+                       headers: list = None,
+                       id: Optional[str] = None,
+                       use_cal:bool = True) -> "Triangle":
         """
         Create a Triangle object from data copied to the clipboard.
 
@@ -623,15 +694,19 @@ class Triangle:
         headers : list
             List of column names to use. Default is None, in which case the
             first row will be repurposed as the headers.
+        use_cal : bool
+            Whether or not to use calendar period effects in the linear
+            model representation. Default is True.
 
         Returns:
         --------
         Triangle
             A Triangle object with data loaded from the clipboard.
         """
-        # Read data from the clipboard, assuming the first row is the development period
-        # and the first `origin_columns` columns should make up either an index or a
-        # multi-index for the origin period in the resulting DataFrame
+        # Read data from the clipboard, assuming the first row is the
+        # development period and the first `origin_columns` columns should
+        # make up either an index or a multi-index for the origin period
+        # in the resulting DataFrame
         df = pd.read_clipboard(header=None)
 
         # set the first row to be the headers
@@ -650,21 +725,26 @@ class Triangle:
                 df[c]
                 .astype(str)
                 .str.replace(",", "")
-                .str.replace(".", "")
+                # .str.replace(".", "")
                 .str.replace(" ", "")
                 .astype(float)
             )
 
+        # make sure the index is numeric/integer
         df.index = df.index.astype(str).astype(int)
-        # print(df.index)
+
+        # do the same for the columns
+        df.columns = df.columns.astype(str).astype(float).astype(int)
 
         # Create and return a Triangle object
         return cls(id=id, tri=df, triangle=df)
 
     @classmethod
-    def from_csv(
-        cls, filename: str, origin_columns: int = 1, id: Optional[str] = None
-    ) -> "Triangle":
+    def from_csv(cls,
+                 filename: str,
+                 origin_columns: int = 1,
+                 id: Optional[str] = None,
+                 use_cal:bool = True) -> "Triangle":
         """
         Create a Triangle object from data in a CSV file.
         Parameters:
@@ -675,28 +755,31 @@ class Triangle:
             The id of the triangle.
         origin_columns : int
             The number of columns used for the origin period. Default is 1.
+        use_cal : bool
+            Whether or not to use calendar period effects in the linear
+            model representation. Default is True.
+
         Returns:
         --------
         Triangle
             A Triangle object with data loaded from the CSV file.
         """
         # Read data from the CSV file
-        df = pd.read_csv(
-            filename, header=0, index_col=[i for i in range(origin_columns)]
-        )
+        df = pd.read_csv(filename,
+                         header=0,
+                         index_col=[i for i in range(origin_columns)])
 
         # Create and return a Triangle object
-        return cls(id=id, tri=df, triangle=df)
+        return cls(id=id, tri=df, triangle=df, use_cal=use_cal)
 
     @classmethod
-    def from_excel(
-        cls,
-        filename: str,
-        origin_columns: int,
-        id: Optional[str] = None,
-        sheet_name: Optional[str] = None,
-        sheet_range: Optional[str] = None,
-    ) -> "Triangle":
+    def from_excel(cls,
+                   filename: str,
+                   origin_columns: int,
+                   id: Optional[str] = None,
+                   use_cal: bool = True,
+                   sheet_name: Optional[str] = None,
+                   sheet_range: Optional[str] = None) -> "Triangle":
         """
         Create a Triangle object from data in an Excel file.
         Parameters:
@@ -708,9 +791,15 @@ class Triangle:
         origin_columns : int
             The number of columns used for the origin period.
         sheet_name : str, optional
-            The name of the sheet in the Excel file containing the triangle data. If not provided, the first sheet will be used.
+            The name of the sheet in the Excel file containing the triangle
+            data. If not provided, the first sheet will be used.
         sheet_range : str, optional
-            A string containing the range of cells to read from the Excel file. The range should be in the format "A1:B2".
+            A string containing the range of cells to read from the Excel
+            file. The range should be in the format "A1:B2".
+        use_cal : bool
+            Whether or not to use calendar period effects in the linear
+            model representation. Default is True.
+
         Returns:
         --------
         Triangle
@@ -723,9 +812,10 @@ class Triangle:
             c1, r1, c2, r2 = idx
 
             # read in the subset of the excel file
-            df = pd.read_excel(filename, header=None, sheet_name=sheet_name).iloc[
-                (r1 - 1) : (r2), (c1 - 1) : (c2)
-            ]
+            df = (pd.read_excel(filename,
+                                header=None,
+                                sheet_name=sheet_name)
+                  .iloc[(r1 - 1):(r2), (c1 - 1):(c2)])
 
             # set the column names as the first row
             df.columns = df.iloc[0]
@@ -746,11 +836,15 @@ class Triangle:
         # re-sort the columns
         df.sort_index(axis=1, inplace=True)
 
+        # cast the columns to floats then integers
+        df.columns = df.columns.astype(float).astype(int)
+
         # Create and return a Triangle object
-        return cls(id=id, tri=df.round(1), triangle=df.round(1))
+        return cls(id=id, tri=df.round(1), triangle=df.round(1), use_cal=use_cal)
 
     @classmethod
-    def from_mack_1994(cls) -> "Triangle":
+    def from_mack_1994(cls,
+                       use_cal:bool = False) -> "Triangle":
         """
         Create a Triangle object from the sample triangle in the Mack 1994
         paper, "Measuring the Variability of Chain Ladder Reserve Estimates"
@@ -759,12 +853,15 @@ class Triangle:
 
         Parameters:
         -----------
-        None
+        use_cal : bool
+            Whether or not to use calendar period effects in the linear
+            model representation. Default is False.        
 
         Returns:
         --------
         Triangle
-            A Triangle object with data loaded from the Taylor Ashe sample data.
+            A Triangle object with data loaded from the Taylor Ashe sample
+            data.
         """
         # Get the current directory
         current_dir = os.path.dirname(os.path.realpath(__file__))
@@ -776,15 +873,20 @@ class Triangle:
         df = pd.read_csv(data_file, header=0, index_col=0)
 
         # Create and return a Triangle object
-        return cls(id="gl_rpt_loss", tri=df, triangle=df)
+        return cls(id="gl_rpt_loss", tri=df, triangle=df, use_cal=use_cal)
 
     @classmethod
-    def from_taylor_ashe(cls) -> "Triangle":
+    def from_taylor_ashe(cls,
+                         use_cal: bool = False) -> "Triangle":
         """
         Create a Triangle object from the Taylor Ashe sample data.
+        
         Parameters:
         -----------
-        None
+        use_cal : bool
+            Whether or not to use calendar period effects in the linear
+            model representation. Default is False.
+        
         Returns:
         --------
         Triangle
@@ -800,32 +902,38 @@ class Triangle:
         df = pd.read_csv(data_file, header=0, index_col=0)
 
         # Create and return a Triangle object
-        return cls(id="paid_loss", tri=df, triangle=df)
+        return cls(id="paid_loss", tri=df, triangle=df, use_cal=use_cal)
 
     @classmethod
-    def from_dahms(cls) -> tuple:
+    def from_dahms(cls,
+                   use_cal:bool = False) -> tuple:
         """
-        Create a Triangle object from the Dahms sample data. This sample data contains
-        both a reported and a paid triangle, so this method returns a tuple containing
-        both triangles.
+        Create a Triangle object from the Dahms sample data. This sample data
+        contains both a reported and a paid triangle, so this method returns
+        a tuple containing both triangles.
 
         Return is of the form (rpt, paid).
 
         Parameters:
         -----------
-        None
+        use_cal : bool
+            Whether or not to use calendar period effects in the linear
+            model representation. Default is False.
 
         Returns:
         --------
         tuple[Triangle, Triangle]
-            A tuple containing a Triangle object with data loaded from the reported
-            triangle, and a Triangle object with data loaded from the paid triangle.
+            A tuple containing a Triangle object with data loaded from the
+            reported triangle, and a Triangle object with data loaded from
+            the paid triangle.
         """
         # Get the current directory
         current_dir = os.path.dirname(os.path.realpath(__file__))
 
         # Construct the file path to the sample data
-        data_file = os.path.join(current_dir, "data", "dahms reserve triangles.xlsx")
+        data_file = os.path.join(current_dir,
+                                 "data",
+                                 "dahms reserve triangles.xlsx")
 
         # Read the data from the CSV file
         paid = cls.from_excel(
@@ -834,6 +942,7 @@ class Triangle:
             id="paid_loss",
             origin_columns=1,
             sheet_range="a1:k11",
+            use_cal=use_cal,
         )
         rpt = cls.from_excel(
             data_file,
@@ -841,6 +950,7 @@ class Triangle:
             id="rpt_loss",
             origin_columns=1,
             sheet_range="a1:k11",
+            use_cal=use_cal,
         )
 
         # Create and return a Triangle object
@@ -854,8 +964,8 @@ class Triangle:
         Returns:
         --------
         pd.DataFrame
-            The triangle data, formatted as a dataframe, and with the origin period
-            formatting applied
+            The triangle data, formatted as a dataframe, and with the origin
+            period formatting applied
         """
         # check that the index is a datetime index, and if not, convert it
         if not isinstance(self.tri.index, pd.DatetimeIndex):
@@ -873,10 +983,12 @@ class Triangle:
         # same shape as original triangle
         cal = self.tri.copy()
 
-        # start by setting each cell equal to the number of months since year 0
+        # start by setting each cell equal to the number of months since
+        # year 0
         for c in cal.columns.tolist():
-            cal[c] = cal.index.year.astype(int) - cal.index.year.astype(int).min()
-            +(cal.index.month.astype(int) - cal.index.month.astype(int).min())
+            cal[c] = ((cal.index.year.astype(int) - cal.index.year.astype(int).min()) +
+                      (cal.index.month.astype(int) - cal.index.month.astype(int).min()))
+                      
             # then add the column name as an integer
             cal[c] += int(c) / cal.columns.to_series().astype(int).min()
 
@@ -918,7 +1030,7 @@ class Triangle:
         """
         # get the cumulative triangle data
         if cum_tri is None:
-            cum_tri = self.triangle
+            cum_tri = self.tri
 
         # get the cumulative triangle data
         inc_tri = cum_tri - cum_tri.shift(1, axis=1, fill_value=0)
@@ -961,15 +1073,16 @@ class Triangle:
 
         return ata
 
-    def _vwa(self, n: int = None, tail: float = 1.0) -> pd.DataFrame:
+    def _vwa(self, n: int | str = None, tail: float = 1.0) -> pd.DataFrame:
         """
         Calculate the volume weighted average (VWA) of the triangle data.
 
         Parameters:
         -----------
-        n: int
-            The number of periods to use in the VWA calculation. If None, use
-            all available periods.
+        n: int | str
+            The number of periods to use in the VWA calculation. If "all", use
+            all available periods. If None, use all available periods.
+            Default is None.
         tail: float
             The tail factor to use in the VWA calculation. Default is 1.0, or
             no tail factor.
@@ -985,11 +1098,14 @@ class Triangle:
             np.zeros(self.tri.shape[1]), index=self.tri.columns, dtype=float
         )
 
+        if isinstance(n, str):
+            n = None if n.lower() != "all" else "all"
+
         # if n is None, use all available periods
-        is_all = n is None
+        is_all = n is None or n == "all"
 
         # need a value for n in the loop below
-        n2 = n if n is not None else self.tri.shape[0]
+        n2 = n if n is not None and n != "all" else self.tri.shape[0]
 
         # loop through the columns in the triangle data (excl. the last column)
         for i in range(self.tri.shape[1] - 1):
@@ -1009,15 +1125,15 @@ class Triangle:
 
         return vwa
 
-    def _ave_ata(self, n: int = None, tail: float = 1.0) -> pd.Series:
+    def _ave_ata(self, n: int | str = None, tail: float = 1.0) -> pd.Series:
         """
         Calculate the average age-to-age factor (Ave-ATA) of the triangle data.
 
         Parameters:
         -----------
-        n: int
-            The number of periods to use in the Ave-ATA calculation. If None, use
-            all available periods.
+        n: int | str
+            The number of periods to use in the Ave-ATA calculation. If "all", use
+            all available periods. If None, use all available periods.
         tail: float
             The tail factor to use in the Ave-ATA calculation. Default is 1.0, or
             no tail factor.
@@ -1028,23 +1144,20 @@ class Triangle:
             The Ave-ATA triangle data. Shape is the same as the number of columns
             in the triangle data, with the index set to the column names.
         """
-        # instantiate the ave-ata results - a series whose length is equal to the number of
-        # columns in the triangle data, with the index set to the column names
+        # instantiate the ave-ata results - a series whose length is equal to the number
+        # of columns in the triangle data, with the index set to the column names
         ave_ata = pd.Series(
             np.zeros(self.tri.shape[1]), index=self.tri.columns, dtype=float
         )
 
+        if isinstance(n, str):
+            n = None if n.lower() != "all" else "all"
+
         # if n is None, use all available periods
-        is_all = n is None
+        is_all = n is None or n == "all"
 
         # need a value for n in the loop below
-        n2 = n if n is not None else self.tri.shape[0]
-
-        # # get the triangle
-        # tri = self.tri
-
-        # # get the triangle of age-to-age factors
-        # ata = self._ata_tri()
+        n2 = n if n is not None and n != "all" else self.tri.shape[0]
 
         # loop through the columns in the triangle data (excl. the last column)
         for i, column in enumerate(self.tri.columns[:-1]):
@@ -1066,18 +1179,19 @@ class Triangle:
         return ave_ata
 
     def _medial_ata(
-        self, n: int = None, tail: float = 1.0, excludes: str = "hl"
+        self, n: int | str = None, tail: float = 1.0, excludes: str = "hl"
     ) -> pd.Series:
         """
         Calculate the medial age-to-age factor (Medial-ATA) of the triangle data. This
-        excludes one or more of the values in the average calculation. Once the values are
-        removed, the average is calculated as a normal average.
+        excludes one or more of the values in the average calculation. Once the values 
+        are removed, the average is calculated as a normal average.
 
         Parameters:
         -----------
-        n: int
-            The number of periods to use in the Medial-ATA calculation. If None, use
-            all available periods.
+        n: int | str
+            The number of periods to use in the Medial-ATA calculation. If "all", use
+            all available periods. If None, use all available periods.
+            Default is None.
         tail: float
             The tail factor to use in the Medial-ATA calculation. Default is 1.0, or
             no tail factor.
@@ -1099,26 +1213,29 @@ class Triangle:
             The Medial-ATA triangle data. Shape is the same as the number of columns
             in the triangle data, with the index set to the column names.
         """
-        # instantiate the medial-ata results - a series whose length is equal to the number of
-        # columns in the triangle data, with the index set to the column names
+        # instantiate the medial-ata results - a series whose length is equal to the
+        # number of columns in the triangle data, with the index set to the column names
         medial_ata = pd.Series(
             np.zeros(self.tri.shape[1]), index=self.tri.columns, dtype=float
         )
 
-        # default if can't calculate this is to use the simple average
-        default = self._vwa(n=n, tail=tail)
+        if isinstance(n, str):
+            n = None if n.lower() != "all" else "all"
 
         # if n is None, use all available periods
-        is_all = n is None
+        is_all = n is None or n == "all"
+
+        # need a value for n in the loop below
+        n2 = n if n is not None and n != "all" else self.tri.shape[0]
+
+        # default if can't calculate this is to use the simple average
+        default = self._vwa(n=n, tail=tail)
 
         # if the string contains 'h', exclude the high value, 'l' excludes the low value,
         # and 'm' excludes the median value
         exclude_high = "h" in excludes.lower()
         exclude_low = "l" in excludes.lower()
         exclude_median = "m" in excludes.lower()
-
-        # need a value for n in the loop below
-        n2 = n if n is not None else self.tri.shape[0]
 
         # loop through the columns in the triangle data (excl. the last column)
         for i, column in enumerate(self.tri.columns[:-1]):
@@ -1146,7 +1263,14 @@ class Triangle:
                 if exclude_low:
                     temp_column = temp_column.drop(temp_column.idxmin())
                 if exclude_median:
-                    temp_column = temp_column.drop(temp_column.median())
+                    # get id of median value
+                    median_id = temp_column.shape[0] // 2
+                    
+                    # drop the median value whose id is the median_id (don't worry about
+                    # the case where there are an even number of values, since the
+                    # median id will be the lower of the two middle values, which is
+                    # what we want)
+                    temp_column = temp_column.drop(temp_column.index[median_id])
 
                 # calculate the Medial-ATA
                 medial_ata[column] = temp_column.mean(skipna=True)
@@ -1176,9 +1300,9 @@ class Triangle:
         ave_type: str
             The type of average to use. Options are 'triangle', 'vwa', 'simple',
             and 'medial'. Default is 'triangle'.
-        n: int
-            The number of periods to use in the average calculation. If None, use
-            all available periods. If ave_type is 'triangle', this parameter is
+        n: int | str
+            The number of periods to use in the average calculation. If None, or "all",
+            use all available periods. If ave_type is 'triangle', this parameter is
             ignored.
         tail: float
             The tail factor to use in the average calculation. Default is 1.0, or
@@ -1298,15 +1422,11 @@ class Triangle:
         # if the calendar year is not specified, return the current diagonal
         if calendar_year is None:
             calendar_year = triangle_array.shape[0]
-
-        # diagonal is a series of length equal to the number of rows in the triangle
-        diag = pd.Series(np.diagonal(np.fliplr(triangle_array)), index=self.tri.index)
-
-        # match the index of the diagonal to column name that value can be found in
-        # (remember that the triangle may not be the same size as the index, if the
-        # triangle is not square -- so we need to actually match the first occurrence
-        # of the value to the column name)
-        ################################################################################################################################################################
+            # diagonal is a series of length equal to the number of rows in the triangle
+            diag = pd.Series(np.diagonal(np.fliplr(triangle_array)), index=self.tri.index)
+        # otherwise, return the specified diagonal
+        else:
+            diag = pd.Series(self.df.values[np.where(np.equal(self.cal, calendar_year))])
 
         return diag
 
@@ -1369,13 +1489,17 @@ class Triangle:
 
     def ata_summary(self) -> pd.DataFrame:
         """
-        Produces a fixed summary of the age-to-age factors for the triangle data.
+        Produces a fixed summary of the age-to-age factors for the triangle
+        data.
 
         Contains the following:
             - Triangle of age-to-age factors
-            - Volume weighted average age-to-age factors for all years, 5 years, 3 years, and 2 years
-            - Simple average age-to-age factors for all years, 5 years, 3 years, and 2 years
-            - Medial average age-to-age factors for 5 years, excluding high, low, and high/low values
+            - Volume weighted average age-to-age factors for all years,
+              5 years, 3 years, and 2 years
+            - Simple average age-to-age factors for all years, 5 years,
+              3 years, and 2 years
+            - Medial average age-to-age factors for 5 years, excluding
+              high, low, and high/low values
         """
 
         triangle = self
@@ -1447,7 +1571,7 @@ class Triangle:
         self,
         id_cols: list = None,
         var_name: str = "development_period",
-        value_name: str = "triangle",
+        value_name: str = "tri",
         _return: bool = True,
         incr_tri: bool = True,
     ) -> pd.DataFrame:
@@ -1459,7 +1583,7 @@ class Triangle:
             The columns to use as the id variables. Default is None, in which
             case the index is used.
         var_name: str
-            The name of the variable column. Default is 'dev'.
+            The name of the variable column. Default is 'development_period'.
         value_name: str
             The name of the value column. Default is None, in which case
             the value column is set equal to the triangle ID.
@@ -1477,7 +1601,7 @@ class Triangle:
         """
         # if id_cols is None, use the index
         if id_cols is None:
-            id_cols = self.triangle.index.name
+            id_cols = self.tri.index.name
 
         # if value_name is None, use the triangle ID
         if value_name is None:
@@ -1494,23 +1618,178 @@ class Triangle:
         tri.index = self.get_formatted_dataframe().index
 
         # melt the triangle data
-        melted = tri.reset_index().melt(
-            id_vars=id_cols, var_name=var_name, value_name=value_name
-        )
+        melted = tri.reset_index().melt(id_vars=id_cols,
+                                        var_name=var_name,
+                                        value_name=value_name)
 
         # if _return is True, return the melted triangle data
         if _return:
             return melted
+
+    def create_design_matrix_levels(self,
+                                    column: pd.Series = None,
+                                    z: int = 4,
+                                    s: str = None) -> pd.DataFrame:
+        """
+        Creates a design matrix from a given column. The column is treated as
+        categorical, zero-padded to the length specified by `z`, and one-hot-
+        encoded using pandas.get_dummies. The column names of the resulting
+        design matrix are in the format `s_{zero-padded z}`.
+
+        Parameters:
+        -----------
+        column: pd.Series, Optional
+            The column to be transformed into a design matrix. This should
+            be a pandas.Series object. Default is None, in which case the
+            column is set equal to the accident period column from the 
+            melted triangle data.
+        z: int, Optional
+            The length to which category labels should be zero-padded.
+            Default is 4.
+        s: str, Optional
+            The string to be used as a prefix in the column names of the
+            design matrix. Default is None, in which case the string is
+            the `name` attribute of the input column.
+
+        Returns:
+        --------
+        result: pd.DataFrame
+            The design matrix as a pandas DataFrame. It consists of the 
+            original column followed by the one- hot-encoded categories from
+            the input column, with column names in the format
+            `s_{zero-padded z}`.
+
+        Examples:
+        ---------
+        >>> df = pd.DataFrame({'accident_period': [1, 2, 3, 4, 5]})
+        >>> create_design_matrix_levels(df['accident_period'],
+                                        z=2,
+                                        s='acc')
+        >>>   accident_period  acc_01  acc_02  acc_03  acc_04  acc_05
+        >>> 0               1       1       0       0       0       0
+        >>> 1               2       0       1       0       0       0
+        >>> 2               3       0       0       1       0       0
+        >>> 3               4       0       0       0       1       0
+        >>> 4               5       0       0       0       0       1
+
+        Raises:
+        -------
+        TypeError:
+            1. If the input column is not a pandas.Series object.
+            2. If the zero-padding length is not an integer.
+            3. If the prefix string is not a string, or cannot be coerced
+            to a string.
+
+        ValueError:
+            1. If the zero-padding length is not an integer greater
+                than 0.
+        """
+        # if column is None, use the accident period column from the melted
+        # triangle data
+        if column is None:
+            column = self.melt_triangle()['accident_period']
+
+        if isinstance(column, str):
+            col_name = column
+            column = self.melt_triangle()[column]
+            s = col_name if s is None else s
+
+        # if column is not a pandas.Series object, raise an error
+        if not isinstance(column, pd.Series):
+            raise TypeError('Input column must be a pandas.Series object.')
+
+        # if z is not an integer, raise an error
+        if not isinstance(z, int):
+            raise TypeError('Zero-padding length must be an integer.')
+
+        # if z is not greater than 0, raise an error
+        if z <= 0:
+            raise ValueError('Zero-padding length must be greater than 0.')
+
+        # Ensure column is treated as a string
+        column = column.astype(str)
+
+        # Zero-pad the category labels
+        column_copy = column.copy().apply(lambda x: str(x).zfill(z))
+
+        # One-hot-encode the column with pandas.get_dummies
+        encoded = pd.get_dummies(column_copy, drop_first=True).astype(int)
+
+        # Rename the columns
+        encoded.columns = [f"{s}_{label}" for label in encoded.columns]
+
+        # Include the original column as the first column
+        result = pd.concat([column.astype(int), encoded], axis=1)
+
+        return result
+
+    def create_design_matrix_trends(self,
+                                    column: pd.Series = None,
+                                    z: int = 4,
+                                    s: str = None) -> pd.DataFrame:
+        """
+        Creates a design matrix from a given column. The column is treated as
+        categorical, zero-padded to the length specified by `z`, and encoded
+        such that all categories less than or equal to the given category get
+        a 1, while the rest get a 0. The column names of the resulting
+        design matrix are in the format `s_{zero-padded z}`.
+
+        Parameters:
+        -----------
+        column: pd.Series, Optional
+            The column to be transformed into a design matrix. This should
+            be a pandas.Series object. Default is None, in which case the
+            column is set equal to the accident period column from the 
+            melted triangle data.
+        z: int, Optional
+            The length to which category labels should be zero-padded.
+            Default is 4.
+        s: str, Optional
+            The string to be used as a prefix in the column names of the
+            design matrix. Default is None, in which case the string is
+            the `name` attribute of the input column.
+
+        Returns:
+        --------
+        result: pd.DataFrame
+            The design matrix as a pandas DataFrame. It consists of encoded
+            categories from the input column, with column names in the format
+            `s_{zero-padded z}` and the original column as the first column.
+
+        Raises:
+        -------
+        TypeError:
+            1. If the input column is not a pandas.Series object.
+            2. If the zero-padding length is not an integer.
+            3. If the prefix string is not a string, or cannot be coerced
+            to a string.
+        ValueError:
+            1. If the zero-padding length is not an integer greater
+                than 0.
+        """
+        # start with the levels design matrix from before
+        start = self.create_design_matrix_levels(column=column,
+                                                 z=z,
+                                                 s=s)
+
+        trends = start.copy()
+        # for each column in the design matrix,
+        for i, c in enumerate(start.columns.tolist()):
+            if i == 0:  # do not adjust the very first column
+                trends[c] = start[c].values
+            else:  # if the current column or any column to the right of the current column is equal to 1
+                trends[c] = np.where(start.iloc[:, i:].sum(axis=1) > 0, 1, 0)
+
+        return trends
+        
 
     def base_design_matrix(
         self,
         id_cols: list = None,
         var_name: str = "development_period",
         value_name: str = "tri",
-        trends: bool = True,
-        _return: bool = True,
         incr_tri: bool = True,
-    ) -> pd.DataFrame:
+        return_: bool = False) -> pd.DataFrame:
         """
         Creates a design matrix from the triangle data. The design matrix is a pandas
         dataframe with one row for each triangle cell, and one column for each origin
@@ -1530,6 +1809,10 @@ class Triangle:
         id_cols: list
             The columns to use as the id variables. Default is None, in which
             case the index is used.
+        cols: list | str
+            The columns to use in the design matrix. Accepts either a list
+            of column names, or a string to use as a regex to match column
+            names. Default is None, in which case all columns are used.
         var_name: str
             The name of the variable column. Default is 'dev'.
         value_name: str
@@ -1543,6 +1826,9 @@ class Triangle:
         incr_tri: bool
             If True, use the incremental triangle data. Default is True. If
             False, use the cumulative triangle data.
+        return_: bool
+            If True, return the design matrix as a pandas dataframe.
+            Default is False.
 
         Returns:
         --------
@@ -1550,372 +1836,250 @@ class Triangle:
             The design matrix.
         """
         if id_cols is None:
-            id_cols = self.triangle.index.name
+            id_cols = 'accident_period'
 
         if value_name is None:
-            value_name = self.id
+            value_name = 'development_period'
 
         # melt the triangle data
-        melted = self.melt_triangle(
-            id_cols=id_cols,
-            var_name=var_name,
-            value_name=value_name,
-            _return=True,
-            incr_tri=incr_tri,
-        )
+        melted = self.melt_triangle(id_cols=id_cols,
+                                    var_name=var_name,
+                                    value_name=value_name,
+                                    _return=True,
+                                    incr_tri=incr_tri)
+        
+        # add calendar period:
+        melted['calendar_period'] = (
+            melted
+            .apply(lambda x: int(x[0]) - 
+                             melted['accident_period'].astype(int).min() + 
+                             int(float(x[1])/melted['development_period'].astype(float).min()),
+                   axis=1))
+        melted['is_observed'] = melted[value_name].notnull().astype(int)
 
-        df = self.get_formatted_dataframe()
+        # create the design matrices for each column
+        # accident period
+        if self.acc_trends:
+            acc = self.create_design_matrix_trends(melted['accident_period'],
+                                                   s='accident_period',
+                                                   z=4)
+        else:
+            acc = self.create_design_matrix_levels(melted['accident_period'],
+                                                   s='accident_period',
+                                                   z=4)
+        # development period
+        if self.dev_trends:
+            dev = self.create_design_matrix_trends(melted['development_period'],
+                                                   s='development_period',
+                                                   z=3)
+        else:
+            dev = self.create_design_matrix_levels(melted['development_period'],
+                                                   s='development_period',
+                                                   z=3)
+        # calendar period
+        if self.cal_trends:
+            cal = self.create_design_matrix_trends(melted['calendar_period'],
+                                                   s='calendar_period',
+                                                   z=3)
+        else:
+            cal = self.create_design_matrix_levels(melted['calendar_period'],
+                                                   s='calendar_period',
+                                                   z=3)
+        # combine the design matrices
+        dm_total = pd.concat(
+            [melted[[value_name, 'is_observed']], acc, dev, cal],
+            axis=1)
 
-        _acc = df.index.name if df.index.name is not None else "accident_period"
-        _dev = df.columns.name if df.columns.name is not None else "development_period"
-
-        acc = _acc.lower().replace(" ", "_").replace(".", "")
-        dev = _dev.lower().replace(" ", "_").replace(".", "")
-
-        melted.rename(columns={f"{_acc}": acc, f"{_dev}": dev}, inplace=True)
-        # melted[acc]
-
-        print(f"acc: {acc}")
-        print(f"dev: {dev}")
-        print(f"melted: {melted.head()}")
-
-        print(f"melted[acc]: {melted[acc].head()}")
-        print(f"melted[dev]: {melted[dev].head()}")
-
-        # convert the origin and development periods to zero-padded categorical variables
-        melted[acc] = melted[acc].astype(str).str.zfill(4).astype("category")
-        melted[dev] = melted[dev].astype(str).str.zfill(4).astype("category")
-
-        # create the design matrix
-        dm_total = pd.get_dummies(melted, columns=[acc, dev], drop_first=True)
-
-        # if trends is True, add linear trends to the design matrix
-        if trends:
-            # create dummy variables for the origin and development periods
-            dm_ay = pd.get_dummies(melted[[acc]], drop_first=True)
-            dm_dev = pd.get_dummies(melted[[dev]], drop_first=True)
-
-            # ay dm columns
-            cols = dm_ay.columns.tolist()
-
-            # reverse the order of the columns (to loop backwards)
-            cols.reverse()
-
-            # loop backwards through the columns
-            for i, c in enumerate(cols):
-                # if i==0, set the column equal to itself
-                if i == 0:
-                    dm_total[c] = dm_ay[c]
-
-                # otherwise, add the column to the previous column
-                else:
-                    dm_total[c] = dm_ay[c] + dm_total[cols[i - 1]]
-
-            # do the same thing for the development period dummy variables
-            cols = dm_dev.columns.tolist()
-            cols.reverse()
-            for i, c in enumerate(cols):
-                if i == 0:
-                    dm_total[c] = dm_dev[c]
-                else:
-                    dm_total[c] = dm_dev[c] + dm_total[cols[i - 1]]
-
-            # add a column called "is_observed" at the beginning that is 1 if
-            # dm_total[value_name] is not null and 0 otherwise
-            observed_col = dm_total[value_name].notnull().astype(int)
-            dm_total.insert(0, "is_observed", observed_col)
-
-        for c in dm_total.columns:
-            if dm_total[c] is bool:
-                dm_total[c] = dm_total[c].astype(int)
-
-        # if _return is True, return the design matrix
-        if _return:
+        if return_:
             return dm_total
 
-        self.X_base = dm_total.drop(columns=value_name).astype(int)
+        # sort the columns
+        front_cols = [value_name,
+                      'is_observed',
+                      'accident_period',
+                      'development_period',
+                      'calendar_period']
+        dm_total = dm_total[front_cols + list(dm_total.columns.drop(front_cols))]
+
+        # drop calendar period variables if self.use_cal is False
+        if self.use_cal:
+            pass
+        else:
+            cal_columns = dm_total.columns[dm_total.columns.str.contains('cal')]
+            calendar_period = dm_total['calendar_period']
+            dm_total = dm_total.drop(columns=cal_columns.tolist())
+            front_cols = [c for c in front_cols if 'cal' not in c and c != 'calendar_period']
+        
+        # assign class attributes with the design matrix and target variable
+        self.X_base = dm_total.drop(columns=front_cols).astype(int)
+        self.X_base['is_observed'] = dm_total['is_observed'].astype(int)
+        self.X_base['intercept'] = 1
+        self.X_base = self.X_base[['is_observed', 'intercept'] + self.X_base.columns.drop(['is_observed', 'intercept']).tolist()]
         self.y_base = dm_total[value_name]
+        self.y_base.name = "y"
 
         # ay/dev id for each row
-        self.X_id = pd.DataFrame(
-            dict(
-                accident_period=melted[acc].astype(int).values,
-                development_period=melted[dev].astype(int).values,
-            )
-        )
-        self.X_id["calendar_period"] = (
-            self.X_id.accident_period - self.X_id.accident_period.min()
-        ) + (self.X_id.development_period / self.X_id.development_period.min())
-        self.X_id["calendar_period"] = self.X_id["calendar_period"].astype(int)
+        if self.use_cal:
+            self.X_id = dm_total[front_cols]
+        else:
+            self.X_id = pd.concat([dm_total[front_cols],
+                                   calendar_period], axis=1)
         self.X_id.index = self.X_base.index
 
-    def base_linear_model(
-        self,
-        id_cols: list = None,
-        var_name: str = "development_period",
-        value_name: str = None,
-        trends: bool = True,
-        incr_tri: bool = True,
-        intercept_: bool = True,
-    ) -> pd.DataFrame:
+        # create the train/forecast data split based on the is_observed
+        # column
+        self.get_train_forecast_split(return_=False)
+
+        return dm_total
+
+    def get_train_forecast_split(self,
+                                 custom_split:list|
+                                              np.ndarray|
+                                              pd.Series|
+                                              None = None,
+                                 return_:bool = True
+        ) -> pd.Series:
         """
-        Builds the train/forecast data split based off of the base design matrix.
+        Splits self.X_base and self.y_base into train and forecast datasets.
+        This function is used as a helper function for the base_design_matrix
+        method, and is not intended to be called directly.
 
         Parameters:
         -----------
-        (See base_design_matrix() for parameter descriptions of id_cols, var_name,
-        value_name, trends, _return, and incr_tri)
-
-        intercept_: bool
-            If True, include an intercept in the model. Default is True.
+        custom_split: list | np.ndarray | pd.Series | None
+            A custom split to use for the train/forecast split. If None,
+            use the default train/forecast split. Default is None.
+        return_: bool
+            If True, return the train/forecast split as a pandas series.
 
         Returns:
         --------
-        dm_base_train: pd.DataFrame
-            The training data design matrix with target variable as the first column.
+        train_forecast: pd.Series
+            A series of 1s and 0s, where 1 indicates a row in the train
+            dataset, and 0 indicates a row in the forecast dataset.
+
+        Also sets self.X_base_train, self.X_base_forecast, self.y_base_train,
+        self.X_id_train, and self.X_id_forecast.
         """
-        # if the base design matrix has not been created, create it
-        if self.X_base is None:
-            self.base_design_matrix(
-                id_cols=id_cols,
-                var_name=var_name,
-                value_name=value_name,
-                trends=trends,
-                _return=False,
-                incr_tri=incr_tri,
-            )
+        # if custom_split is None, use set custom split to the is_observed
+        # column of the base design matrix
+        if custom_split is None:
+            custom_split = self.X_base.is_observed
 
-        # create the train/forecast data split based on whether or not the
-        # target variable is null
-        self.X_base_train = self.X_base[self.X_base.is_observed.eq(1)]
-        self.y_base_train = self.y_base[self.X_base.is_observed.eq(1)]
-        self.X_base_forecast = self.X_base[self.X_base.is_observed.eq(0)].assign(
-            intercept=1
-        )
+        # now use the custom train/forecast split to create the
+        # train/forecast design matrices
+        self.X_base_train = self.X_base.loc[custom_split.eq(1)]
+        self.X_base_forecast = self.X_base.loc[custom_split.eq(0)]
+        self.y_base_train = self.y_base[custom_split.eq(1)]
+        self.X_id_train = self.X_id.loc[custom_split.eq(1)]
+        self.X_id_forecast = self.X_id.loc[custom_split.eq(0)]
 
-        self.X_id_train = self.X_id[self.X_base.is_observed.eq(1)]
-        self.X_id_forecast = self.X_id[self.X_base.is_observed.eq(0)]
-
-        # if intercept_ is False, drop the intercept column
-        if not intercept_:
-            self.X_base_train = self.X_base_train.drop(columns="intercept")
-            self.X_base_forecast = self.X_base_forecast.drop(columns="intercept")
-
-    # def reset_base_linear_model(
-    #     self,
-    #     id_cols: list = None,
-    #     var_name: str = "development_period",
-    #     value_name: str = None,
-    #     trends: bool = False,
-    #     incr_tri: bool = True,
-    #     intercept_: bool = True,
-    # ) -> None:
-    #     """
-    #     Resets the base linear model.
-
-    #     Parameters:
-    #     -----------
-    #     (See base_linear_model() for parameter descriptions)
-
-    #     Returns:
-    #     --------
-    #     None. Modifies self.X_base, self.y_base, self.X_base_train, self.y_base_train,
-    #     self.X_base_forecast, self.X_id_train, and self.X_id_forecast in place.
-    #     """
-    #     # reset the base design matrix
-    #     self.base_design_matrix(
-    #         id_cols=id_cols,
-    #         var_name=var_name,
-    #         value_name=value_name,
-    #         trends=trends,
-    #         _return=False,
-    #         incr_tri=incr_tri,
-    #     )
-
-    #     # create the train/forecast data split based on whether or not the
-    #     # target variable is null
-    #     self.X_base_train = self.X_base[self.X_base.is_observed.eq(1)]
-    #     self.y_base_train = self.y_base[self.X_base.is_observed.eq(1)]
-    #     self.X_base_forecast = self.X_base[self.X_base.is_observed.eq(0)].assign(
-    #         intercept=1
-    #     )
-
-    #     self.X_id_train = self.X_id[self.X_base.is_observed.eq(1)]
-    #     self.X_id_forecast = self.X_id[self.X_base.is_observed.eq(0)]
-
-    #     # if intercept_ is False, drop the intercept column
-    #     if not intercept_:
-    #         self.X_base_train = self.X_base_train.drop(columns="intercept")
-    #         self.X_base_forecast = self.X_base_forecast.drop(columns="intercept")
-
+        # return the custom train/forecast split
+        if return_:
+            return custom_split
 
     def get_X(
         self,
-        split: str = None,
-        use_cal: bool = False,
-        X_type: str = None,
-        column_query: str = None,
+        kind: str = None,
     ) -> pd.DataFrame:
         """
-        Get the design matrix for the given split.
+        Get the design matrix for the given kind.
 
         Parameters:
         -----------
-        split: str
-            The split to get the design matrix for. If None, return the full design
+        kind: str
+            The kind to get the design matrix for. If None, return the full design
             matrix. If "train", return the training design matrix. If "forecast",
             return the forecast design matrix. Default is None.
-        use_cal: bool
-            If True, include the calendar period in the design matrix. Default is
-            False.
-        X_type: str
-            The type of design matrix to return. If None, return the full design
-            matrix. If "base", return the base design matrix. If "cal", return the
-            calendar design matrix. If "id", return the id design matrix. Default is
-            None.
-        column_query: str
-            If not None, only return columns that contain the given string. Default
-            is None.
 
         Returns:
         --------
         X: pd.DataFrame
-            The design matrix for the given split.
+            The design matrix for the given kind.
         """
-        cal = self.get_X_cal(split=split)
-        base = self.get_X_base(split=split)
-        id = self.get_X_id(split=split)
-
-        if use_cal:
-            X = pd.concat([id, base, cal], axis=1)
+        if kind is None:
+            X = self.X_base.copy()
+        elif kind.lower()=="train":
+            X = self.X_base_train.copy()
+            X.drop('is_observed', axis=1, inplace=True)
+        elif kind.lower()=='forecast':
+            X = self.X_base_forecast.copy()
+            X.drop('is_observed', axis=1, inplace=True)
         else:
-            X = pd.concat([id, base], axis=1)
-
-        if split is None:
-            pass
-        elif split == "train":
-            X = X.loc[X.is_observed.eq(1)]
-        elif split == "forecast":
-            X = X.loc[X.is_observed.eq(0)]
-
-        if column_query is not None:
-            for c in X.columns.tolist():
-                if column_query in c:
-                    pass
-                else:
-                    X = X.drop(columns=c)
-
+            raise ValueError("kind must be 'train', 'forecast', or None.")
+        
         return X
 
-    def get_X_cal(self, split=None):
+    def get_X_cal(self, kind=None) -> pd.DataFrame:
         """
         Returns the calendar design matrix
         """
-        df = self.get_X_id(split=split)
-        df["calendar_period"] = (
-            df["calendar_period"].astype(str).str.pad(4, fillchar="0")
-        )
-        df["calendar_period"] = df.calendar_period.apply(lambda x: f"{x}")
-        df_cal = pd.get_dummies(df[["calendar_period"]], drop_first=True)
-        out = df_cal.copy()
-
-        # ay dm columns
-        cols = df_cal.columns.tolist()
-
-        # reverse the order of the columns (to loop backwards)
-        cols.reverse()
-
-        # loop backwards through the columns
-        for i, c in enumerate(cols):
-            # if i==0, set the column equal to itself
-            if i == 0:
-                out[c] = df_cal[c]
-
-            # otherwise, add the column to the previous column
+        
+        if self.use_cal:
+            df = self.get_X(kind=kind)
+            cols = df.columns        
+            col_qry = cols.str.contains("cal") 
+            col_qry = col_qry | cols.str.contains("calendar_period")
+            df = df.loc[:, col_qry.tolist()]
+            
+        else:
+            if kind is None:
+                qry = pd.Series(np.ones_like(self.X_id['calendar_period'].values),
+                                index=self.X_id.index).eq(1)
+            elif kind.lower() == "train":
+                qry = self.X_id['is_observed'].eq(1)
+            elif kind.lower() == "forecast":
+                qry = self.X_id['is_observed'].eq(0)
             else:
-                out[c] = df_cal[c] + out[cols[i - 1]]
+                raise ValueError("kind must be 'train', 'forecast', or None.")
+            
+            cal = self.X_id['calendar_period']
+            X = self.create_design_matrix_trends(cal,s="calendar_period",z=4)
+            
+            df = X.loc[qry]
 
-        out = out.astype(int)
-
-        idx = self.get_X_id(split=split).index
-        return out.loc[idx]
-
-    def get_X_exposure(self, split: str = None) -> pd.DataFrame:
+        return df
+    
+    def get_X_exposure(self) -> pd.DataFrame:
         """
         Returns the exposure design matrix
         """
-        if split is None:
-            df = self.exposure
-        elif split == "train":
-            df = self.exposure_train
-        elif split == "forecast":
-            df = self.exposure_forecast
+        return self.exposure
 
-        return df
-
-    def get_X_base(self, split=None, cal=False):
+    def get_X_base(self, kind=None):
         """
         Returns the base design matrix
         """
-        if cal:
-            df_cal = self.get_X_cal(split=None)
-            df = pd.concat([self.X_base, df_cal], axis=1)
-        else:
-            df = self.X_base
-
-        if split == "train":
-            df = df.loc[self.X_base_train.index]
-        elif split == "forecast":
-            df = df.loc[self.X_base_forecast.index]
-        else:
-            df = df
-
-        df["intercept"] = 1
-
+        df = self.get_X(kind=kind)
         return df
 
-    def get_y_base(self, split=None):
+    def get_y_base(self, kind=None):
         """
         Returns the labels for the base design matrix
         """
-        if split is None:
+        if kind is None:
             df = self.y_base
-        elif split == "train":
+        elif kind == "train":
             df = self.y_base_train
-        elif split == "forecast":
+        elif kind == "forecast":
             df = self.y_base_forecast
         else:
             df = self.y_base
 
         return df
 
-    def get_X_id(self, split=None):
+    def get_X_id(self, kind=None):
         """
         Returns the labels for the base design matrix
         """
-        if split is None:
+        if kind is None:
             df = self.X_id
-        elif split == "train":
+        elif kind == "train":
             df = self.X_id_train
-        elif split == "forecast":
+        elif kind == "forecast":
             df = self.X_id_forecast
         else:
             df = self.X_id
-
-        return df
-
-    def get_y_id(self, split=None):
-        """
-        Returns the labels for the base design matrix
-        """
-        if split is None:
-            df = self.y_id
-        elif split == "train":
-            df = self.y_id_train
-        elif split == "forecast":
-            df = self.y_id_forecast
-        else:
-            df = self.y_id
 
         return df
 
