@@ -8,10 +8,10 @@ from rocky.models.BaseEstimator import BaseEstimator
 from dataclasses import dataclass
 
 # for fitting the model
-from sklearn.linear_model import ElasticNet
+from sklearn.linear_model import LinearRegression, Ridge, Lasso, ElasticNet
 
 # hetero adjustment
-from sklearn.cluster import KMeans
+from sklearn.cluster import KMeans, AgglomerativeClustering
 
 # for plotting
 import plotly.express as px
@@ -52,9 +52,6 @@ class LogLinear(BaseEstimator):
     E[y_i] = exp(X_{i} * beta)
 
     E[beta_{i,j}] = alpha_i + sum_{m=1}^{j} gamma_m + sum_{n=1}^{i+j} iota_n
-
-
-
     """
 
     id: str
@@ -177,6 +174,7 @@ selecting carried reserves."
                      .rename(columns={0: "development_period"})
                      .assign(weights = self.weights)
         )
+        idx = self.GetIdx(kind=kind)
         if kind == "train":
             out = pd.DataFrame({"development_period": self.GetDev('train')})
         elif kind == "forecast":
@@ -186,7 +184,8 @@ selecting carried reserves."
         
         out = out.merge(weight_df, on="development_period", how="left")
         out["weights"] = out["weights"].fillna(1)
-        return out[["weights"]  ]
+        out.index = idx
+        return out["weights"]
 
         
     def GetHeteroAdjustment(self):
@@ -307,10 +306,13 @@ selecting carried reserves."
         else:
             raise ValueError("kind must be 'train' for `y`")
 
+        # adjust y by the weights
+        out = out * self.GetWeights(kind=kind)
+        
         if log:
-            return np.log(out)
-        else:
-            return out
+            out = np.log(out)
+        
+        return pd.Series(out, index=idx)
         
     def GetYhat(self, kind="train", log=True):
         """
@@ -326,9 +328,11 @@ selecting carried reserves."
             raise ValueError("kind must be 'train' or 'forecast' for `yhat`")
 
         if log:
-            return out
+            pass
         else:
-            return np.exp(out)
+            out = np.exp(out)
+        out.index = self.GetIdx(kind)
+        return out
         
     def GetParameters(self):
         """
@@ -342,6 +346,48 @@ selecting carried reserves."
         df['param_type'] = df.names.apply(lambda x: x.split('_')[0])
 
         return df
+
+    def BasicHeteroAdjustment(self):
+        df = pd.concat([self.GetDev('train'),
+                        pd.get_dummies(self.GetDev('train').astype(str).str.zfill(3),
+                                       prefix='dev').astype(int)],
+                                       axis=1)
+        df['resid'] = self.GetY('train', log=True) - self.GetYhat('train', log=True)
+        df['var_resid'] = df.resid.var()
+        df['var_dev'] = df.groupby('development_period').resid.transform('var').fillna(0)
+        df['hetero_adjustment'] = (df['var_resid'] / df['var_dev']).mask(df.var_dev.eq(0), 1)
+        df['adjusted_resid'] = df['resid'] * df['hetero_adjustment']
+        df.drop(columns=['var_resid', 'var_dev'], inplace=True)
+        out = df.hetero_adjustment
+        self.hetero_adjustment = out
+        self.weights = out
+        return out
+    
+    def fit_ward_clustering(self, n_clusters=None):
+        if n_clusters is None:
+            n_clusters = int(self.tri.n_dev / 2) + 1
+
+        # compute residuals
+        residuals = self.GetY('train') - self.GetYhat('train')
+
+        # create design matrix for development periods
+        X = pd.get_dummies(self.GetDev('train')
+                            .astype(str)
+                            .str.zfill(3),
+                            prefix='dev').astype(int)
+        X['residuals'] = residuals
+        
+        # Ward clustering model
+        ward = AgglomerativeClustering(n_clusters=n_clusters,
+                                       linkage='ward')
+        
+        # Fit model to residuals grouped by dev period level
+        ward.fit(residuals.to_frame().merge(X,
+                                            left_index=True,
+                                            right_index=True))
+        
+
+        return ward
 
     def Fit(
         self,
@@ -411,7 +457,7 @@ selecting carried reserves."
             X = self.GetX("train")
 
         if y is None:
-            y = self.GetY("train")
+            y = self.GetY("train", log=True)
 
         # if alpha or p are not provided, calculate the optimal values
         if alpha is None or l1_ratio is None:
@@ -439,10 +485,22 @@ selecting carried reserves."
         l1_ratio = self.l1_ratio if l1_ratio is None else l1_ratio
         max_iter = self.max_iter if max_iter is None else max_iter
 
-        # ElasticNet object
-        self.model = ElasticNet(
-            alpha=alpha, l1_ratio=l1_ratio, max_iter=max_iter, fit_intercept=False
-        )
+        # model object - if alpha is 0, then it is just a linear model
+        if alpha == 0:
+            self.model = LinearRegression(fit_intercept=False)
+        else:
+            # if l1_ratio is 1, then it is just a lasso model
+            if l1_ratio == 1:
+                self.model = Lasso(alpha=alpha, max_iter=max_iter, fit_intercept=False)
+            # if l1_ratio is 0, then it is just a ridge model
+            elif l1_ratio == 0:
+                self.model = Ridge(alpha=alpha, max_iter=max_iter, fit_intercept=False)
+            # otherwise, it is an elastic net model
+            else:
+                self.model = ElasticNet(alpha=alpha,
+                                        l1_ratio=l1_ratio,
+                                        max_iter=max_iter,
+                                        fit_intercept=False)
 
         # make sure X does not have the `is_observed` column
         if "is_observed" in X.columns.tolist():
@@ -479,7 +537,7 @@ selecting carried reserves."
         if "is_observed" in X.columns.tolist():
             X = X.drop(columns=["is_observed"])
 
-        yhat = np.exp(self.model.predict(X))
+        yhat = self.model.predict(X)
         return pd.Series(yhat)
     
     def RawResiduals(self, log:bool = True) -> pd.Series:
