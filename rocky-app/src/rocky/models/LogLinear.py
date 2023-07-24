@@ -1,14 +1,17 @@
 # rocky code
 from rocky.triangle import Triangle
-from rocky.TriangleTimeSeriesSplit import TriangleTimeSeriesSplit
-from rocky.ModelPlot import Plot
-from rocky._util.BaseEstimator import BaseEstimator
+from rocky.model_selection.TriangleTimeSeriesSplit import TriangleTimeSeriesSplit
+from rocky.plot.ModelPlot import Plot
+from rocky.models.BaseEstimator import BaseEstimator
 
 # for class attributes/definitions
 from dataclasses import dataclass
 
 # for fitting the model
 from sklearn.linear_model import ElasticNet
+
+# hetero adjustment
+from sklearn.cluster import KMeans
 
 # for plotting
 import plotly.express as px
@@ -31,6 +34,27 @@ class LogLinear(BaseEstimator):
     using these estimates, and ensure that you have a good understanding of the
     underlying model and require it before using these estimates in production,
     particularly when selecting carried reserves.
+
+    Model
+    -----
+    i = accident period
+    j = development period
+    k = i + j = calendar period
+    
+    beta = parameter vector
+    X = design matrix
+    y = response vector
+
+    alpha = accident period level
+    gamma = development period trend (log scale)
+    iota = calendar period trend (log scale)
+
+    E[y_i] = exp(X_{i} * beta)
+
+    E[beta_{i,j}] = alpha_i + sum_{m=1}^{j} gamma_m + sum_{n=1}^{i+j} iota_n
+
+
+
     """
 
     id: str
@@ -42,6 +66,7 @@ class LogLinear(BaseEstimator):
     is_fitted: bool = False
     n_validation: int = 0
     saturated_model = None
+    hetero_clusters: pd.Series = None
     weights: pd.Series = None
     distribution_family: str = None
     alpha: float = None
@@ -90,15 +115,15 @@ selecting carried reserves."
         if self.alpha is None:
             a = ""
         else:
-            a = f"alpha={self.alpha}"
+            a = f"alpha={self.alpha:.1f}"
 
         if self.l1_ratio is None:
             p = ""
         else:
             if self.alpha is None:
-                p = f"l1_ratio={self.l1_ratio}"
+                p = f"l1_ratio={self.l1_ratio:.2f}"
             else:
-                p = f", l1_ratio={self.l1_ratio}"
+                p = f", l1_ratio={self.l1_ratio:.2f}"
         return f"loglinear({a}{p})"
 
     def _update_attributes(self, after="fit", **kwargs):
@@ -123,7 +148,8 @@ selecting carried reserves."
         else:
             raise AttributeError(f"{self.id} model object has no plot attribute.")
 
-    def GetHeteroGp(self, kind="train"):
+
+    def GetHeteroGp(self):
         # Development year groupings are the same as the development years
         # themselves, available in the design matrix
         df = self.hetero_gp
@@ -164,40 +190,30 @@ selecting carried reserves."
 
         
     def GetHeteroAdjustment(self):
-        # Step 1: Merge development year groupings with the training data
-        training_data = self.GetX("train")
-        dev_year_group = self.GetHeteroGp()
-        merged_data = training_data.merge(dev_year_group, on="development_period")
+        """
+        Clusters development periods with similar residual variances.
+        
+        Parameters
+        ----------
+        n_clusters : int
+            The number of clusters to form.
+        """
+        # Ensure the model is fitted before trying to cluster
+        if not self.is_fitted:
+            raise RuntimeError("The model is not fitted yet.")
 
-        # Step 2: Calculate standardized residuals
-        residuals = self.GetY(kind="train", log=True) - self.GetYhat(kind="train", log=True)
-        se = self._StandardError()
-        standardized_residuals = residuals / se
+        # Calculate residual variances for each development period
+        # This code depends on your specific implementation
+        # residual_variances = ...
 
-        # Add standardized residuals to the data
-        merged_data["residStd"] = standardized_residuals
-
-        # Step 3: Calculate the variance of standardized residuals for each group
-        group_variance = merged_data.groupby("gp")["residStd"].var(ddof=0).reset_index()
-
-        # Step 4: Raise error if any group's variance is 0 or NaN
-        if group_variance["residStd"].isna().any() or (group_variance["residStd"] == 0).any():
-            raise ValueError("Variance of group either 0 or NA")
-
-        # Step 5: Calculate a weight for each group (inverse of variance)
-        group_variance["wAdj"] = group_variance["residStd"] ** (-1)
-
-        # Step 6: Rescale the weights
-        group_variance["wAdj"] /= group_variance["wAdj"].iloc[0]
-
-        # Step 7: Update the weights in the model
-        weights = self.GetWeights("train")
-        weights *= group_variance["wAdj"]
-
-        # Update development year weights
-        hetero_gp = self.GetHeteroGp()
-        hetero_gp["w"] = weights
-        self.SetHeteroGp(hetero_gp)
+        # Reshape for clustering
+        variances = self.residual_variances.values.reshape(-1, 1)
+        
+        # Apply KMeans clustering
+        kmeans = KMeans(n_clusters=self.hetero_clusters, random_state=0).fit(variances)
+        
+        # Store cluster labels back into the dataframe
+        self.hetero_gp['cluster'] = kmeans.labels_
 
 
     def SetHyperparameters(self, alpha, l1_ratio, max_iter=100000):
@@ -234,30 +250,47 @@ selecting carried reserves."
         cv = TriangleTimeSeriesSplit(
             self.tri,
             n_splits=n_splits,
-            tweedie_grid=param_grid,
+            loglinear_grid=param_grid,
             model_type="loglinear",
             model=self,
         )
 
         # set the parameter search grid
-        cv.GridTweedie(
+        cv.SetParameterGrid(
             alpha=param_grid["alpha"],
             l1ratio=param_grid["l1ratio"],
             max_iter=param_grid["max_iter"],
         )
 
         # grid search & return the optimal model
-        opt_tweedie = cv.OptimalTweedie(measures=measures, tie_criterion=tie_criterion)
+        optimal_model = cv.OptimalParameters(measures=measures, tie_criterion=tie_criterion)
 
         # set the optimal hyperparameters
-        self.alpha = opt_tweedie.alpha
-        self.l1_ratio = opt_tweedie.l1_ratio
+        self.alpha = optimal_model.alpha
+        self.l1_ratio = optimal_model.l1_ratio
 
         # save cv object
         self.cv = cv
 
         # fit the model
         self.Fit()
+
+    # def TuneDevWeightGroups(self,
+    #                         n_splits=5,
+    #                         param_grid=None,
+    #                         measures=None,
+    #                         tie_criterion="ave_mse_test",
+    #                         **kwargs):
+    #     """
+    #     Tune the development year weight groups.
+    #     """
+    #     cv = TriangleTimeSeriesSplit(
+    #         self.tri,
+    #         n_splits=n_splits,
+    #         loglinear_grid=param_grid,
+    #         model_type="loglinear",
+    #         model=self,
+    #     )
 
     def GetY(self, kind="train", log=True):
         """

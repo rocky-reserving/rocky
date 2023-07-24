@@ -1,8 +1,8 @@
 # rocky code
 from rocky.triangle import Triangle
-from rocky.TriangleTimeSeriesSplit import TriangleTimeSeriesSplit
-from rocky.ModelPlot import Plot
-from rocky._util.BaseEstimator import BaseEstimator
+from rocky.model_selection.TriangleTimeSeriesSplit import TriangleTimeSeriesSplit
+from rocky.plot.ModelPlot import Plot
+from rocky.models.BaseEstimator import BaseEstimator
 
 # for class attributes/definitions
 from dataclasses import dataclass
@@ -63,8 +63,20 @@ class glm(BaseEstimator):
             'power': self.power,
         }
 
-    # def __repr__(self):
-    #     super().__repr__()
+    def __repr__(self):
+        if self.alpha is None:
+            a = ""
+        else:
+            a = f"alpha={self.alpha:.1f}"
+
+        if self.power is None:
+            p = ""
+        else:
+            if self.alpha is None:
+                p = f"power={self.power:.1f}"
+            else:
+                p = f", power={self.power:.1f}"
+        return f"tweedieGLM({a}{p})"
 
     def _update_attributes(self, after="fit", **kwargs):
         """

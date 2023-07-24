@@ -3,8 +3,8 @@ This module contains the BaseEstimator class, which is the base class for all
 models and estimators in the rocky package.
 """
 from rocky.triangle import Triangle
-from rocky.TriangleTimeSeriesSplit import TriangleTimeSeriesSplit
-from rocky.ModelPlot import Plot
+from rocky.model_selection.TriangleTimeSeriesSplit import TriangleTimeSeriesSplit
+from rocky.plot.ModelPlot import Plot
 
 from dataclasses import dataclass
 import numpy as np
@@ -25,134 +25,19 @@ class BaseEstimator:
 
     Parameters
     ----------
-    id : str
-        Model ID. This is used to identify the model in the rocky object.
-    model_class : str, optional
-        Model class. This is used to identify the model in the rocky object, and
-        is used in the model's repr.
-    model : object, optional
-        Model object. This is the model object that is fit to the data. For example,
-        the GLM rocky model object is based on the sklearn.linear_model.TweedieRegressor
-        object. This is used in the model's repr.
-    tri : Triangle
-        rocky Triangle object, or a dictionary of Triangles. This is used to
-        identify the model in the rocky object.
-    exposure : pd.Series, optional
-        Exposure vector. Before fitting, the triangle data are divided by the
-        exposure vector. If None, the exposure vector is set to a vector of ones.
-    coef : pd.Series, optional
-        Fitted model coefficients. Starts as None, and is set to the model
-        coefficients after the model is fit.
-    is_fitted : bool, optional
-        Whether the model has been fit. Starts as False, and is set to True
-        after the model is fit.
-    n_validation : int, optional
-        Number of calendar periods to use for validation. If 0, no validation
-        is performed. If n_validation is not greater than or equal to 0, an
-        error is raised.
-    weights : pd.Series, optional
-        Weights vector. This is used to weight the data when fitting the model.
-        If None, the weights vector is set to a vector of ones.
-    cv : TriangleTimeSeriesSplit, optional
-        Cross-validation object. This is used to split the data into training
-        and testing sets for cross-validation. If None, the data are not split
-        into training and testing sets.
-    X_train : pd.DataFrame, optional
-        Training data. This is the data used to fit the model. If None, X_train
-        is calculated from the triangle data.
-    X_forecast : pd.DataFrame, optional
-        Forecasting data. This is the data used to forecast the model. If None,
-        X_forecast is calculated from the triangle data.
-    y_train : pd.Series, optional
-        Training response. This is the unadjusted response variable. If None,
-        y_train is calculated from the triangle data.
-        Note that this is not the same as the response used to fit the model.
-        Before fitting, the triangle data are divided by the exposure vector
-        and the weights vector. The response used to fit the model is the
-        adjusted response.
-    use_cal : bool, optional
-        Whether to use calendar periods. If True, the calendar periods are
-        included in X_train and X_forecast. If False, the calendar periods
-        are not included in X_train and X_forecast.
-    plot : Plot, optional
-        Plot object. This is used to plot the model results. If None, a new
-        Plot object is created.
-    acc : pd.Series, optional
-        Accident period labels. This is used to identify the accident periods
-        in the triangle data. If None, the accident periods are identified
-        from the triangle data.
-    dev : pd.Series, optional
-        Development period labels. This is used to identify the development
-        periods in the triangle data. If None, the development periods are
-        identified from the triangle data.
-    cal : pd.Series, optional
-        Calendar period labels. This is used to identify the calendar periods
-        in the triangle data. If None, the calendar periods are identified
-        from the triangle data.
-    acc_gp : pd.Series, optional
-        Accident period variable group. This is used to group the accident
-        periods in the triangle data. If None, the accident periods are not
-        grouped.
-    dev_gp : pd.Series, optional
-        Development period variable group. This is used to group the development
-        periods in the triangle data. If None, the development periods are not
-        grouped.
-    cal_gp : pd.Series, optional
-        Calendar period variable group. This is used to group the calendar
-        periods in the triangle data. If None, the calendar periods are not
-        grouped.
-    acc_gp_filter : pd.Series, optional
-        Accident period variable group filter. This is used to blend the accident
-        periods in the triangle data. If None, the accident periods are not
-        blended.
-    hetero_gp : pd.Series, optional
-        Heteroskedasticity variable group. This is used to identify the
-        heteroskedasticity groups in the triangle data. If None, the
-        heteroskedasticity groups are not identified.
-    has_combined_params : bool, optional
-        Whether the model has combined parameters. If True, the model has
-        combined parameters. If False, the model does not have combined
-        parameters.
-    acc_forecast : pd.Series, optional
-        Forecast accident period labels. This is used to identify the accident
-        periods in the forecast data. If None, the accident periods are
-        identified from the forecast data.
-    dev_forecast : pd.Series, optional
-        Forecast development period labels. This is used to identify the
-        development periods in the forecast data. If None, the development
-        periods are identified from the forecast data.
-    cal_forecast : pd.Series, optional
-        Forecast calendar period labels. This is used to identify the calendar
-        periods in the forecast data. If None, the calendar periods are
-        identified from the forecast data.
-    must_be_positive : bool, optional
-        Whether the model must be positive. If True, the model must be positive.
-        If False, the model does not have to be positive.
-
-    Public Methods
-    --------------
-    GetIdx
-        Returns the index for the model. This is used to get the index for the
-        train, forecast, or all data, and is used to filter the X and y data when
-        GetX and GetY are called.
-    GetX
-        Returns the X data for the model. This is used to get the design matrix
-        for fitting a rocky model with a linear predictor. The X data are filtered
-        by the index returned by GetIdx.
-
     """
 
     id: str
-    model_class: str = None
-    model: object = None
+    model_class: str | None = None
+    model: object | None = None
     tri: Triangle = None
-    exposure: pd.Series = None
-    coef: pd.Series = None
+    exposure: pd.Series | None = None
+    coef: pd.Series | None = None
     is_fitted: bool = False
     n_validation: int = 0
-    weights: pd.Series = None
-    cv: TriangleTimeSeriesSplit = None
-    X_train: pd.DataFrame = None
+    weights: pd.Series | None = None
+    cv: TriangleTimeSeriesSplit | None = None
+    X_train: pd.DataFrame | None = None
     X_forecast: pd.DataFrame = None
     y_train: pd.Series = None
     use_cal: bool = False
@@ -172,6 +57,11 @@ class BaseEstimator:
     must_be_positive: bool = False
 
     def __post_init__(self):
+        # re-read triangle if use_cal is True
+        if self.use_cal:
+            self.tri = Triangle.from_dataframe(self.tri.df,
+                                               id=self.tri.id,
+                                               use_cal=self.use_cal)
         # print(f"must be positive: {self.must_be_positive}")
         if self.weights is None:
             self.weights = np.ones(self.tri.tri.shape[0])
@@ -335,7 +225,7 @@ class BaseEstimator:
         idx = self.GetIdx(kind)
 
         # get X
-        X = self.tri.get_X_base(kind, cal=self.use_cal)
+        X = self.tri.get_X_base(kind)
 
         # filter X and return
         X = X.loc[idx, :]

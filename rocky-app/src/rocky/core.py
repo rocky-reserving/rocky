@@ -1,12 +1,7 @@
-import sys
-
-
-
 from rocky.util import count_rocky
 from rocky.triangle import Triangle
-from rocky.GLM import glm
-from rocky.LogLinear import LogLinear
-
+from rocky.models.GLM import glm
+from rocky.models.LogLinear import LogLinear
 
 from dataclasses import dataclass, field
 from typing import Any
@@ -15,19 +10,15 @@ from warnings import filterwarnings
 
 import pandas as pd
 
-sys.path.append("./")
-
 filterwarnings("ignore", category=UserWarning, module="openpyxl")
 
 # add all implemented model types to this list
 all_models = "tweedie glm".split()
 
-
 @dataclass
 class rockyObj:
     id: str = None
     obj: object = None
-
 
 @dataclass
 class rockyContainer:
@@ -47,7 +38,6 @@ class rockyContainer:
             setattr(self, _obj.id, _obj)
         else:
             setattr(self, id, _obj)
-
 
 @dataclass
 class rocky:
@@ -96,7 +86,6 @@ class rocky:
         A reported loss triangle is created and added to the rocky object.
         """
         tri = Triangle.from_mack_1994()
-        tri.base_linear_model()
 
         if id is None:
             id = "rpt_loss"
@@ -111,7 +100,6 @@ class rocky:
         A paid loss triangle is created and added to the rocky object.
         """
         tri = Triangle.from_taylor_ashe()
-        tri.base_linear_model()
 
         if id is None:
             id = "paid_loss"
@@ -129,7 +117,6 @@ class rocky:
         d = {}
         d["rpt_loss"], d["paid_loss"] = Triangle.from_dahms()
         for id in d.keys():
-            d[id].base_linear_model()
             self.t.add(d[id], f"{id}")
             setattr(self, f"{id}", d[id])
 
@@ -151,12 +138,10 @@ class rocky:
             if id is None:
                 id = "paid_loss"
             self.load_taylor_ashe(id=id)
-            getattr(self, f"{id}").base_linear_model()
         elif sample.lower() == "mack_1994":
             if id is None:
                 id = "rpt_loss"
             self.load_mack_1994(id=id)
-            getattr(self, f"{id}").base_linear_model()
 
     def FromClipboard(self, id: str = "rpt_loss") -> None:
         """
@@ -176,7 +161,6 @@ class rocky:
             The name to assign to the triangle object.
         """
         tri = Triangle.from_clipboard(id=id)
-        tri.base_linear_model()
         self.t.add(tri, f"{id}")
         setattr(self, f"{id}", tri)
 
@@ -200,7 +184,6 @@ class rocky:
             Default is "rpt_loss".
         """
         tri = Triangle.from_csv(filename=filename, origin_columns=origin_columns, id=id)
-        tri.base_linear_model()
         self.t.add(tri, f"{id}")
         setattr(self, f"{id}", tri)
 
@@ -242,7 +225,6 @@ class rocky:
             sheet_name=sheet_name,
             sheet_range=sheet_range,
         )
-        tri.base_linear_model()
         self.t.add(tri, f"{id}")
         setattr(self, f"{id}", tri)
 
@@ -259,9 +241,7 @@ class rocky:
             The name to assign to the triangle object.
             Default is "rpt_loss".
         """
-
         tri = Triangle.from_df(df=df, id=id)
-        tri.base_linear_model()
         self.t.add(tri, f"{id}")
         setattr(self, f"{id}", tri)
 
