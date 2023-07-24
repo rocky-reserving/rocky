@@ -241,7 +241,6 @@ class rocky:
             The name to assign to the triangle object.
             Default is "rpt_loss".
         """
-
         tri = Triangle.from_df(df=df, id=id)
         self.t.add(tri, f"{id}")
         setattr(self, f"{id}", tri)
