@@ -63,8 +63,20 @@ class glm(BaseEstimator):
             'power': self.power,
         }
 
-    # def __repr__(self):
-    #     super().__repr__()
+    def __repr__(self):
+        if self.alpha is None:
+            a = ""
+        else:
+            a = f"alpha={self.alpha}"
+
+        if self.power is None:
+            p = ""
+        else:
+            if self.alpha is None:
+                p = f"power={self.power}"
+            else:
+                p = f", power={self.power}"
+        return f"tweedieGLM({a}{p})"
 
     def _update_attributes(self, after="fit", **kwargs):
         """
