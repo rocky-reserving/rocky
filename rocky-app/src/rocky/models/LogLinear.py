@@ -12,6 +12,7 @@ from sklearn.linear_model import LinearRegression, Ridge, Lasso, ElasticNet
 
 # hetero adjustment
 from sklearn.cluster import KMeans, AgglomerativeClustering
+from sklearn.metrics import mean_squared_error
 
 # for plotting
 import plotly.express as px
@@ -429,6 +430,53 @@ selecting carried reserves."
         self.weights = df['hetero_adjustment']
         
         return df['hetero_adjustment']
+
+    def FitHetero(self,
+                  hetero_func: callable = BasicHeteroAdjustment,
+                  stop_threshold: float = 0.01,
+                  max_iterations: int = 100
+                  ):
+        """
+        Fit model with heteroskedasticity adjustment. Alternate between fitting the
+        model and recalculating the heteroskedasticity adjustment, until the RMSE
+        between successive heteroskedasticity adjustments is less than the
+        `stop_threshold` or `max_iterations` is reached.
+        
+        Parameters
+        ----------
+        hetero_func: function, optional
+            The function to compute the heteroskedasticity adjustment. 
+            Defaults to `BasicHeteroAdjustment` method of the class.
+        stop_threshold: float, optional
+            The threshold for RMSE between successive heteroskedasticity adjustments. 
+            If the RMSE is less than this value, the fitting process will stop. Defaults
+            to 0.01.
+        max_iterations: int, optional
+            The maximum number of iterations for the fitting process. Defaults to 100.
+
+        Returns
+        -------
+        None
+        """
+        prev_adjustment = None
+        for _ in range(max_iterations):
+            # Fit the model
+            self.Fit()
+            # Compute heteroskedasticity adjustment
+            adjustment = hetero_func(self)
+            # Check stopping criterion
+            if prev_adjustment is not None:
+                rmse = np.sqrt(mean_squared_error(prev_adjustment, adjustment))
+                if rmse < stop_threshold:
+                    break
+            prev_adjustment = adjustment.copy()
+        # Update the 'weights' attribute with the final adjustment
+        self.weights = adjustment
+        self.hetero_adjustment = adjustment
+        self.weights.index = self.GetIdx('train')
+        self.hetero_adjustment.index = self.GetIdx('train')
+        self.weights.name = 'weights'
+        self.hetero_adjustment.name = 'hetero_adjustment'
 
     
     def fit_ward_clustering(self, n_clusters=None):
