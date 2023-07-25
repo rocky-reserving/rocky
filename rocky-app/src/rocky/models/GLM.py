@@ -307,7 +307,38 @@ class glm(BaseEstimator):
         )
 
     def ManualFit(self, **kwargs):
-        # TODO: docstring
+        """
+        Manually fit the model using provided coefficients. This is useful when
+        you want to set the coefficients of the model manually instead of
+        fitting the model using the data.
+
+        Parameters
+        ----------
+        **kwargs
+            Keyword arguments corresponding to the names of the coefficients in
+            the design matrix and their respective values. For example, if you
+            want to set the coefficient 'a' to 0.5, you would pass `a=0.5`.
+
+        Returns
+        -------
+        None
+            The model coefficients are updated in place.
+
+        Notes
+        -----
+        This does not validate that the provided coefficients will result in a
+        good fit to the data. It simply sets the coefficients to the provided
+        values.
+
+        Examples
+        --------
+        >>> rky = ROCKY()
+        >>> rky.FromClipboard()
+        >>> rky.AddModel()
+        >>> rky.ManualFit(intercept=0, slope=1)
+
+        """
+
 
         # parameters
         params = self.GetParameters()
