@@ -368,4 +368,3 @@ Model class {model_class} not recognized. Please choose from {all_models}""")
 
         # drop na, flatten, and convert to list
         future_cal = future_cal[~pd.isna(future_cal)].flatten().tolist()
-s
