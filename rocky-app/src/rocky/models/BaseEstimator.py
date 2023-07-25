@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-import plotly.figure_factory as ff
+from plotly.subplots import make_subplots
 pd.options.plotting.backend = "plotly"
 
 @dataclass
@@ -890,6 +890,7 @@ class BaseEstimator:
                          less_than=None,
                          greater_than=None,
                          trend=False,
+                         runningTotal=False,
                          **kwargs):
         """
         Plot a single trend plot for a given parameter type. Used by
@@ -904,7 +905,7 @@ class BaseEstimator:
         # validate the parameter type
         if param_type is None:
             raise ValueError("param_type must be specified")
-        if param_type.lower() not in param_types:
+        if param_type.lower() not in param_types and runningTotal==False:
             raise ValueError(f"param_type must be one of {param_types}")
 
         if param_type.lower() == "hetero":
@@ -992,25 +993,111 @@ class BaseEstimator:
            ICRFS.
         5. Relies on the helper method `_SingleTrendPlot`.
         """
+        param_types = ['accident', 'development', 'calendar', 'hetero']
+        param_colors = ['red', 'blue', 'green', 'black']
+        param_trend = [False, True, True, False]
+
+        def get_color(param_type) -> str:
+            return param_colors[param_types.index(param_type)]
+        
+        def get_trend(param_type) -> bool:
+            return param_trend[param_types.index(param_type)]
+
         if param_type is None:
-            param_types = ['accident', 'development', 'calendar', 'hetero']
-            param_colors = ['red', 'blue', 'green', 'black']
-            fig = go.make_subplots(rows=2, cols=2, subplot_titles=param_types)
+            
+            fig = make_subplots(rows=2, cols=2, subplot_titles=param_types)
             for i, param_type in enumerate(param_types):
-                fig.add_trace(self._SingleTrendPlot(param_type,
-                                                    less_than,
-                                                    greater_than,
-                                                    trend,
-                                                    color=param_colors[i]
-                                                    ).data[0],
-                              row=(i//2)+1,
-                              col=(i%2)+1)
+                if param_type=="hetero":
+                    fig.add_trace(self._SingleTrendPlot(param_type,
+                                                        trend=trend,
+                                                        runningTotal=True,
+                                                        # color_discrete_sequence=[param_colors[i]]
+                                                        ).data[0],
+                                row=2,
+                                col=2)
+                else:
+                    fig.add_trace(self._SingleTrendPlot(param_type,
+                                                        less_than,
+                                                        greater_than,
+                                                        trend=get_trend(param_type),
+                                                        runningTotal=True,
+                                                        color_discrete_sequence=[param_colors[i]]
+                                                        ).data[0],
+                                row=(i//2)+1,
+                                col=(i%2)+1)
+            fig.update_layout(height=800, width=800, title_text="Parameter Trend Plots")
+        else:
+            
+            fig = self._SingleTrendPlot(param_type,
+                                        less_than,
+                                        greater_than,
+                                        get_trend(param_type),
+                                        # lookup the color for the parameter type
+                                        color_discrete_sequence=[get_color(param_type)]
+                                        )
 
         if show:
             fig.show()
 
         if return_:
             return fig
+
+    def FitPlot(self, log=True, color=None):
+        """
+        Plot the fitted values against the actual values.
+
+        Parameters
+        ----------
+        log : bool, optional
+            Whether to plot the values on a log scale. Default is True.
+        color : str, optional
+            The name of the variable to use for the color of the points.
+            Default is None, which uses the same color for all points.
+        """
+        # get the fitted values
+        yhat = self.GetYhat()
+
+        # get the actual values
+        y = self.GetY()
+
+        hover_dat = pd.DataFrame({
+                "Accident Period": self.GetAcc('train'),
+                "Development Period": self.GetDev('train'),
+                "Calendar Period": self.GetCal('train'),
+                "Hetero Adjustment": self.GetWeights('train'),
+                "y": self.GetY('train'),
+                "yhat": self.GetYhat('train'),
+            })
+
+        # create the plot
+        fig = px.scatter(
+            x=yhat,
+            y=y,
+            title="Fitted vs. Actual",
+            labels={"x": "Fitted", "y": "Actual"},
+            log_x=log,
+            log_y=log,
+            color=color,
+            hover_data=[hover_dat['Accident Period'],
+                        hover_dat['Development Period'],
+                        hover_dat['Calendar Period'],
+                        hover_dat['Hetero Adjustment'],
+                        hover_dat['y'],
+                        hover_dat['yhat']],
+        )
+
+        # add a 45-degree line
+        fig.add_shape(
+            type="line",
+            x0=yhat.min(),
+            y0=yhat.min(),
+            x1=yhat.max(),
+            y1=yhat.max(),
+            line=dict(color="black", width=1, dash="dash"),
+        )
+
+        # show the plot
+        fig.show()
 
     def PredictTriangle(self):
         yhat = pd.DataFrame(dict(yhat=self.Predict()))

@@ -89,6 +89,8 @@ class LogLinear(BaseEstimator):
 Please do not assign much credibility to these estimates for the purposes \
 selecting carried reserves."
         )
+        self.hetero_adjustment = pd.Series(np.ones_like(self.GetDev('train')),
+                                           index=self.GetIdx('train'))
         self.dy_w_gp = pd.Series(np.zeros_like(self.dev))
         # idx = self.GetX("train").columns.to_series()
 
@@ -164,30 +166,50 @@ selecting carried reserves."
         """
         Get the weights for the model.
         """
-        weight_df = (self.hetero_gp
-                     .columns[1:]
-                     .to_series()
-                     .str.replace("hetero_", "")
-                     .astype(int)
-                     .reset_index(drop=True)
-                     .to_frame()
-                     .rename(columns={0: "development_period"})
-                     .assign(weights = self.weights)
-        )
-        idx = self.GetIdx(kind=kind)
-        if kind == "train":
-            out = pd.DataFrame({"development_period": self.GetDev('train')})
-        elif kind == "forecast":
-            out = pd.DataFrame({"development_period": self.GetDev('forecast')})
-        else:
-            raise ValueError("kind must be either 'train' or 'forecast'")
+        # weight_df = (self.hetero_gp
+        #              .columns[1:]
+        #              .to_series()
+        #              .str.replace("hetero_", "")
+        #              .astype(int)
+        #              .reset_index(drop=True)
+        #              .to_frame()
+        #              .rename(columns={0: "development_period"})
+        #              .assign(weights = self.weights)
+        # )
+        # idx = self.GetIdx(kind=kind)
+        # if kind == "train":
+        #     out = pd.DataFrame({"development_period": self.GetDev('train')})
+        # elif kind == "forecast":
+        #     out = pd.DataFrame({"development_period": self.GetDev('forecast')})
+        # else:
+        #     raise ValueError("kind must be either 'train' or 'forecast'")
         
-        out = out.merge(weight_df, on="development_period", how="left")
-        out["weights"] = out["weights"].fillna(1)
-        out.index = idx
-        return out["weights"]
+        # out = out.merge(weight_df, on="development_period", how="left")
+        # out["weights"] = out["weights"].fillna(1)
+        # out.index = idx
+        # return out["weights"]
+        
+        # get the hetero weights
+        init = pd.DataFrame({
+            'development_period': self.GetDev('train'),
+            'adj': self.hetero_adjustment},
+            index=self.GetIdx(kind=kind))
+        init['adj'] = init['adj'].fillna(1)
 
+        # unique development periods (making a lookup table)
+        dev_periods = init.copy().drop_duplicates().reset_index(drop=True)
+
+        # get the hetero weights for the "kind" data
+        df = (pd.DataFrame({"development_period":self.GetDev(kind=kind)})
+             .merge(dev_periods,
+             on='development_period',
+             how='left')).fillna(1)
         
+        # return the hetero adjustment as a series, with index
+        # corresponding to the index of the "kind" data
+        s = pd.Series(df['adj'].values, index=self.GetIdx(kind=kind))
+        return s#, dev_periods, df
+    
     def GetHeteroAdjustment(self):
         """
         Clusters development periods with similar residual variances.
@@ -351,20 +373,63 @@ selecting carried reserves."
         return df
 
     def BasicHeteroAdjustment(self):
+        """
+        This function calculates a heteroskedasticity adjustment for each unique
+        development period in the provided data, effectively handling the variance
+        of residuals for each period.
+
+        For each period, the function computes a heteroskedasticity adjustment based
+        on the variance of residuals and the variance of residuals for the given
+        period. If there is no data to make the adjustment, the function will fill
+        missing values with the average of surrounding two weights.
+
+        The function also creates an adjusted residuals column in the dataset by
+        multiplying residuals with their corresponding heteroskedasticity adjustments. 
+        
+        Finally, the function updates the instance's 'hetero_adjustment' and 'weights'
+        attributes with the newly calculated heteroskedasticity adjustments.
+
+        Returns
+        -------
+        pd.Series
+            The heteroskedasticity adjustments.
+        """
         df = pd.concat([self.GetDev('train'),
                         pd.get_dummies(self.GetDev('train').astype(str).str.zfill(3),
-                                       prefix='dev').astype(int)],
-                                       axis=1)
+                                    prefix='dev').astype(int)],
+                                    axis=1)
         df['resid'] = self.GetY('train', log=True) - self.GetYhat('train', log=True)
         df['var_resid'] = df.resid.var()
-        df['var_dev'] = df.groupby('development_period').resid.transform('var').fillna(0)
-        df['hetero_adjustment'] = (df['var_resid'] / df['var_dev']).mask(df.var_dev.eq(0), 1)
+
+        # Create an empty series to hold the adjustments
+        adjustments = pd.Series(index=df.index)
+
+        # Calculate a unique adjustment for each development period
+        for period in df['development_period'].unique():
+            period_data = df[df['development_period'] == period]
+            var_dev = period_data.resid.var()
+            if var_dev:
+                hetero_adjustment = df['var_resid'] / var_dev
+            else:
+                hetero_adjustment = 1
+            adjustments.loc[period_data.index] = hetero_adjustment
+
+        # Replace null values with the average of surrounding two weights
+        adjustments = adjustments.fillna(adjustments.rolling(2, min_periods=1).mean())
+
+        df['hetero_adjustment'] = adjustments
         df['adjusted_resid'] = df['resid'] * df['hetero_adjustment']
-        df.drop(columns=['var_resid', 'var_dev'], inplace=True)
-        out = df.hetero_adjustment
-        self.hetero_adjustment = out
-        self.weights = out
-        return out
+        df.drop(columns=['var_resid'], inplace=True)
+
+        # # re-base the weights to be relative to the first development period
+        # df['weights'] = df['hetero_adjustment'] / df['hetero_adjustment'].iloc[0]
+
+        # Update the instance's attributes
+        self.hetero_adjustment = df['hetero_adjustment']
+        self.weights = df['hetero_adjustment']
+        
+        return df['hetero_adjustment']
+
     
     def fit_ward_clustering(self, n_clusters=None):
         if n_clusters is None:
