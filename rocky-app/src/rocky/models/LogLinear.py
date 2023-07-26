@@ -561,8 +561,6 @@ selecting carried reserves."
         >>> rky.ManualFit(calendar_period_001=0.5, calendar_period_002=0.5)
 
         """
-
-
         # parameters
         params = self.GetParameters()
 
@@ -584,7 +582,6 @@ selecting carried reserves."
             cal=self.cal,
             fitted_model=self,
         )
-
 
     def Predict(self, kind: str = None, X: pd.DataFrame = None) -> pd.Series:
         if self.model is None:

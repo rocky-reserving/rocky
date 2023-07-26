@@ -9,6 +9,9 @@ from rocky.plot.ModelPlot import Plot
 from dataclasses import dataclass
 import numpy as np
 import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+import plotly.figure_factory as ff
 pd.options.plotting.backend = "plotly"
 
 @dataclass
@@ -851,6 +854,163 @@ class BaseEstimator:
         """
         print("GetParameters is not implemented for this model.")
         raise NotImplementedError
+
+    #############################################
+    ## functions for plotting model parameters ##
+    #############################################
+
+    def _HeteroTrendPlot(self, **kwargs):
+        """
+        Plot a trend plot for the hetero parameters. Used by
+        TrendPlot, and not meant to be called directly. See TrendPlot
+        for more information, with the exception of kwargs, which are
+        only included in this function, and are passed to the plot
+        function.
+        """
+        # get the dataframe of parameters
+        df = pd.DataFrame({
+            "Development Period": self.GetDev('train'),
+            "Hetero Adjustment": self.GetWeights('train'),
+        })
+
+        # plot the parameters
+        fig = px.line(
+            df,
+            x="Development Period",
+            y="Hetero Adjustment",
+            title="Hetero Adjustments",
+            color_discrete_sequence=["black"],
+            **kwargs,
+        )
+
+        return fig
+
+    def _SingleTrendPlot(self,
+                         param_type=None,
+                         less_than=None,
+                         greater_than=None,
+                         trend=False,
+                         **kwargs):
+        """
+        Plot a single trend plot for a given parameter type. Used by
+        TrendPlot, and not meant to be called directly. See TrendPlot
+        for more information, with the exception of kwargs, which are
+        only included in this function, and are passed to the plot
+        function.
+        """
+        # list of valid parameter types
+        param_types = ["accident", "development", "calendar", "hetero"]
+        
+        # validate the parameter type
+        if param_type is None:
+            raise ValueError("param_type must be specified")
+        if param_type.lower() not in param_types:
+            raise ValueError(f"param_type must be one of {param_types}")
+
+        if param_type.lower() == "hetero":
+            return self._HeteroTrendPlot(**kwargs)
+        else:
+                
+            # get the dataframe of parameters
+            df = self.GetParameters(param_type)
+
+            # sum up the parameters by period if trend is True
+            if trend:
+                df = df.set_index('names').cumsum().reset_index()
+            
+            # rename the columns and remove the prefix from the parameter names
+            df = df.rename(columns={"names":f'{param_type}_period'})
+            df[f'{param_type}_period'] = df[f'{param_type}_period'].str.replace(f'{param_type}_period_', '')
+
+            # filter the dataframe for high/low period values if specified
+            if less_than is not None:
+                df = df.loc[df[f'{param_type}_period'].astype(int) <= less_than]
+            if greater_than is not None:
+                df = df.loc[df[f'{param_type}_period'].astype(int) >= greater_than]
+            
+            # plot the parameter values
+            fig = px.line(df,
+                        x=f'{param_type}_period',
+                        y='param',
+                        title=f"{param_type.title()} Period Parameter Estimates",
+                        labels={f'{param_type}_period':f'{param_type.title()} Period',
+                                    'param':'Estimate'},
+                            **kwargs)
+
+            fig.update_layout(showlegend=False)
+
+            return fig
+
+    def TrendPlot(self,
+                  param_type:str = None,
+                  less_than:int = None,
+                  greater_than:int = None,
+                  trend=False,
+                  return_=False,
+                  show=True):
+        """
+        Plot the trend plot for a given parameter type.
+
+        Parameters
+        ----------
+        param_type : str | None, optional
+            The type of parameter to plot. Must be one of the following:
+                - 'accident'
+                - 'development'
+                - 'calendar'
+                - 'expected'
+                - None
+            If None, plot all parameter types in a 2x2 grid.
+            Otherwise, plot the specified parameter type.
+            Default is None.
+        less_than : int | None, optional
+            The maximum period to plot. Default is None.
+        greater_than : int | None, optional
+            The minimum period to plot. Default is None.
+        trend : bool, optional
+            Whether to plot the parameter as a trend. Default is False,
+            which plots the parameter as a level.
+        return_ : bool, optional
+            Whether to return the plot. Default is False.
+        show : bool, optional
+            Whether to show the plot. Default is True.
+
+        Returns
+        -------
+        plotly.graph_objects.Figure
+            The trend plot.
+
+        Notes
+        -----
+        1. If `param_type` is None, the plot will be a 2x2 grid of
+           trend plots, one for each parameter type.
+        2. If `trend` is True, the parameter will be plotted as a trend,
+           i.e., the cumulative sum of the parameter.
+        3. If `trend` is False, the parameter will be plotted as a level,
+           i.e., the parameter itself.
+        4. This plot should more or less replicate the trend plot in
+           ICRFS.
+        5. Relies on the helper method `_SingleTrendPlot`.
+        """
+        if param_type is None:
+            param_types = ['accident', 'development', 'calendar', 'hetero']
+            param_colors = ['red', 'blue', 'green', 'black']
+            fig = go.make_subplots(rows=2, cols=2, subplot_titles=param_types)
+            for i, param_type in enumerate(param_types):
+                fig.add_trace(self._SingleTrendPlot(param_type,
+                                                    less_than,
+                                                    greater_than,
+                                                    trend,
+                                                    color=param_colors[i]
+                                                    ).data[0],
+                              row=(i//2)+1,
+                              col=(i%2)+1)
+
+        if show:
+            fig.show()
+
+        if return_:
+            return fig
 
     def PredictTriangle(self):
         yhat = pd.DataFrame(dict(yhat=self.Predict()))

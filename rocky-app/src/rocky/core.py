@@ -6,11 +6,12 @@ from rocky.models.LogLinear import LogLinear
 from dataclasses import dataclass, field
 from typing import Any
 
-from warnings import filterwarnings
+import warnings
 
 import pandas as pd
 
-filterwarnings("ignore", category=UserWarning, module="openpyxl")
+warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
+warnings.filterwarnings("ignore")
 
 # add all implemented model types to this list
 all_models = "tweedie glm".split()
