@@ -820,14 +820,11 @@ class BaseEstimator:
         raise NotImplementedError
 
     def Ultimate(self, tail=None) -> pd.Series:
-        X = self.GetX(
-            kind="forecast",
-        )
-        df = pd.DataFrame(
-            {
-                "Accident Period": self.tri.get_X_id("all").accident_period,
-                f"{self.model_name} Ultimate": self.GetY(kind="train").tolist()
-                + self.Predict("forecast", X).tolist(),
+        X = self.GetX(kind="forecast")
+        df = pd.DataFrame({
+            "Accident Period": self.tri.get_X_id("all").accident_period,
+            f"{self.model_name} Ultimate": self.GetY(kind="train").tolist()
+            + self.Predict("forecast", X).tolist(),
             }
         )
 
