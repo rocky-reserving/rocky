@@ -14,6 +14,9 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 pd.options.plotting.backend = "plotly"
 
+
+
+
 @dataclass
 class BaseEstimator:
     """
@@ -80,6 +83,37 @@ class BaseEstimator:
 
         # order the columns of X_train and X_forecast
         self.column_order = self.GetX("train").columns.tolist()
+        
+        # lookup lists
+        self.acc_lookup = ['a', 'acc', 'accident', 'accident_period', 'accident_year',
+                           'acc_yr', 'ay', 'acc_period', 'acc_prd', 'accident period',
+                           'accident year']
+        self.dev_lookup = ['d', 'dev', 'dev_period', 'dev_period', 'dev_year',
+                           'dev_yr', 'dy', 'dev_period', 'dev_prd', 'dev period',
+                           'development period', 'dev year', 'development year']
+        self.cal_lookup = ['c', 'cal', 'calendar', 'calendar_period', 'calendar_year',
+                           'cal_yr', 'cy', 'cal_period', 'cal_prd', 'cal period',
+                           'cal year', 'calendar year', 'calendar period']
+        self.yhat_lookup = ['yhat', 'estimated', 'est', 'fitted', 'predicted',
+                            'indicated', 'modeled', 'modelled']
+        self.y_lookup = ['y', 'actual', 'observed', 'reported', 'paid', 'incurred']
+
+    def lookup_col_full(self, col):
+        if col is None:
+            return None
+        else:
+            if col.lower() in self.acc_lookup:
+                return 'Accident Period'
+            elif col.lower() in self.dev_lookup:
+                return 'Development Period'
+            elif col.lower() in self.cal_lookup:
+                return 'Calendar Period'
+            elif col.lower() in self.yhat_lookup:
+                return 'yhat'
+            elif col.lower() in self.y_lookup:
+                return 'y'
+            else:
+                return None
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self.id})"
@@ -160,9 +194,6 @@ class BaseEstimator:
             .sort_values()
             .values
         )
-
-    def __repr__(self):
-        raise NotImplementedError
 
     def _update_attributes(self, after="fit", **kwargs):
         """
@@ -1005,13 +1036,14 @@ class BaseEstimator:
 
         if param_type is None:
             
-            fig = make_subplots(rows=2, cols=2, subplot_titles=param_types)
+            fig = make_subplots(rows=2,
+                                cols=2,
+                                subplot_titles=[f"{p.title()} Period" for p in param_types])
             for i, param_type in enumerate(param_types):
                 if param_type=="hetero":
                     fig.add_trace(self._SingleTrendPlot(param_type,
                                                         trend=trend,
                                                         runningTotal=True,
-                                                        # color_discrete_sequence=[param_colors[i]]
                                                         ).data[0],
                                 row=2,
                                 col=2)
@@ -1042,7 +1074,7 @@ class BaseEstimator:
         if return_:
             return fig
 
-    def FitPlot(self, log=True, color=None):
+    def FitPlot(self, color=None, log=True, width=1500, height=800, **kwargs):
         """
         Plot the fitted values against the actual values.
 
@@ -1060,6 +1092,10 @@ class BaseEstimator:
         # get the actual values
         y = self.GetY()
 
+        # if color is not None, get the color variable
+        if color is not None:
+            color = self.lookup_col_full(color)
+
         hover_dat = pd.DataFrame({
                 "Accident Period": self.GetAcc('train'),
                 "Development Period": self.GetDev('train'),
@@ -1070,20 +1106,22 @@ class BaseEstimator:
             })
 
         # create the plot
+        hd = ['Accident Period',
+              'Development Period',
+              'Calendar Period',
+              'Hetero Adjustment',
+              'y',
+              'yhat']
+        
         fig = px.scatter(
             x=yhat,
             y=y,
-            title="Fitted vs. Actual",
+            title=f"Fitted vs. Actual{' (log scale)' if log else ''}",
             labels={"x": "Fitted", "y": "Actual"},
             log_x=log,
             log_y=log,
             color=color,
-            hover_data=[hover_dat['Accident Period'],
-                        hover_dat['Development Period'],
-                        hover_dat['Calendar Period'],
-                        hover_dat['Hetero Adjustment'],
-                        hover_dat['y'],
-                        hover_dat['yhat']],
+            hover_data={k: np.round(hover_dat[k], 4) for k in hd},
         )
 
         # add a 45-degree line
@@ -1098,6 +1136,168 @@ class BaseEstimator:
 
         # show the plot
         fig.show()
+
+    def _ExpectedResidualPlot(self, color_col=None, return_=False, show=True):
+        df = pd.DataFrame({
+            'y': self.GetY('train'),
+            'yhat': self.GetYhat('train'),
+            'Accident Period': self.GetAcc('train'),
+            'Development Period': self.GetDev('train'),
+            'Calendar Period': self.GetCal('train'),
+        })
+        
+
+        df['resid'] = df['y'] - df['yhat']
+        df['residmean'] = df['resid'].mean()
+        df['residstd'] = df['resid'].std()
+        df['resid_std'] = df['resid'] / df['residstd']
+        df.drop(columns=['resid', 'residmean', 'residstd'], inplace=True)
+        fig = px.scatter(df,
+                         x='yhat',
+                         y='resid_std',
+                         trendline='ols',
+                         color=self.lookup_col_full(color_col),
+                         title='Standardized Residuals vs Fitted Values')
+        fig.update_layout(yaxis_title='Standardized Residuals',
+                          xaxis_title='Fitted Values (yhat)')
+        if show:
+            fig.show()
+        if return_:
+            return fig
+
+    def _ResidualPlotBy(self, by, color_col=None, return_=False, show=True):
+        df = pd.DataFrame({
+            'y': self.GetY('train'),
+            'yhat': self.GetYhat('train'),
+            'Accident Period': self.GetAcc('train'),
+            'Development Period': self.GetDev('train'),
+            'Calendar Period': self.GetCal('train'),
+        })
+        def lookup_col(col):
+            if col is None:
+                return None
+            else:
+                if col.lower() in self.acc_lookup:
+                    return 'Accident Period'
+                elif col.lower() in self.dev_lookup:
+                    return 'Development Period'
+                elif col.lower() in self.cal_lookup:
+                    return 'Calendar Period'
+                elif col.lower() in self.yhat_lookup:
+                    return 'yhat'
+                elif col.lower() in self.y_lookup:
+                    return 'y'
+                else:
+                    return None
+
+        df['resid'] = df['y'] - df['yhat']
+        df['residmean'] = df['resid'].mean()
+        df['residstd'] = df['resid'].std()
+        df['resid_std'] = df['resid'] / df['residstd']
+        df.drop(columns=['resid', 'residmean', 'residstd'], inplace=True)
+        fig = px.scatter(df,
+                         x=lookup_col(by),
+                         y='resid_std',
+                         trendline='ols',
+                         color=lookup_col(color_col),
+                         title=f'Standardized Residuals vs {lookup_col(by)}')
+        fig.update_layout(yaxis_title='Standardized Residuals',
+                          xaxis_title=f'{lookup_col(by)}')
+        if show:
+            fig.show()
+        if return_:
+            return fig
+
+    def _ResidualPlotGrid(self,
+                          color_col:str = None,
+                          width:int = 800,
+                          height:int = 800,
+                          return_:bool = False,
+                          show:bool = True) -> go.Figure:
+        fig = make_subplots(rows=2,
+                            cols=2,
+                            subplot_titles=('Development Period',
+                                            'Accident Period',
+                                            'Calendar Period',
+                                            'Expected'))
+        fig.add_trace(self._ResidualPlotBy('Development Period',
+                                            color_col=color_col,
+                                            return_=True,
+                                            show=False).data[0],
+                        row=1,
+                        col=1)
+        fig.add_trace(self._ResidualPlotBy('Accident Period',
+                                            color_col=color_col,
+                                            return_=True,
+                                            show=False).data[0],
+                        row=1,
+                        col=2)
+        fig.add_trace(self._ResidualPlotBy('Calendar Period',
+                                            color_col=color_col,
+                                            return_=True,       
+                                            show=False).data[0],
+                        row=2,
+                        col=1)
+        fig.add_trace(self._ExpectedResidualPlot(return_=True,
+                                                 color_col=color_col,
+                                                 show=False).data[0],    
+                        row=2,
+                        col=2)
+        fig.update_layout(title='Standardized Residual Plots',
+                            height=height,
+                            width=width)
+        if show:
+            fig.show()
+        if return_:
+            return fig
+        
+
+    def ResidualPlot(self, by=None, color_col=None, return_=False, show=True):
+        """
+        Plots weighted standardized residuals against different values.
+        Looks up the column name based on the input string.
+
+        If no column is passed to the first "by" parameter, will instead plot
+        in a 2x2 grid:
+            development period | accident period
+            calendar period    | yhat
+
+        Parameters
+        ----------
+        by : str, optional
+            Column to plot against. Must be one of 'Accident Period',
+            'Development Period', 'Calendar Period', 'yhat', 'y'.
+            The default is None.
+        color_col : str, optional
+            Column to color the plot by. Must be one of 'Accident Period',
+            'Development Period', 'Calendar Period', 'yhat', 'y'.
+            The default is None.
+        return_ : bool, optional
+            Whether to return the plot object. The default is False.
+        show : bool, optional
+            Whether to show the plot. The default is True.
+
+        Returns
+        -------
+        fig : plotly.graph_objects.Figure
+            The plot object. Only returned if return_ is True.
+        """
+        if by is None:
+            fig = self._ResidualPlotGrid(color_col=color_col,
+                                          return_=True,
+                                          show=False)
+        else:
+            fig = self._ResidualPlotBy(by=by,
+                                        color_col=color_col,
+                                        return_=True,
+                                          show=False)
+        if show:
+            fig.show()
+        if return_:
+            return fig
+
+
+
 
     def PredictTriangle(self):
         yhat = pd.DataFrame(dict(yhat=self.Predict()))

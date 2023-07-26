@@ -373,7 +373,7 @@ selecting carried reserves."
 
         return df
 
-    def BasicHeteroAdjustment(self):
+    def BasicHeteroAdjustment(self) -> pd.Series:
         """
         This function calculates a heteroskedasticity adjustment for each unique
         development period in the provided data, effectively handling the variance
@@ -402,6 +402,9 @@ selecting carried reserves."
         df['resid'] = self.GetY('train', log=True) - self.GetYhat('train', log=True)
         df['var_resid'] = df.resid.var()
 
+        dev = self.GetDev('train')
+        max_dev = dev.max()
+
         # Create an empty series to hold the adjustments
         adjustments = pd.Series(index=df.index)
 
@@ -417,6 +420,9 @@ selecting carried reserves."
 
         # Replace null values with the average of surrounding two weights
         adjustments = adjustments.fillna(adjustments.rolling(2, min_periods=1).mean())
+
+        # if dev period is greater than or equal to max dev period, set to 1
+        adjustments.loc[adjustments.index.to_series().ge(max_dev)] = 1
 
         df['hetero_adjustment'] = adjustments
         df['adjusted_resid'] = df['resid'] * df['hetero_adjustment']
@@ -459,14 +465,19 @@ selecting carried reserves."
         None
         """
         prev_adjustment = None
-        for _ in range(max_iterations):
+        print("Fitting hetero adjustment: (Step/RMSE/L2-Norm)")
+        for i, _ in enumerate(range(max_iterations)):
             # Fit the model
             self.Fit()
             # Compute heteroskedasticity adjustment
             adjustment = hetero_func(self)
             # Check stopping criterion
             if prev_adjustment is not None:
-                rmse = np.sqrt(mean_squared_error(prev_adjustment, adjustment))
+                # print(f"{i}:\n==================\nprev_adjustment:\n{prev_adjustment.round(1)}\n\nadjustment:\n{adjustment.round(1)}")
+                rmse = np.sqrt(mean_squared_error(prev_adjustment,adjustment))
+
+                print(f"{i}/{rmse:.4f}",
+                end=' ')
                 if rmse < stop_threshold:
                     break
             prev_adjustment = adjustment.copy()
@@ -475,10 +486,11 @@ selecting carried reserves."
         self.hetero_adjustment = adjustment
         self.weights.index = self.GetIdx('train')
         self.hetero_adjustment.index = self.GetIdx('train')
-        self.weights.name = 'weights'
-        self.hetero_adjustment.name = 'hetero_adjustment'
+        
 
-    
+        # one final fit
+        self.Fit()
+
     def fit_ward_clustering(self, n_clusters=None):
         if n_clusters is None:
             n_clusters = int(self.tri.n_dev / 2) + 1
