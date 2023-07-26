@@ -529,6 +529,63 @@ selecting carried reserves."
             fitted_model=self,
         )
 
+    def ManualFit(self, **kwargs):
+        """
+        Manually fit the model using provided coefficients. This is useful when
+        you want to set the coefficients of the model manually instead of
+        fitting the model using the data.
+
+        Parameters
+        ----------
+        **kwargs
+            Keyword arguments corresponding to the names of the coefficients in
+            the design matrix and their respective values. For example, if you
+            want to set the coefficient 'a' to 0.5, you would pass `a=0.5`.
+
+        Returns
+        -------
+        None
+            The model coefficients are updated in place.
+
+        Notes
+        -----
+        This does not validate that the provided coefficients will result in a
+        good fit to the data. It simply sets the coefficients to the provided
+        values.
+
+        Examples
+        --------
+        >>> rky = ROCKY()
+        >>> rky.FromClipboard()
+        >>> rky.AddModel('glm', 'glm')
+        >>> rky.ManualFit(calendar_period_001=0.5, calendar_period_002=0.5)
+
+        """
+
+
+        # parameters
+        params = self.GetParameters()
+
+        # loop through the kwargs and set the coefficients of the model
+        for key, value in kwargs.items():
+            # get index of the key from the design matrix
+            idx = params[params["parameter"] == key].index[0]
+
+            # set the coefficient
+            self.model.coef_[idx] = value
+
+        # update attributes
+        self._update_attributes("fit")
+        self._update_plot_attributes(
+            X_id=self.tri.get_X_id("train"),
+            yhat=self.GetYhat("train"),
+            acc=self.acc,
+            dev=self.dev,
+            cal=self.cal,
+            fitted_model=self,
+        )
+
+
     def Predict(self, kind: str = None, X: pd.DataFrame = None) -> pd.Series:
         if self.model is None:
             raise ValueError("Model has not been fit")

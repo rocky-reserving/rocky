@@ -334,8 +334,8 @@ class glm(BaseEstimator):
         --------
         >>> rky = ROCKY()
         >>> rky.FromClipboard()
-        >>> rky.AddModel()
-        >>> rky.ManualFit(intercept=0, slope=1)
+        >>> rky.AddModel('glm', 'glm')
+        >>> rky.ManualFit(calendar_period_001=0.5, calendar_period_002=0.5)
 
         """
 
