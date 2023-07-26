@@ -296,7 +296,8 @@ selecting carried reserves."
 
         # fit the model
         self.Fit()
-def GetY(self,
+    
+    def GetY(self,
              kind:str = "train",
              log:bool = True,
              actual_scale:bool = False
@@ -328,7 +329,10 @@ def GetY(self,
             out = (out - self.standardize_mu) / self.standardize_sigma
         return pd.Series(out, index=idx)
 
-    def GetYhat(self, kind:str = "train", log:bool = True, actual_scale:bool = False):
+    def GetYhat(self,
+                kind:str = "train",
+                log:bool = True,
+                actual_scale:bool = False):
         """
         Getter for the model's yhat data. Yhat is calculated from the fitted model.
         """

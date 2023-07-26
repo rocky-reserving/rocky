@@ -883,8 +883,8 @@ class BaseEstimator:
     def Ultimate(self, tail=None) -> pd.Series:
         df = pd.DataFrame({
             "Accident Period": self.GetAcc(),
-            'y': self.GetY(kind="train", log=False),
-            'yhat': self.GetYhat(kind="forecast", log=False)})
+            'y': self.GetY(kind="train", log=False, actual_scale=True),
+            'yhat': self.GetYhat(kind="forecast", log=False, actual_scale=True)})
         df = df.fillna(0)
         df[f"{self.model_name} Ultimate"] = df['y'] + df['yhat']
         df.drop(columns='y yhat'.split(), inplace=True)
