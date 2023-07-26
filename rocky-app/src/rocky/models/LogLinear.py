@@ -362,14 +362,25 @@ selecting carried reserves."
         Getter for the model's parameters. If the parameters are taken directly from
         the current model object.
         """
+        p = self.lookup_col(parameter_type)
+        match p:
+            case "a":
+                p1 = 'accident'
+            case "d":
+                p1 = 'development'
+            case 'c':
+                p1 = 'calendar'
+            case None:
+                p1 = None
+
         coef = self.model.coef_
         names = self.model.feature_names_in_
         df = pd.DataFrame({"names": names, "param": coef})
         df['param_type'] = df.names.apply(lambda x: x.split('_')[0])
 
-        if parameter_type is not None:
-            assert parameter_type in df.param_type.unique(), f"parameter_type must be one of {df.param_type.unique()}"
-            df = df.loc[df.param_type.eq(parameter_type)]
+        if p1 is not None:
+            assert p1 in df.param_type.unique(), f"parameter_type must be one of {df.param_type.unique()}"
+            df = df.loc[df.param_type.eq(p1)]
 
         return df
 

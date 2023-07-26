@@ -117,6 +117,21 @@ class BaseEstimator:
                 return 'y'
             else:
                 return None
+            
+    def lookup_col(self, col:str) -> str:
+        if col is None:
+            return None
+        else:
+            if col.lower() in self.acc_lookup:
+                return 'a'
+            elif col.lower() in self.dev_lookup:
+                return 'd'
+            elif col.lower() in self.cal_lookup:
+                return 'c'
+            else:
+                return None
+
+    
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self.id})"
@@ -940,13 +955,15 @@ class BaseEstimator:
         function.
         """
         # list of valid parameter types
-        param_types = ["accident", "development", "calendar", "hetero"]
+        param_types = ['accident period', 'development period', 'calendar period', 'hetero']
         
         # validate the parameter type
+        param_type = self.lookup_col_full(param_type)
+        print(param_type)
         if param_type is None:
-            raise ValueError("param_type must be specified")
-        if param_type.lower() not in param_types and runningTotal==False:
-            raise ValueError(f"param_type must be one of {param_types}")
+            raise ValueError(f"param_type {param_type} must be specified")
+        if param_type.lower() not in param_types and not runningTotal:
+            raise ValueError(f"param_type {param_type} must be one of {param_types}")
 
         if param_type.lower() == "hetero":
             return self._HeteroTrendPlot(**kwargs)
@@ -960,21 +977,21 @@ class BaseEstimator:
                 df = df.set_index('names').cumsum().reset_index()
             
             # rename the columns and remove the prefix from the parameter names
-            df = df.rename(columns={"names":f'{param_type}_period'})
-            df[f'{param_type}_period'] = df[f'{param_type}_period'].str.replace(f'{param_type}_period_', '')
+            df = df.rename(columns={"names":f'{param_type}'})
+            df[f'{param_type}'] = df[f'{param_type}'].str.replace(f'{param_type}_', '')
 
             # filter the dataframe for high/low period values if specified
             if less_than is not None:
-                df = df.loc[df[f'{param_type}_period'].astype(int) <= less_than]
+                df = df.loc[df[f'{param_type}'].astype(int) <= less_than]
             if greater_than is not None:
-                df = df.loc[df[f'{param_type}_period'].astype(int) >= greater_than]
+                df = df.loc[df[f'{param_type}'].astype(int) >= greater_than]
             
             # plot the parameter values
             fig = px.line(df,
-                        x=f'{param_type}_period',
+                        x=f'{param_type}',
                         y='param',
-                        title=f"{param_type.title()} Period Parameter Estimates",
-                        labels={f'{param_type}_period':f'{param_type.title()} Period',
+                        title=f"{param_type.title()} Parameter Estimates",
+                        labels={f'{param_type}':f'{param_type.title()}',
                                     'param':'Estimate'},
                             **kwargs)
 
@@ -1034,21 +1051,26 @@ class BaseEstimator:
            ICRFS.
         5. Relies on the helper method `_SingleTrendPlot`.
         """
-        param_types = ['accident', 'development', 'calendar', 'hetero']
+        param_types = ['accident period', 'development period', 'calendar period', 'hetero']
         param_colors = ['red', 'blue', 'green', 'black']
         param_trend = [False, True, True, False]
 
         def get_color(param_type) -> str:
-            return param_colors[param_types.index(param_type)]
+            return param_colors[param_types.index(param_type.lower())]
         
         def get_trend(param_type) -> bool:
-            return param_trend[param_types.index(param_type)]
+            return param_trend[param_types.index(param_type.lower())]
+
+        # validate the parameter type
+        param_type = self.lookup_col_full(param_type)
+        print(param_type)
+
 
         if param_type is None:
             
             fig = make_subplots(rows=2,
                                 cols=2,
-                                subplot_titles=[f"{p.title()} Period" for p in param_types])
+                                subplot_titles=[f"{self.lookup_col_full(p).title()}" for p in param_types])
             for i, param_type in enumerate(param_types):
                 if param_type=="hetero":
                     fig.add_trace(self._SingleTrendPlot(param_type,
@@ -1058,6 +1080,7 @@ class BaseEstimator:
                                 row=2,
                                 col=2)
                 else:
+                    param_type = self.lookup_col_full(param_type)
                     fig.add_trace(self._SingleTrendPlot(param_type,
                                                         less_than,
                                                         greater_than,
@@ -1069,7 +1092,7 @@ class BaseEstimator:
                                 col=(i%2)+1)
             fig.update_layout(height=self.plot_height, width=self.plot_width, title_text="Parameter Trend Plots")
         else:
-            
+            param_type = self.lookup_col_full(param_type)
             fig = self._SingleTrendPlot(param_type,
                                         less_than,
                                         greater_than,
