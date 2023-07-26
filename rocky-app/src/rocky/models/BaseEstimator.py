@@ -910,6 +910,82 @@ class BaseEstimator:
         print("GetParameters is not implemented for this model.")
         raise NotImplementedError
 
+    def LassoFeatureImportance(self,
+                               alphas:list = None,
+                               **kwargs
+                              ) -> pd.DataFrame:
+        """
+        Get the Lasso feature importance for the model.
+
+        Lasso feature importance is a ranking of the possible variables
+        based on the regularization weight `alpha` at which they are
+        removed from the model.
+
+        Since L1 regularization is used, the model will remove variables
+        that do not contribute enough to the model's predictive power to
+        overcome the regularization penalty.
+
+        The regularization penalty is defined by:
+
+        `alpha * sum(abs(beta))`
+
+        Where `alpha` is the regularization weight and `beta` is the
+        model's weights. Here sum(abs(beta)) equals the L1 norm of beta.
+
+        Parameters
+        ----------
+        alphas : list, optional
+            The regularization weights at which to calculate the
+            feature importance, by default None. If None, the
+            function will start at alpha=0 and increment by 0.0025
+            until all coefficients are regularized out.
+        **kwargs, optional
+            Additional keyword arguments to pass to the Lasso model.
+
+        Returns
+        -------
+        pd.DataFrame
+            The feature importance of the model.
+        """
+        from sklearn.linear_model import Lasso
+
+        # If no alphas are provided, create a starter alphpa
+        if alphas is None:
+            alpha = 0
+
+        # Initialize dictionary to store results
+        coef_dict = {}
+
+        # For each alpha value in the list...
+        while True:
+            # Create a Lasso model with that alpha
+            lasso = Lasso(alpha=alpha, **kwargs)
+
+            # Fit the model
+            lasso.fit(self.GetX("train"), self.GetY("train"))
+
+            # Store the coefficients
+            coef_dict[alpha] = lasso.coef_
+
+            # increment alpha
+            alpha += 0.0025
+
+            # If all coefficients are 0, stop
+            if pd.Series(lasso.coef_).eq(0).all():
+                break
+
+        # Convert the dictionary to a dataframe
+        coef_df = pd.DataFrame(coef_dict)
+
+        # Get the feature importance
+        # coef_df = coef_df.rank(axis=1, method="first", ascending=False)
+
+        # Get the feature names
+        # coef_df.columns = self.GetX("train").columns
+
+        # Return the feature importance
+        return coef_df
+
     #############################################
     ## functions for plotting model parameters ##
     #############################################
