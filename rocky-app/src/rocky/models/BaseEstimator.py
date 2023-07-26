@@ -61,6 +61,8 @@ class BaseEstimator:
     dev_forecast: pd.Series = None
     cal_forecast: pd.Series = None
     must_be_positive: bool = False
+    plot_width: int = 1200
+    plot_height: int = 800
 
     def __post_init__(self):
         # re-read triangle if use_cal is True
@@ -1057,7 +1059,7 @@ class BaseEstimator:
                                                         ).data[0],
                                 row=(i//2)+1,
                                 col=(i%2)+1)
-            fig.update_layout(height=800, width=800, title_text="Parameter Trend Plots")
+            fig.update_layout(height=self.plot_height, width=self.plot_width, title_text="Parameter Trend Plots")
         else:
             
             fig = self._SingleTrendPlot(param_type,
@@ -1074,7 +1076,7 @@ class BaseEstimator:
         if return_:
             return fig
 
-    def FitPlot(self, color=None, log=True, width=1500, height=800, **kwargs):
+    def FitPlot(self, color=None, log=True, **kwargs):
         """
         Plot the fitted values against the actual values.
 
@@ -1120,7 +1122,7 @@ class BaseEstimator:
             labels={"x": "Fitted", "y": "Actual"},
             log_x=log,
             log_y=log,
-            color=color,
+            color=self.lookup_col_full(color) if color is not None else None,
             hover_data={k: np.round(hover_dat[k], 4) for k in hd},
         )
 
@@ -1133,6 +1135,9 @@ class BaseEstimator:
             y1=yhat.max(),
             line=dict(color="black", width=1, dash="dash"),
         )
+
+        # set the plot size
+        fig.update_layout(height=self.plot_height, width=self.plot_width)
 
         # show the plot
         fig.show()
@@ -1210,8 +1215,6 @@ class BaseEstimator:
 
     def _ResidualPlotGrid(self,
                           color_col:str = None,
-                          width:int = 800,
-                          height:int = 800,
                           return_:bool = False,
                           show:bool = True) -> go.Figure:
         fig = make_subplots(rows=2,
@@ -1244,8 +1247,8 @@ class BaseEstimator:
                         row=2,
                         col=2)
         fig.update_layout(title='Standardized Residual Plots',
-                            height=height,
-                            width=width)
+                            height=self.plot_height,
+                            width=self.plot_width)
         if show:
             fig.show()
         if return_:
