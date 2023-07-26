@@ -250,7 +250,7 @@ class rocky:
         id: str = None,
         model_class: str = "tweedie",
         tri: Triangle = None,
-        cal=False,
+        use_cal=False,
         n_validation=5,
     ):
         """
@@ -267,7 +267,7 @@ class rocky:
         tri : Triangle, optional
             The triangle object to use.
             Default is None, which will use the first triangle in the ROCKY object.
-        cal : bool, optional
+        use_cal : bool, optional
             Whether to use calendar periods as variables.
             Default is False.
         n_validation : int, optional
@@ -283,7 +283,7 @@ class rocky:
 
         if id is None:
             if model_class.lower() in all_models:
-                id = "PaidLossGLM" + ("_Cal" if cal else "")
+                id = "PaidLossGLM" + ("_Cal" if use_cal else "")
             else:
                 raise ValueError(f"""
 Model class {model_class} not recognized. Please choose from {all_models}""")
@@ -303,7 +303,7 @@ Model class {model_class} not recognized. Please choose from {all_models}""")
                     id=id,
                     model_class=model_class,
                     tri=tri,
-                    use_cal=cal,
+                    use_cal=use_cal,
                     n_validation=n_validation,
                 ),
                 f"{id}",
@@ -314,7 +314,7 @@ Model class {model_class} not recognized. Please choose from {all_models}""")
                     id=id,
                     model_class=model_class,
                     tri=tri,
-                    use_cal=cal,
+                    use_cal=use_cal,
                     n_validation=n_validation,
                 )
             )

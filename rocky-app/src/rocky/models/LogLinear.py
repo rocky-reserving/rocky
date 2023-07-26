@@ -334,16 +334,19 @@ selecting carried reserves."
         out.index = self.GetIdx(kind)
         return out
         
-    def GetParameters(self):
+    def GetParameters(self, parameter_type:str=None):
         """
         Getter for the model's parameters. If the parameters are taken directly from
         the current model object.
         """
         coef = self.model.coef_
-        intercept = self.model.intercept_
         names = self.model.feature_names_in_
         df = pd.DataFrame({"names": names, "param": coef})
         df['param_type'] = df.names.apply(lambda x: x.split('_')[0])
+
+        if parameter_type is not None:
+            assert parameter_type in df.param_type.unique(), f"parameter_type must be one of {df.param_type.unique()}"
+            df = df.loc[df.param_type.eq(parameter_type)]
 
         return df
 
