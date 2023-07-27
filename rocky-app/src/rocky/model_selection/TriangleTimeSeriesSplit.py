@@ -223,9 +223,9 @@ model_type={self.model_type})"
         elif self.clustering_hyperparameters:
             return cluster_str
         else:
-            raise ValueError(
-                "Either regression_hyperparameters or clustering_hyperparameters must be True."
-            )
+            raise ValueError("""
+Either regression_hyperparameters or clustering_hyperparameters must be True.
+""")
 
     def GetSplit(self):
         """Yields the indices for the training and validation sets."""
