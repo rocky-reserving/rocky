@@ -15,14 +15,14 @@ rockyConfig = {
                                # python will refer to it
     
     ## LOADING DATA
-    "triangle_filename": "triangle.xlsx", # Location of triangle excel file
+    "triangle_filename": "rocky-inputs.xlsx", # Location of triangle excel file
     "triangle_sheetname": "triangle",     # Name of sheet in triangle excel file
     
     ## MODEL PARAMETERS
     "model": "loglinear", # Model type - current options are "loglinear", "tweedie",
                           # though more can be added
 
-    "model_parameters_filename": "model_parmeters.xlsx", # Location of model parameter
+    "model_parameters_filename": "rocky-inputs.xlsx", # Location of model parameter
                                                          # excel file
     "model_parameters_sheetname": "param",    # Name of sheet in model parameter excel
                                               # file
@@ -38,15 +38,17 @@ rockyConfig = {
 
     "hyperparameters": {
         "loglinear": { # Hyperparameters for loglinear model
+
+            "alpha": 0,     # alpha for elastic net - controls the strength of the
+                              # regularization. Higher values mean more regularization
+                              # and simpler models. Lower values mean less regularization
+                              # and more complex models
             
             "l1_ratio": 0.5,  # l1_ratio for elastic net, between 0 and 1
                               # describes the weight of the l1 penalty relative
                               # to the l2 penalty
 
-            "alpha": 0.5,     # alpha for elastic net - controls the strength of the
-                              # regularization. Higher values mean more regularization
-                              # and simpler models. Lower values mean less regularization
-                              # and more complex models
+            
         },
 
         "tweedie": { # Hyperparameters for tweedie model
@@ -62,7 +64,8 @@ rockyConfig = {
 
 
     ## FORECAST PARAMETERS
-    "forecast_filename": "future_cy.xlsx", # Location of future calendar year excel file
+    "forecast_filename": "rocky-inputs.xlsx", # Location of future calendar year excel file
+    "forecast_sheetname": "forecast",     # Name of sheet in future calendar year excel file
     
     ## OUTPUT
     "output_notebook": "output.html", # Output notebook will be saved here

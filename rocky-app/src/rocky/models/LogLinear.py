@@ -12,6 +12,7 @@ from sklearn.linear_model import LinearRegression, Ridge, Lasso, ElasticNet
 
 # hetero adjustment
 from sklearn.cluster import KMeans, AgglomerativeClustering
+from sklearn.metrics import mean_squared_error
 
 # for plotting
 import plotly.express as px
@@ -89,6 +90,8 @@ class LogLinear(BaseEstimator):
 Please do not assign much credibility to these estimates for the purposes \
 selecting carried reserves."
         )
+        self.hetero_adjustment = pd.Series(np.ones_like(self.GetDev('train')),
+                                           index=self.GetIdx('train'))
         self.dy_w_gp = pd.Series(np.zeros_like(self.dev))
         # idx = self.GetX("train").columns.to_series()
 
@@ -164,30 +167,50 @@ selecting carried reserves."
         """
         Get the weights for the model.
         """
-        weight_df = (self.hetero_gp
-                     .columns[1:]
-                     .to_series()
-                     .str.replace("hetero_", "")
-                     .astype(int)
-                     .reset_index(drop=True)
-                     .to_frame()
-                     .rename(columns={0: "development_period"})
-                     .assign(weights = self.weights)
-        )
-        idx = self.GetIdx(kind=kind)
-        if kind == "train":
-            out = pd.DataFrame({"development_period": self.GetDev('train')})
-        elif kind == "forecast":
-            out = pd.DataFrame({"development_period": self.GetDev('forecast')})
-        else:
-            raise ValueError("kind must be either 'train' or 'forecast'")
+        # weight_df = (self.hetero_gp
+        #              .columns[1:]
+        #              .to_series()
+        #              .str.replace("hetero_", "")
+        #              .astype(int)
+        #              .reset_index(drop=True)
+        #              .to_frame()
+        #              .rename(columns={0: "development_period"})
+        #              .assign(weights = self.weights)
+        # )
+        # idx = self.GetIdx(kind=kind)
+        # if kind == "train":
+        #     out = pd.DataFrame({"development_period": self.GetDev('train')})
+        # elif kind == "forecast":
+        #     out = pd.DataFrame({"development_period": self.GetDev('forecast')})
+        # else:
+        #     raise ValueError("kind must be either 'train' or 'forecast'")
         
-        out = out.merge(weight_df, on="development_period", how="left")
-        out["weights"] = out["weights"].fillna(1)
-        out.index = idx
-        return out["weights"]
+        # out = out.merge(weight_df, on="development_period", how="left")
+        # out["weights"] = out["weights"].fillna(1)
+        # out.index = idx
+        # return out["weights"]
+        
+        # get the hetero weights
+        init = pd.DataFrame({
+            'development_period': self.GetDev('train'),
+            'adj': self.hetero_adjustment},
+            index=self.GetIdx(kind=kind))
+        init['adj'] = init['adj'].fillna(1)
 
+        # unique development periods (making a lookup table)
+        dev_periods = init.copy().drop_duplicates().reset_index(drop=True)
+
+        # get the hetero weights for the "kind" data
+        df = (pd.DataFrame({"development_period":self.GetDev(kind=kind)})
+             .merge(dev_periods,
+             on='development_period',
+             how='left')).fillna(1)
         
+        # return the hetero adjustment as a series, with index
+        # corresponding to the index of the "kind" data
+        s = pd.Series(df['adj'].values, index=self.GetIdx(kind=kind))
+        return s#, dev_periods, df
+    
     def GetHeteroAdjustment(self):
         """
         Clusters development periods with similar residual variances.
@@ -334,35 +357,140 @@ selecting carried reserves."
         out.index = self.GetIdx(kind)
         return out
         
-    def GetParameters(self):
+    def GetParameters(self, parameter_type:str=None):
         """
         Getter for the model's parameters. If the parameters are taken directly from
         the current model object.
         """
         coef = self.model.coef_
-        intercept = self.model.intercept_
         names = self.model.feature_names_in_
         df = pd.DataFrame({"names": names, "param": coef})
         df['param_type'] = df.names.apply(lambda x: x.split('_')[0])
 
+        if parameter_type is not None:
+            assert parameter_type in df.param_type.unique(), f"parameter_type must be one of {df.param_type.unique()}"
+            df = df.loc[df.param_type.eq(parameter_type)]
+
         return df
 
-    def BasicHeteroAdjustment(self):
+    def BasicHeteroAdjustment(self) -> pd.Series:
+        """
+        This function calculates a heteroskedasticity adjustment for each unique
+        development period in the provided data, effectively handling the variance
+        of residuals for each period.
+
+        For each period, the function computes a heteroskedasticity adjustment based
+        on the variance of residuals and the variance of residuals for the given
+        period. If there is no data to make the adjustment, the function will fill
+        missing values with the average of surrounding two weights.
+
+        The function also creates an adjusted residuals column in the dataset by
+        multiplying residuals with their corresponding heteroskedasticity adjustments. 
+        
+        Finally, the function updates the instance's 'hetero_adjustment' and 'weights'
+        attributes with the newly calculated heteroskedasticity adjustments.
+
+        Returns
+        -------
+        pd.Series
+            The heteroskedasticity adjustments.
+        """
         df = pd.concat([self.GetDev('train'),
                         pd.get_dummies(self.GetDev('train').astype(str).str.zfill(3),
-                                       prefix='dev').astype(int)],
-                                       axis=1)
+                                    prefix='dev').astype(int)],
+                                    axis=1)
         df['resid'] = self.GetY('train', log=True) - self.GetYhat('train', log=True)
         df['var_resid'] = df.resid.var()
-        df['var_dev'] = df.groupby('development_period').resid.transform('var').fillna(0)
-        df['hetero_adjustment'] = (df['var_resid'] / df['var_dev']).mask(df.var_dev.eq(0), 1)
+
+        dev = self.GetDev('train')
+        max_dev = dev.max()
+
+        # Create an empty series to hold the adjustments
+        adjustments = pd.Series(index=df.index)
+
+        # Calculate a unique adjustment for each development period
+        for period in df['development_period'].unique():
+            period_data = df[df['development_period'] == period]
+            var_dev = period_data.resid.var()
+            if var_dev:
+                hetero_adjustment = df['var_resid'] / var_dev
+            else:
+                hetero_adjustment = 1
+            adjustments.loc[period_data.index] = hetero_adjustment
+
+        # Replace null values with the average of surrounding two weights
+        adjustments = adjustments.fillna(adjustments.rolling(2, min_periods=1).mean())
+
+        # if dev period is greater than or equal to max dev period, set to 1
+        adjustments.loc[adjustments.index.to_series().ge(max_dev)] = 1
+
+        df['hetero_adjustment'] = adjustments
         df['adjusted_resid'] = df['resid'] * df['hetero_adjustment']
-        df.drop(columns=['var_resid', 'var_dev'], inplace=True)
-        out = df.hetero_adjustment
-        self.hetero_adjustment = out
-        self.weights = out
-        return out
-    
+        df.drop(columns=['var_resid'], inplace=True)
+
+        # # re-base the weights to be relative to the first development period
+        # df['weights'] = df['hetero_adjustment'] / df['hetero_adjustment'].iloc[0]
+
+        # Update the instance's attributes
+        self.hetero_adjustment = df['hetero_adjustment']
+        self.weights = df['hetero_adjustment']
+        
+        return df['hetero_adjustment']
+
+    def FitHetero(self,
+                  hetero_func: callable = BasicHeteroAdjustment,
+                  stop_threshold: float = 0.01,
+                  max_iterations: int = 100
+                  ):
+        """
+        Fit model with heteroskedasticity adjustment. Alternate between fitting the
+        model and recalculating the heteroskedasticity adjustment, until the RMSE
+        between successive heteroskedasticity adjustments is less than the
+        `stop_threshold` or `max_iterations` is reached.
+        
+        Parameters
+        ----------
+        hetero_func: function, optional
+            The function to compute the heteroskedasticity adjustment. 
+            Defaults to `BasicHeteroAdjustment` method of the class.
+        stop_threshold: float, optional
+            The threshold for RMSE between successive heteroskedasticity adjustments. 
+            If the RMSE is less than this value, the fitting process will stop. Defaults
+            to 0.01.
+        max_iterations: int, optional
+            The maximum number of iterations for the fitting process. Defaults to 100.
+
+        Returns
+        -------
+        None
+        """
+        prev_adjustment = None
+        print("Fitting hetero adjustment: (Step/RMSE/L2-Norm)")
+        for i, _ in enumerate(range(max_iterations)):
+            # Fit the model
+            self.Fit()
+            # Compute heteroskedasticity adjustment
+            adjustment = hetero_func(self)
+            # Check stopping criterion
+            if prev_adjustment is not None:
+                # print(f"{i}:\n==================\nprev_adjustment:\n{prev_adjustment.round(1)}\n\nadjustment:\n{adjustment.round(1)}")
+                rmse = np.sqrt(mean_squared_error(prev_adjustment,adjustment))
+
+                print(f"{i}/{rmse:.4f}",
+                end=' ')
+                if rmse < stop_threshold:
+                    break
+            prev_adjustment = adjustment.copy()
+        # Update the 'weights' attribute with the final adjustment
+        self.weights = adjustment
+        self.hetero_adjustment = adjustment
+        self.weights.index = self.GetIdx('train')
+        self.hetero_adjustment.index = self.GetIdx('train')
+        
+
+        # one final fit
+        self.Fit()
+
     def fit_ward_clustering(self, n_clusters=None):
         if n_clusters is None:
             n_clusters = int(self.tri.n_dev / 2) + 1
@@ -518,6 +646,60 @@ selecting carried reserves."
             X_train=self.GetX("train"),
             y_train=self.GetY("train"),
             X_forecast=self.GetX("forecast"),
+            X_id=self.tri.get_X_id("train"),
+            yhat=self.GetYhat("train"),
+            acc=self.acc,
+            dev=self.dev,
+            cal=self.cal,
+            fitted_model=self,
+        )
+
+    def ManualFit(self, **kwargs):
+        """
+        Manually fit the model using provided coefficients. This is useful when
+        you want to set the coefficients of the model manually instead of
+        fitting the model using the data.
+
+        Parameters
+        ----------
+        **kwargs
+            Keyword arguments corresponding to the names of the coefficients in
+            the design matrix and their respective values. For example, if you
+            want to set the coefficient 'a' to 0.5, you would pass `a=0.5`.
+
+        Returns
+        -------
+        None
+            The model coefficients are updated in place.
+
+        Notes
+        -----
+        This does not validate that the provided coefficients will result in a
+        good fit to the data. It simply sets the coefficients to the provided
+        values.
+
+        Examples
+        --------
+        >>> rky = ROCKY()
+        >>> rky.FromClipboard()
+        >>> rky.AddModel('glm', 'glm')
+        >>> rky.ManualFit(calendar_period_001=0.5, calendar_period_002=0.5)
+
+        """
+        # parameters
+        params = self.GetParameters()
+
+        # loop through the kwargs and set the coefficients of the model
+        for key, value in kwargs.items():
+            # get index of the key from the design matrix
+            idx = params[params["parameter"] == key].index[0]
+
+            # set the coefficient
+            self.model.coef_[idx] = value
+
+        # update attributes
+        self._update_attributes("fit")
+        self._update_plot_attributes(
             X_id=self.tri.get_X_id("train"),
             yhat=self.GetYhat("train"),
             acc=self.acc,

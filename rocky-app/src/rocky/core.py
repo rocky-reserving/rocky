@@ -6,11 +6,12 @@ from rocky.models.LogLinear import LogLinear
 from dataclasses import dataclass, field
 from typing import Any
 
-from warnings import filterwarnings
+import warnings
 
 import pandas as pd
 
-filterwarnings("ignore", category=UserWarning, module="openpyxl")
+warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
+warnings.filterwarnings("ignore")
 
 # add all implemented model types to this list
 all_models = "tweedie glm".split()
@@ -250,8 +251,9 @@ class rocky:
         id: str = None,
         model_class: str = "tweedie",
         tri: Triangle = None,
-        cal=False,
+        use_cal=False,
         n_validation=5,
+        **kwargs,
     ):
         """
         Add a model to the ROCKY object.
@@ -267,12 +269,14 @@ class rocky:
         tri : Triangle, optional
             The triangle object to use.
             Default is None, which will use the first triangle in the ROCKY object.
-        cal : bool, optional
+        use_cal : bool, optional
             Whether to use calendar periods as variables.
             Default is False.
         n_validation : int, optional
             The number of validation folds to use for hyperparameter tuning.
             Default is 5.
+        **kwargs
+            Additional arguments to pass to the model class.
 
         Notes
         -----
@@ -283,7 +287,7 @@ class rocky:
 
         if id is None:
             if model_class.lower() in all_models:
-                id = "PaidLossGLM" + ("_Cal" if cal else "")
+                id = "PaidLossGLM" + ("_Cal" if use_cal else "")
             else:
                 raise ValueError(f"""
 Model class {model_class} not recognized. Please choose from {all_models}""")
@@ -303,8 +307,9 @@ Model class {model_class} not recognized. Please choose from {all_models}""")
                     id=id,
                     model_class=model_class,
                     tri=tri,
-                    use_cal=cal,
+                    use_cal=use_cal,
                     n_validation=n_validation,
+                    **kwargs,
                 ),
                 f"{id}",
             )
@@ -314,8 +319,9 @@ Model class {model_class} not recognized. Please choose from {all_models}""")
                     id=id,
                     model_class=model_class,
                     tri=tri,
-                    use_cal=cal,
+                    use_cal=use_cal,
                     n_validation=n_validation,
+                    **kwargs,
                 )
             )
 

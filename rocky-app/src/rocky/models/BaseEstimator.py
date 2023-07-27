@@ -9,7 +9,14 @@ from rocky.plot.ModelPlot import Plot
 from dataclasses import dataclass
 import numpy as np
 import pandas as pd
+import plotly
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 pd.options.plotting.backend = "plotly"
+
+
+
 
 @dataclass
 class BaseEstimator:
@@ -55,6 +62,8 @@ class BaseEstimator:
     dev_forecast: pd.Series = None
     cal_forecast: pd.Series = None
     must_be_positive: bool = False
+    plot_width: int = 1200
+    plot_height: int = 800
 
     def __post_init__(self):
         # re-read triangle if use_cal is True
@@ -77,6 +86,37 @@ class BaseEstimator:
 
         # order the columns of X_train and X_forecast
         self.column_order = self.GetX("train").columns.tolist()
+        
+        # lookup lists
+        self.acc_lookup = ['a', 'acc', 'accident', 'accident_period', 'accident_year',
+                           'acc_yr', 'ay', 'acc_period', 'acc_prd', 'accident period',
+                           'accident year']
+        self.dev_lookup = ['d', 'dev', 'dev_period', 'dev_period', 'dev_year',
+                           'dev_yr', 'dy', 'dev_period', 'dev_prd', 'dev period',
+                           'development period', 'dev year', 'development year']
+        self.cal_lookup = ['c', 'cal', 'calendar', 'calendar_period', 'calendar_year',
+                           'cal_yr', 'cy', 'cal_period', 'cal_prd', 'cal period',
+                           'cal year', 'calendar year', 'calendar period']
+        self.yhat_lookup = ['yhat', 'estimated', 'est', 'fitted', 'predicted',
+                            'indicated', 'modeled', 'modelled']
+        self.y_lookup = ['y', 'actual', 'observed', 'reported', 'paid', 'incurred']
+
+    def lookup_col_full(self, col):
+        if col is None:
+            return None
+        else:
+            if col.lower() in self.acc_lookup:
+                return 'Accident Period'
+            elif col.lower() in self.dev_lookup:
+                return 'Development Period'
+            elif col.lower() in self.cal_lookup:
+                return 'Calendar Period'
+            elif col.lower() in self.yhat_lookup:
+                return 'yhat'
+            elif col.lower() in self.y_lookup:
+                return 'y'
+            else:
+                return None
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self.id})"
@@ -157,9 +197,6 @@ class BaseEstimator:
             .sort_values()
             .values
         )
-
-    def __repr__(self):
-        raise NotImplementedError
 
     def _update_attributes(self, after="fit", **kwargs):
         """
@@ -820,16 +857,13 @@ class BaseEstimator:
         raise NotImplementedError
 
     def Ultimate(self, tail=None) -> pd.Series:
-        X = self.GetX(
-            kind="forecast",
-        )
-        df = pd.DataFrame(
-            {
-                "Accident Period": self.tri.get_X_id("all").accident_period,
-                f"{self.model_name} Ultimate": self.GetY(kind="train").tolist()
-                + self.Predict("forecast", X).tolist(),
-            }
-        )
+        df = pd.DataFrame({
+            "Accident Period": self.GetAcc(),
+            'y': self.GetY(kind="train", log=False),
+            'yhat': self.GetYhat(kind="forecast", log=False)})
+        df = df.fillna(0)
+        df[f"{self.model_name} Ultimate"] = df['y'] + df['yhat']
+        df.drop(columns='y yhat'.split(), inplace=True)
 
         df = df.groupby("Accident Period").sum()[f"{self.model_name} Ultimate"].round(0)
 
@@ -837,8 +871,14 @@ class BaseEstimator:
             tail = 1
         df = df * tail
 
-        df.index = self.tri.tri.index
+        df.index = self.tri.acc
         return df
+
+    def Reserve(self, tail=None) -> pd.Series:
+        ult = self.Ultimate(tail=tail)
+        cum = self.tri.diag()
+        rsv = ult - cum
+        return rsv
 
     def GetYhat(self, kind: str = None) -> pd.Series:
         return self.Predict(kind=kind)
@@ -854,6 +894,432 @@ class BaseEstimator:
         """
         print("GetParameters is not implemented for this model.")
         raise NotImplementedError
+
+    #############################################
+    ## functions for plotting model parameters ##
+    #############################################
+
+    def _HeteroTrendPlot(self, **kwargs):
+        """
+        Plot a trend plot for the hetero parameters. Used by
+        TrendPlot, and not meant to be called directly. See TrendPlot
+        for more information, with the exception of kwargs, which are
+        only included in this function, and are passed to the plot
+        function.
+        """
+        # get the dataframe of parameters
+        df = pd.DataFrame({
+            "Development Period": self.GetDev('train'),
+            "Hetero Adjustment": self.GetWeights('train'),
+        })
+
+        # plot the parameters
+        fig = px.line(
+            df,
+            x="Development Period",
+            y="Hetero Adjustment",
+            title="Hetero Adjustments",
+            color_discrete_sequence=["black"],
+            **kwargs,
+        )
+
+        return fig
+
+    def _SingleTrendPlot(self,
+                         param_type=None,
+                         less_than=None,
+                         greater_than=None,
+                         trend=False,
+                         runningTotal=False,
+                         **kwargs):
+        """
+        Plot a single trend plot for a given parameter type. Used by
+        TrendPlot, and not meant to be called directly. See TrendPlot
+        for more information, with the exception of kwargs, which are
+        only included in this function, and are passed to the plot
+        function.
+        """
+        # list of valid parameter types
+        param_types = ["accident", "development", "calendar", "hetero"]
+        
+        # validate the parameter type
+        if param_type is None:
+            raise ValueError("param_type must be specified")
+        if param_type.lower() not in param_types and runningTotal==False:
+            raise ValueError(f"param_type must be one of {param_types}")
+
+        if param_type.lower() == "hetero":
+            return self._HeteroTrendPlot(**kwargs)
+        else:
+                
+            # get the dataframe of parameters
+            df = self.GetParameters(param_type)
+
+            # sum up the parameters by period if trend is True
+            if trend:
+                df = df.set_index('names').cumsum().reset_index()
+            
+            # rename the columns and remove the prefix from the parameter names
+            df = df.rename(columns={"names":f'{param_type}_period'})
+            df[f'{param_type}_period'] = df[f'{param_type}_period'].str.replace(f'{param_type}_period_', '')
+
+            # filter the dataframe for high/low period values if specified
+            if less_than is not None:
+                df = df.loc[df[f'{param_type}_period'].astype(int) <= less_than]
+            if greater_than is not None:
+                df = df.loc[df[f'{param_type}_period'].astype(int) >= greater_than]
+            
+            # plot the parameter values
+            fig = px.line(df,
+                        x=f'{param_type}_period',
+                        y='param',
+                        title=f"{param_type.title()} Period Parameter Estimates",
+                        labels={f'{param_type}_period':f'{param_type.title()} Period',
+                                    'param':'Estimate'},
+                            **kwargs)
+
+            fig.update_layout(showlegend=False)
+
+            return fig
+
+    def TrendPlot(self,
+                  param_type:str = None,
+                  save_to:str = None,
+                  less_than:int = None,
+                  greater_than:int = None,
+                  trend=False,
+                  return_=False,
+                  show=True):
+        """
+        Plot the trend plot for a given parameter type.
+
+        Parameters
+        ----------
+        param_type : str | None, optional
+            The type of parameter to plot. Must be one of the following:
+                - 'accident'
+                - 'development'
+                - 'calendar'
+                - 'expected'
+                - None
+            If None, plot all parameter types in a 2x2 grid.
+            Otherwise, plot the specified parameter type.
+            Default is None.
+        less_than : int | None, optional
+            The maximum period to plot. Default is None.
+        greater_than : int | None, optional
+            The minimum period to plot. Default is None.
+        trend : bool, optional
+            Whether to plot the parameter as a trend. Default is False,
+            which plots the parameter as a level.
+        return_ : bool, optional
+            Whether to return the plot. Default is False.
+        show : bool, optional
+            Whether to show the plot. Default is True.
+
+        Returns
+        -------
+        plotly.graph_objects.Figure
+            The trend plot.
+
+        Notes
+        -----
+        1. If `param_type` is None, the plot will be a 2x2 grid of
+           trend plots, one for each parameter type.
+        2. If `trend` is True, the parameter will be plotted as a trend,
+           i.e., the cumulative sum of the parameter.
+        3. If `trend` is False, the parameter will be plotted as a level,
+           i.e., the parameter itself.
+        4. This plot should more or less replicate the trend plot in
+           ICRFS.
+        5. Relies on the helper method `_SingleTrendPlot`.
+        """
+        param_types = ['accident', 'development', 'calendar', 'hetero']
+        param_colors = ['red', 'blue', 'green', 'black']
+        param_trend = [False, True, True, False]
+
+        def get_color(param_type) -> str:
+            return param_colors[param_types.index(param_type)]
+        
+        def get_trend(param_type) -> bool:
+            return param_trend[param_types.index(param_type)]
+
+        if param_type is None:
+            
+            fig = make_subplots(rows=2,
+                                cols=2,
+                                subplot_titles=[f"{p.title()} Period" for p in param_types])
+            for i, param_type in enumerate(param_types):
+                if param_type=="hetero":
+                    fig.add_trace(self._SingleTrendPlot(param_type,
+                                                        trend=trend,
+                                                        runningTotal=True,
+                                                        ).data[0],
+                                row=2,
+                                col=2)
+                else:
+                    fig.add_trace(self._SingleTrendPlot(param_type,
+                                                        less_than,
+                                                        greater_than,
+                                                        trend=get_trend(param_type),
+                                                        runningTotal=True,
+                                                        color_discrete_sequence=[param_colors[i]]
+                                                        ).data[0],
+                                row=(i//2)+1,
+                                col=(i%2)+1)
+            fig.update_layout(height=self.plot_height, width=self.plot_width, title_text="Parameter Trend Plots")
+        else:
+            
+            fig = self._SingleTrendPlot(param_type,
+                                        less_than,
+                                        greater_than,
+                                        get_trend(param_type),
+                                        # lookup the color for the parameter type
+                                        color_discrete_sequence=[get_color(param_type)]
+                                        )
+
+        if show:
+            fig.show()
+
+        if save_to is not None:
+            plotly.offline.plot(fig, filename=f"./{save_to}")
+
+        if return_:
+            return fig
+
+    def FitPlot(self, color=None, save_to=None, log=True, **kwargs):
+        """
+        Plot the fitted values against the actual values.
+
+        Parameters
+        ----------
+        log : bool, optional
+            Whether to plot the values on a log scale. Default is True.
+        color : str, optional
+            The name of the variable to use for the color of the points.
+            Default is None, which uses the same color for all points.
+        """
+        # get the fitted values
+        yhat = self.GetYhat()
+
+        # get the actual values
+        y = self.GetY()
+
+        # if color is not None, get the color variable
+        if color is not None:
+            color = self.lookup_col_full(color)
+            color_msg = f", with color varying with '{color}'" if color is not None else ""
+
+        hover_dat = pd.DataFrame({
+                "Accident Period": self.GetAcc('train'),
+                "Development Period": self.GetDev('train'),
+                "Calendar Period": self.GetCal('train'),
+                "Hetero Adjustment": self.GetWeights('train'),
+                "y": self.GetY('train'),
+                "yhat": self.GetYhat('train'),
+            })
+
+        # create the plot
+        hd = ['Accident Period',
+              'Development Period',
+              'Calendar Period',
+              'Hetero Adjustment',
+              'y',
+              'yhat']
+        
+        fig = px.scatter(
+            x=yhat,
+            y=y,
+            title=f"Fitted vs. Actual{' (log scale)' if log else ''}{color_msg}",
+            labels={"x": "Fitted", "y": "Actual"},
+            log_x=log,
+            log_y=log,
+            color=hover_dat[self.lookup_col_full(color) if color is not None else None],
+            hover_data={k: np.round(hover_dat[k], 4) for k in hd},
+        )
+
+        # add a 45-degree line
+        fig.add_shape(
+            type="line",
+            x0=yhat.min(),
+            y0=yhat.min(),
+            x1=yhat.max(),
+            y1=yhat.max(),
+            line=dict(color="black", width=1, dash="dash"),
+        )
+
+        # set the plot size
+        fig.update_layout(height=self.plot_height, width=self.plot_width)
+
+        # show the plot
+        fig.show()
+
+        if save_to is not None:
+            plotly.offline.plot(fig, filename=f"./{save_to}")
+
+    def _ExpectedResidualPlot(self, color_col=None, return_=False, show=True):
+        df = pd.DataFrame({
+            'y': self.GetY('train'),
+            'yhat': self.GetYhat('train'),
+            'Accident Period': self.GetAcc('train'),
+            'Development Period': self.GetDev('train'),
+            'Calendar Period': self.GetCal('train'),
+        })
+        
+
+        df['resid'] = df['y'] - df['yhat']
+        df['residmean'] = df['resid'].mean()
+        df['residstd'] = df['resid'].std()
+        df['resid_std'] = df['resid'] / df['residstd']
+        df.drop(columns=['resid', 'residmean', 'residstd'], inplace=True)
+        fig = px.scatter(df,
+                         x='yhat',
+                         y='resid_std',
+                         trendline='ols',
+                         color=self.lookup_col_full(color_col),
+                        #  alpha=0.5,
+                         title='Standardized Residuals vs Fitted Values')
+        fig.update_layout(yaxis_title='Standardized Residuals',
+                          xaxis_title='Fitted Values (yhat)')
+        if show:
+            fig.show()
+        if return_:
+            return fig
+
+    def _ResidualPlotBy(self, by, color_col=None, return_=False, show=True):
+        df = pd.DataFrame({
+            'y': self.GetY('train'),
+            'yhat': self.GetYhat('train'),
+            'Accident Period': self.GetAcc('train'),
+            'Development Period': self.GetDev('train'),
+            'Calendar Period': self.GetCal('train'),
+        })
+        def lookup_col(col):
+            if col is None:
+                return None
+            else:
+                if col.lower() in self.acc_lookup:
+                    return 'Accident Period'
+                elif col.lower() in self.dev_lookup:
+                    return 'Development Period'
+                elif col.lower() in self.cal_lookup:
+                    return 'Calendar Period'
+                elif col.lower() in self.yhat_lookup:
+                    return 'yhat'
+                elif col.lower() in self.y_lookup:
+                    return 'y'
+                else:
+                    return None
+
+        df['resid'] = df['y'] - df['yhat']
+        df['residmean'] = df['resid'].mean()
+        df['residstd'] = df['resid'].std()
+        df['resid_std'] = df['resid'] / df['residstd']
+        df.drop(columns=['resid', 'residmean', 'residstd'], inplace=True)
+        fig = px.scatter(df,
+                         x=lookup_col(by),
+                         y='resid_std',
+                         trendline='ols',
+                         color=lookup_col(color_col),
+                        #  alpha=0.5,
+                         title=f'Standardized Residuals vs {lookup_col(by)}')
+        fig.update_layout(yaxis_title='Standardized Residuals',
+                          xaxis_title=f'{lookup_col(by)}')
+        if show:
+            fig.show()
+        if return_:
+            return fig
+
+    def _ResidualPlotGrid(self,
+                          color_col:str = None,
+                          return_:bool = False,
+                          show:bool = True) -> go.Figure:
+        fig = make_subplots(rows=2,
+                            cols=2,
+                            subplot_titles=('Development Period',
+                                            'Accident Period',
+                                            'Calendar Period',
+                                            'Expected'))
+        fig.add_trace(self._ResidualPlotBy('Development Period',
+                                            color_col=color_col,
+                                            return_=True,
+                                            show=False).data[0],
+                        row=1,
+                        col=1)
+        fig.add_trace(self._ResidualPlotBy('Accident Period',
+                                            color_col=color_col,
+                                            return_=True,
+                                            show=False).data[0],
+                        row=1,
+                        col=2)
+        fig.add_trace(self._ResidualPlotBy('Calendar Period',
+                                            color_col=color_col,
+                                            return_=True,       
+                                            show=False).data[0],
+                        row=2,
+                        col=1)
+        fig.add_trace(self._ExpectedResidualPlot(return_=True,
+                                                 color_col=color_col,
+                                                 show=False).data[0],    
+                        row=2,
+                        col=2)
+        fig.update_layout(title='Standardized Residual Plots',
+                            height=self.plot_height,
+                            width=self.plot_width)
+        if show:
+            fig.show()
+        if return_:
+            return fig
+        
+
+    def ResidualPlot(self, by=None, color_col=None, save_to=None, return_=False, show=True):
+        """
+        Plots weighted standardized residuals against different values.
+        Looks up the column name based on the input string.
+
+        If no column is passed to the first "by" parameter, will instead plot
+        in a 2x2 grid:
+            development period | accident period
+            calendar period    | yhat
+
+        Parameters
+        ----------
+        by : str, optional
+            Column to plot against. Must be one of 'Accident Period',
+            'Development Period', 'Calendar Period', 'yhat', 'y'.
+            The default is None.
+        color_col : str, optional
+            Column to color the plot by. Must be one of 'Accident Period',
+            'Development Period', 'Calendar Period', 'yhat', 'y'.
+            The default is None.
+        return_ : bool, optional
+            Whether to return the plot object. The default is False.
+        show : bool, optional
+            Whether to show the plot. The default is True.
+
+        Returns
+        -------
+        fig : plotly.graph_objects.Figure
+            The plot object. Only returned if return_ is True.
+        """
+        if by is None:
+            fig = self._ResidualPlotGrid(color_col=color_col,
+                                          return_=True,
+                                          show=False)
+        else:
+            fig = self._ResidualPlotBy(by=by,
+                                        color_col=color_col,
+                                        return_=True,
+                                          show=False)
+        if show:
+            fig.show()
+        if save_to is not None:
+            plotly.offline.plot(fig, filename=f"./{save_to}")
+        if return_:
+            return fig
+
+
+
 
     def PredictTriangle(self):
         yhat = pd.DataFrame(dict(yhat=self.Predict()))
