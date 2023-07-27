@@ -229,6 +229,8 @@ selecting carried reserves."
             loglinear_grid=param_grid,
             model_type="loglinear",
             model=self,
+            X=self.GetX('train'),
+            y=self.GetY('train'),
         )
 
         # set the parameter search grid

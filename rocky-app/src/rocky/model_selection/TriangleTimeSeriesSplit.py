@@ -3,23 +3,20 @@ from rocky.triangle import Triangle
 import pandas as pd
 import numpy as np
 
-import sklearn
-
 # regression models
-import xgboost
 from sklearn.linear_model import (
     TweedieRegressor,
     ElasticNet,
     Lasso,
     Ridge,
-    LinearRegression,
-)
+    LinearRegression)
 
 # regression metrics
 from sklearn.metrics import (
-    mean_squared_error,
-    mean_absolute_error,
-)
+    mean_squared_error as mse,
+    mean_absolute_error as mae,
+    mean_squared_log_error as msle,
+    mean_absolute_percentage_error as mape)
 
 # clustering algorithms
 from sklearn.cluster import AgglomerativeClustering
@@ -27,18 +24,14 @@ from sklearn.cluster import AgglomerativeClustering
 # clustering metrics
 from sklearn.metrics import (
     silhouette_score,
-    calinski_harabasz_score
-    )
-
+    calinski_harabasz_score)
 
 from sklearn.model_selection import ParameterGrid
+# import sys
+# sys.path.append('./')
+from .cv_inputs import cv_inputs, cv_blank_model
 
-from sklearn.ensemble import RandomForestRegressor
-from xgboost import XGBRegressor
-
-import itertools
 from tqdm import tqdm
-
 
 class TriangleTimeSeriesSplit:
     """
@@ -67,6 +60,8 @@ class TriangleTimeSeriesSplit:
         randomforest_grid: dict = None,
         xgboost_grid: dict = None,
         model=None,
+        X=None,
+        y=None,
 
         regression_hyperparameters: bool = True,
 
@@ -84,10 +79,18 @@ class TriangleTimeSeriesSplit:
         self.model = model
         self.log_transform = log_transform
         self.n_failed_to_converge = n_failed_to_converge
+        self.X = X
+        self.y = y
 
         self.regression_hyperparameters = regression_hyperparameters
         self.clustering_hyperparameters = clustering_hyperparameters
         self.clustering_grid = clustering_grid
+
+        self.fitted_mse = None
+        self.fitted_mae = None
+        self.fitted_msle = None
+        self.fitted_mape = None
+        self.best_model = None
 
         # if no grids are provided, use the default grids
         ## tweedie
@@ -277,8 +280,8 @@ Either regression_hyperparameters or clustering_hyperparameters must be True.
             if "power" in kwargs:
                 self.grid["power"] = kwargs["power"]
         if model_type in ["loglinear"]:
-            if "l1ratio" in kwargs:
-                self.grid["l1ratio"] = kwargs["l1ratio"]
+            if "l1_ratio" in kwargs:
+                self.grid["l1_ratio"] = kwargs["l1_ratio"]
         if "n_clusters" in kwargs:
             self.grid["n_clusters"] = kwargs["n_clusters"]
 
@@ -359,8 +362,8 @@ Either regression_hyperparameters or clustering_hyperparameters must be True.
 
                 # Compute the predictions and MSE for the validation set
                 y_val_pred = model.predict(X_val)
-                mse_values = mean_squared_error(y_val, y_val_pred)
-                mae_values = mean_absolute_error(y_val, y_val_pred)
+                mse_values = mse(y_val, y_val_pred)
+                mae_values = mae(y_val, y_val_pred)
 
                 # Store the results
                 self.tuning_years.append(excluded_cal)
@@ -512,7 +515,137 @@ Either regression_hyperparameters or clustering_hyperparameters must be True.
         else:
             y = self.tri.get_y_base("train")
         best_model.fit(self.tri.get_X_base("train"), y)
+        self.best_model = optimal_model
         return best_model
+
+    def _GetBlankModel(self, **kwargs):
+        """
+        Helper method that returns an instance of the model with hyperparameters
+        defined by **kwargs. This is used to compute the fitted statistics for
+        the model.
+        """
+        # get the hyperparameter names for the model
+        hyperparameters = cv_inputs(self.model_type)['params']
+
+        # if kwargs are provided, they are used (before optimal parameters,
+        # or before defaults)
+        for arg in kwargs:
+            if arg in list(hyperparameters.keys()):
+                hyperparameters[arg] = kwargs[arg]
+
+        # if no kwargs are provided, use optimal parameters if they exist, 
+        # calculating the optimal parameters if they don't exist
+        blank_model = cv_blank_model(self.model_type, **hyperparameters)
+        return blank_model(**hyperparameters)
+    
+    def GetFittedStatistics(self, model_params=None):
+        """
+        Get the fitted statistics for the model passed to this method. If no model
+        is passed, the optimal model is computed using the OptimalParameters method.
+
+        Parameters:
+        ----------
+        model: sklearn model, default=None
+            The model to use to compute the fitted statistics. If None, the optimal
+            model is computed using the OptimalParameters method.
+
+        Returns:
+        -------
+        A pandas DataFrame containing the fitted statistics.
+        """
+        if model_params is None:
+            # compute optimal parameters if you haven't already
+            if not hasattr(self, "best_model"):
+                self.OptimalParameters()
+            
+            # set the model to the optimal model
+            model_params = self.best_model
+
+        # print(f"model_params: {model_params}")
+
+        # grab the train/test indices
+        data_generator = self.GetSplit()
+
+        # function to get the fitted values
+        def _getYhat(idx, model):
+            # print(f"getYhat: {idx}")
+            X = self.X.loc[idx]
+            if self.log_transform:
+                return pd.Series(np.exp(model.predict(X)), index=idx)
+            else:
+                return pd.Series(model.predict(X), index=idx)
+            
+        def _getY(idx):
+            # print(f"getY: {idx}")
+            if self.log_transform:
+                return pd.Series(np.exp(self.y[idx]), index=idx)
+            else:
+                return pd.Series(self.y[idx], index=idx)
+            
+        # initialize lists for the statistics
+        train_mse, test_mse = [], []
+        train_mae, test_mae = [], []
+        train_mape, test_mape = [], []
+        train_msle, test_msle = [], []
+        cv_run = []
+            
+        # loop over the calibration periods and get the fitted values
+        i = 0
+        for gen in data_generator:
+            i += 1
+            # blank model instance 
+            # print(f"model_params: {model_params}")
+            model = self._GetBlankModel(**model_params)
+
+            # get the train/test indices
+            train_idx, test_idx = gen
+            
+            # get train/test data
+            X_train = self.X.loc[train_idx]
+            y_train = _getY(train_idx)
+            y_test = _getY(test_idx)
+
+            # fit the model
+            model.fit(X_train, y_train)
+
+            # get the fitted values
+            y_train_hat = _getYhat(train_idx, model)
+            y_test_hat = _getYhat(test_idx, model)
+
+            # get the fitted statistics
+            def appendstat(statlist, curstat, y, yhat):
+                try:
+                    statlist.append(curstat(y, yhat))
+                except ValueError:
+                    statlist.append(np.nan)
+
+                return statlist
+
+            cv_run.append(i)
+            train_mse = appendstat(train_mse, mse, y_train, y_train_hat)
+            test_mse = appendstat(test_mse, mse, y_test, y_test_hat)
+            train_mae = appendstat(train_mae, mae, y_train, y_train_hat)
+            test_mae = appendstat(test_mae, mae, y_test, y_test_hat)
+            train_mape = appendstat(train_mape, mape, y_train, y_train_hat)
+            test_mape = appendstat(test_mape, mape, y_test, y_test_hat)
+            train_msle = appendstat(train_msle, msle, y_train, y_train_hat)
+            test_msle = appendstat(test_msle, msle, y_test, y_test_hat)
+
+        # get the fitted statistics
+        fitted_stats = pd.DataFrame({
+            "n_run": cv_run,
+            "train_mse": train_mse,
+            "test_mse": test_mse,
+            "train_mae": train_mae,
+            "test_mae": test_mae,
+            "train_mape": train_mape,
+            "test_mape": test_mape,
+            "train_msle": train_msle,
+            "test_msle": test_msle
+        })
+
+        # return the fitted statistics
+        return fitted_stats
 
     def _fit_ward_clusters(self, X, n_clusters):
         # fit the ward clustering algorithm
