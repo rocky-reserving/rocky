@@ -9,6 +9,7 @@ from rocky.plot.ModelPlot import Plot
 from dataclasses import dataclass
 import numpy as np
 import pandas as pd
+import plotly
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -856,13 +857,13 @@ class BaseEstimator:
         raise NotImplementedError
 
     def Ultimate(self, tail=None) -> pd.Series:
-        X = self.GetX(kind="forecast")
         df = pd.DataFrame({
-            "Accident Period": self.tri.get_X_id("all").accident_period,
-            f"{self.model_name} Ultimate": self.GetY(kind="train").tolist()
-            + self.Predict("forecast", X).tolist(),
-            }
-        )
+            "Accident Period": self.GetAcc(),
+            'y': self.GetY(kind="train", log=False),
+            'yhat': self.GetYhat(kind="forecast", log=False)})
+        df = df.fillna(0)
+        df[f"{self.model_name} Ultimate"] = df['y'] + df['yhat']
+        df.drop(columns='y yhat'.split(), inplace=True)
 
         df = df.groupby("Accident Period").sum()[f"{self.model_name} Ultimate"].round(0)
 
@@ -870,8 +871,14 @@ class BaseEstimator:
             tail = 1
         df = df * tail
 
-        df.index = self.tri.tri.index
+        df.index = self.tri.acc
         return df
+
+    def Reserve(self, tail=None) -> pd.Series:
+        ult = self.Ultimate(tail=tail)
+        cum = self.tri.diag()
+        rsv = ult - cum
+        return rsv
 
     def GetYhat(self, kind: str = None) -> pd.Series:
         return self.Predict(kind=kind)
@@ -977,6 +984,7 @@ class BaseEstimator:
 
     def TrendPlot(self,
                   param_type:str = None,
+                  save_to:str = None,
                   less_than:int = None,
                   greater_than:int = None,
                   trend=False,
@@ -1073,10 +1081,13 @@ class BaseEstimator:
         if show:
             fig.show()
 
+        if save_to is not None:
+            plotly.offline.plot(fig, filename=f"./{save_to}")
+
         if return_:
             return fig
 
-    def FitPlot(self, color=None, log=True, **kwargs):
+    def FitPlot(self, color=None, save_to=None, log=True, **kwargs):
         """
         Plot the fitted values against the actual values.
 
@@ -1097,6 +1108,7 @@ class BaseEstimator:
         # if color is not None, get the color variable
         if color is not None:
             color = self.lookup_col_full(color)
+            color_msg = f", with color varying with '{color}'" if color is not None else ""
 
         hover_dat = pd.DataFrame({
                 "Accident Period": self.GetAcc('train'),
@@ -1118,11 +1130,11 @@ class BaseEstimator:
         fig = px.scatter(
             x=yhat,
             y=y,
-            title=f"Fitted vs. Actual{' (log scale)' if log else ''}",
+            title=f"Fitted vs. Actual{' (log scale)' if log else ''}{color_msg}",
             labels={"x": "Fitted", "y": "Actual"},
             log_x=log,
             log_y=log,
-            color=self.lookup_col_full(color) if color is not None else None,
+            color=hover_dat[self.lookup_col_full(color) if color is not None else None],
             hover_data={k: np.round(hover_dat[k], 4) for k in hd},
         )
 
@@ -1141,6 +1153,9 @@ class BaseEstimator:
 
         # show the plot
         fig.show()
+
+        if save_to is not None:
+            plotly.offline.plot(fig, filename=f"./{save_to}")
 
     def _ExpectedResidualPlot(self, color_col=None, return_=False, show=True):
         df = pd.DataFrame({
@@ -1162,6 +1177,7 @@ class BaseEstimator:
                          y='resid_std',
                          trendline='ols',
                          color=self.lookup_col_full(color_col),
+                        #  alpha=0.5,
                          title='Standardized Residuals vs Fitted Values')
         fig.update_layout(yaxis_title='Standardized Residuals',
                           xaxis_title='Fitted Values (yhat)')
@@ -1205,6 +1221,7 @@ class BaseEstimator:
                          y='resid_std',
                          trendline='ols',
                          color=lookup_col(color_col),
+                        #  alpha=0.5,
                          title=f'Standardized Residuals vs {lookup_col(by)}')
         fig.update_layout(yaxis_title='Standardized Residuals',
                           xaxis_title=f'{lookup_col(by)}')
@@ -1255,7 +1272,7 @@ class BaseEstimator:
             return fig
         
 
-    def ResidualPlot(self, by=None, color_col=None, return_=False, show=True):
+    def ResidualPlot(self, by=None, color_col=None, save_to=None, return_=False, show=True):
         """
         Plots weighted standardized residuals against different values.
         Looks up the column name based on the input string.
@@ -1296,6 +1313,8 @@ class BaseEstimator:
                                           show=False)
         if show:
             fig.show()
+        if save_to is not None:
+            plotly.offline.plot(fig, filename=f"./{save_to}")
         if return_:
             return fig
 

@@ -253,6 +253,7 @@ class rocky:
         tri: Triangle = None,
         use_cal=False,
         n_validation=5,
+        **kwargs,
     ):
         """
         Add a model to the ROCKY object.
@@ -274,6 +275,8 @@ class rocky:
         n_validation : int, optional
             The number of validation folds to use for hyperparameter tuning.
             Default is 5.
+        **kwargs
+            Additional arguments to pass to the model class.
 
         Notes
         -----
@@ -306,6 +309,7 @@ Model class {model_class} not recognized. Please choose from {all_models}""")
                     tri=tri,
                     use_cal=use_cal,
                     n_validation=n_validation,
+                    **kwargs,
                 ),
                 f"{id}",
             )
@@ -317,6 +321,7 @@ Model class {model_class} not recognized. Please choose from {all_models}""")
                     tri=tri,
                     use_cal=use_cal,
                     n_validation=n_validation,
+                    **kwargs,
                 )
             )
 
