@@ -65,6 +65,9 @@ class BaseEstimator:
     must_be_positive: bool = False
     plot_width: int = 1200
     plot_height: int = 800
+    hetero_weights: pd.Series = None
+    standardize_mu: float = None
+    standardize_sigma: float = None
 
     def __post_init__(self):
         # re-read triangle if use_cal is True
@@ -103,6 +106,14 @@ class BaseEstimator:
         self.yhat_lookup = ['yhat', 'estimated', 'est', 'fitted', 'predicted',
                             'indicated', 'modeled', 'modelled']
         self.y_lookup = ['y', 'actual', 'observed', 'reported', 'paid', 'incurred']
+
+        if self.cv is None:
+            self.cv = TriangleTimeSeriesSplit(self.tri,
+                                              n_splits=5,
+                                              model_type=self.model_class,
+                                              X=self.GetX(),
+                                              y=self.GetY(),
+            )
 
     def lookup_col_full(self, col):
         if col is None:
@@ -926,6 +937,12 @@ class BaseEstimator:
         print("GetParameters is not implemented for this model.")
         raise NotImplementedError
 
+    def GetCVStatistics(self, model_params=None) -> pd.DataFrame:
+        """
+        Wrapper for the TriangleTimeSeriesSplit.GetFittedStatistics method
+        """
+        return self.cv.GetFittedStatistics(model_params=model_params)
+
     def LassoFeatureImportance(self,
                                alphas:list = None,
                                step_size: float = 0.0025,
@@ -995,7 +1012,7 @@ class BaseEstimator:
         coef_df = pd.DataFrame(coef_dict)
 
         # Get the feature importance
-        # coef_df = coef_df.rank(axis=1, method="first", ascending=False)
+        coef_df = coef_df.rank(axis=1, method="first", ascending=False)
 
         # Get the feature names
         # coef_df.columns = self.GetX("train").columns

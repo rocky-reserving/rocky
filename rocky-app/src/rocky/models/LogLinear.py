@@ -173,9 +173,9 @@ selecting carried reserves."
         """
         # get the hetero weights
         init = pd.DataFrame({
-            'development_period': self.GetDev('train'),
-            'adj': self.hetero_adjustment},
+            'development_period': self.GetDev('train')},
             index=self.GetIdx(kind=kind))
+        init['adj'] = self.hetero_weights if self.hetero_weights is not None else 1
         init['adj'] = init['adj'].fillna(1)
 
         # unique development periods (making a lookup table)
@@ -210,15 +210,15 @@ selecting carried reserves."
         if param_grid is None:
             param_grid = {
                 "alpha": np.arange(0, 3.1, 0.1),
-                "l1ratio": np.arange(0, 1.05, 0.05),
+                "l1_ratio": np.arange(0, 1.05, 0.025),
                 "max_iter": [100000],
             }
 
         # if kwargs for alpha, p and max_iter are provided, use those
         if "alpha" in kwargs:
             param_grid["alpha"] = kwargs["alpha"]
-        if "l1ratio" in kwargs:
-            param_grid["l1ratio"] = kwargs["l1ratio"]
+        if "l1_ratio" in kwargs:
+            param_grid["l1_ratio"] = kwargs["l1_ratio"]
         if "max_iter" in kwargs:
             param_grid["max_iter"] = kwargs["max_iter"]
 
@@ -227,7 +227,7 @@ selecting carried reserves."
             self.tri,
             n_splits=n_splits,
             loglinear_grid=param_grid,
-            model_type="loglinear",
+            model_type=model_type,
             model=self,
             X=self.GetX('train'),
             y=self.GetY('train'),
@@ -235,7 +235,7 @@ selecting carried reserves."
 
         # set the parameter search grid
         cv.SetParameterGrid(alpha=param_grid["alpha"],
-                            l1ratio=param_grid["l1ratio"],
+                            l1_ratio=param_grid["l1_ratio"],
                             max_iter=param_grid["max_iter"])
 
         # grid search & return the optimal model

@@ -109,7 +109,7 @@ class TriangleTimeSeriesSplit:
             if model_type == "loglinear":
                 self.loglinear_grid = {
                     "alpha": np.arange(0, 3.1, 0.1),
-                    "l1ratio": np.arange(0, 1.05, 0.05),
+                    "l1_ratio": np.arange(0, 1.05, 0.05),
                     "max_iter": [100000],
                 }
         else:
@@ -180,8 +180,8 @@ class TriangleTimeSeriesSplit:
             self.xgboost_grid["alpha"] = kwargs["alpha"]
         if "power" in kwargs:
             self.tweedie_grid["power"] = kwargs["power"]
-        if "l1ratio" in kwargs:
-            self.loglinear_grid["l1ratio"] = kwargs["l1ratio"]
+        if "l1_ratio" in kwargs:
+            self.loglinear_grid["l1_ratio"] = kwargs["l1_ratio"]
         if "max_iter" in kwargs:
             self.tweedie_grid["max_iter"] = kwargs["max_iter"]
             self.loglinear_grid["max_iter"] = kwargs["max_iter"]
@@ -265,7 +265,7 @@ Either regression_hyperparameters or clustering_hyperparameters must be True.
         ----------
         alpha : array-like, default=None
         power : array-like, default=None
-        l1ratio : array-like, default=None
+        l1_ratio : array-like, default=None
         max_iter : int, default=None
         model_type : str, default='tweedie'
             The model type to use. Currently can be 'tweedie' or 'loglinear'.
@@ -334,21 +334,23 @@ Either regression_hyperparameters or clustering_hyperparameters must be True.
                         if params["alpha"] == 0:
                             # only return the first element of the list
                             # the rest will be identical in this case
-                            if params["l1ratio"] == 0:
-                                model = LinearRegression()
-                            else:
-                                continue
+                            model = LinearRegression()
+                            params["l1_ratio"] = 0
+                        elif 'l1_ratio' not in params:
+                            # if l1_ratio is not specified, then it is ridge
+                            model = Ridge(alpha=params["alpha"])
+                            params["l1_ratio"] = 0
                         else:
-                            # if l1ratio is 1, then it is lasso
-                            if params["l1ratio"] == 1:
+                            # if l1_ratio is 1, then it is lasso
+                            if params["l1_ratio"] == 1:
                                 model = Lasso(alpha=params["alpha"])
-                            # if l1ratio is 0, then it is ridge
-                            elif params["l1ratio"] == 0:
+                            # if l1_ratio is 0, then it is ridge
+                            elif params["l1_ratio"] == 0:
                                 model = Ridge(alpha=params["alpha"])
-                            # if l1ratio is between 0 and 1, then it is elastic net
+                            # if l1_ratio is between 0 and 1, then it is elastic net
                             else:
                                 model = ElasticNet(
-                                    alpha=params["alpha"], l1_ratio=params["l1ratio"]
+                                    alpha=params["alpha"], l1_ratio=params["l1_ratio"]
                                 )
                 elif self.clustering_hyperparameters:
                     model = AgglomerativeClustering(n_clusters=params["n_clusters"],
@@ -448,7 +450,12 @@ Either regression_hyperparameters or clustering_hyperparameters must be True.
         for i, model in results.iterrows():
             # Compare the current model to all other models
             for measure, direction in measures.items():
+                # for each direction:
                 if direction == "min":
+
+                    # if there is no other model with a lower value of the measure
+                    # and a different set of parameters, then the current model is
+                    # Pareto optimal
                     is_pareto_optimal[i] = not any(
                         (results[measure] <= model[measure])
                         & (
@@ -490,6 +497,8 @@ Either regression_hyperparameters or clustering_hyperparameters must be True.
 
         # if there is more than one optimal model, return the one with the lowest MSE
         if self.pareto_optimal_parameters.shape[0] > 1:
+            print(f"More than one optimal model found. Using {tie_criterion}")
+            print(self.pareto_optimal_parameters)
             optimal_model = (self.pareto_optimal_parameters
                              .sort_values(tie_criterion)
                              .iloc[0])
@@ -502,13 +511,13 @@ Either regression_hyperparameters or clustering_hyperparameters must be True.
             power = optimal_model["power_"]
         elif self.model_type == "loglinear":
             alpha = optimal_model["alpha_"]
-            l1ratio = optimal_model["l1ratio_"]
+            l1_ratio = optimal_model["l1_ratio_"]
 
         # Re-fit a model with the optimal hyperparameters, and return it
         if self.model_type == "tweedie":
             best_model = TweedieRegressor(alpha=alpha, power=power, link="log")
         elif self.model_type == "loglinear":
-            best_model = ElasticNet(alpha=alpha, l1_ratio=l1ratio)
+            best_model = ElasticNet(alpha=alpha, l1_ratio=l1_ratio)
 
         if self.log_transform:
             y = np.log(self.tri.get_y_base("train"))
@@ -595,7 +604,10 @@ Either regression_hyperparameters or clustering_hyperparameters must be True.
             i += 1
             # blank model instance 
             # print(f"model_params: {model_params}")
-            model = self._GetBlankModel(**model_params)
+            if model_params is None:
+                model = self._GetBlankModel()
+            else:
+                model = self._GetBlankModel(**model_params)
 
             # get the train/test indices
             train_idx, test_idx = gen
