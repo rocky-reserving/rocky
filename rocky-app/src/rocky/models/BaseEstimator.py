@@ -1012,7 +1012,9 @@ class BaseEstimator:
         coef_df = pd.DataFrame(coef_dict)
 
         # Get the feature importance
-        coef_df = coef_df.rank(axis=1, method="first", ascending=False)
+        coef_df = coef_df.rank(axis=1,
+                               method="first",
+                               ascending=False)
 
         # Get the feature names
         # coef_df.columns = self.GetX("train").columns
