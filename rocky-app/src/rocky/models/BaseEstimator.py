@@ -1279,7 +1279,7 @@ class BaseEstimator:
                      show=True,
                      outline_width=1,
                      outline_color='black',
-                     opacity=0.5):
+                     opacity=0.6):
         """
         Plots weighted standardized residuals against different values.
         Looks up the column name based on the input string.
@@ -1308,7 +1308,7 @@ class BaseEstimator:
         outline_color : str, optional
             Color of the outline around the points. The default is 'black'.
         opacity : float, optional
-            Opacity of the points. The default is 0.5.
+            Opacity of the points. The default is 0.6.
 
         Returns
         -------
