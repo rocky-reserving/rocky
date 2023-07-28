@@ -1166,7 +1166,6 @@ class BaseEstimator:
             'Calendar Period': self.GetCal('train'),
         })
         
-
         df['resid'] = df['y'] - df['yhat']
         df['residmean'] = df['resid'].mean()
         df['residstd'] = df['resid'].std()
@@ -1272,7 +1271,15 @@ class BaseEstimator:
             return fig
         
 
-    def ResidualPlot(self, by=None, color_col=None, save_to=None, return_=False, show=True):
+    def ResidualPlot(self, 
+                     by=None,
+                     color_col=None,
+                     save_to=None,
+                     return_=False,
+                     show=True,
+                     outline_width=1,
+                     outline_color='black',
+                     opacity=0.5):
         """
         Plots weighted standardized residuals against different values.
         Looks up the column name based on the input string.
@@ -1296,6 +1303,12 @@ class BaseEstimator:
             Whether to return the plot object. The default is False.
         show : bool, optional
             Whether to show the plot. The default is True.
+        outline_width : int, optional
+            Width of the outline around the points. The default is 1.
+        outline_color : str, optional
+            Color of the outline around the points. The default is 'black'.
+        opacity : float, optional
+            Opacity of the points. The default is 0.5.
 
         Returns
         -------
@@ -1311,6 +1324,12 @@ class BaseEstimator:
                                         color_col=color_col,
                                         return_=True,
                                           show=False)
+        # update the figure trace by trace
+        for trace in fig.data:
+            trace.update(marker=dict(line=dict(width=outline_width,
+                                               color=outline_color),
+                                     opacity=opacity))
+        
         if show:
             fig.show()
         if save_to is not None:
