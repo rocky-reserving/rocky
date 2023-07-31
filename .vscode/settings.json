@@ -5,5 +5,13 @@
 	},
 	"python.formatting.provider": "none",
 	"python.analysis.extraPaths": ["./conda/pymc/Lib/site-packages/jedi/plugins"],
-	"r.lsp.promptToInstall": false
+	"r.lsp.promptToInstall": false,
+	"python.linting.enabled": false,
+	"python.linting.lintOnSave": false,
+	"python.linting.banditPath": "",
+	"python.linting.ignorePatterns": [
+		"**/site-packages/**/*.py",
+		".vscode/*.py",
+		"*"
+	]
 }

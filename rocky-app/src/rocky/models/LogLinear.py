@@ -59,6 +59,7 @@ class LogLinear(BaseEstimator):
     model_class: str = None
     model: object = None
     tri: Triangle = None
+    standardize: bool = True # whether or not to standardize the data behind the scenes
     intercept: float = None
     coef: np.ndarray[float] = None
     is_fitted: bool = False
@@ -338,6 +339,13 @@ selecting carried reserves."
         
         if log:
             out = np.log(out)
+
+        # standardize y if self.standardized is True
+        if self.standardize and not actual_scale:
+            self.standardize_mu = out.mean()
+            self.standardize_sigma = out.std()
+            out = (out - self.standardize_mu) / self.standardize_sigma
+            
         
         return pd.Series(out, index=idx)
         
