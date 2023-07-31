@@ -38,6 +38,7 @@ class BaseEstimator:
     model_class: str | None = None
     model: object | None = None
     tri: Triangle = None
+    standardize: bool = True # whether or not to standardize the data behind the scenes
     exposure: pd.Series | None = None
     coef: pd.Series | None = None
     is_fitted: bool = False
@@ -117,6 +118,21 @@ class BaseEstimator:
                 return 'y'
             else:
                 return None
+            
+    def lookup_col(self, col:str) -> str:
+        if col is None:
+            return None
+        else:
+            if col.lower() in self.acc_lookup:
+                return 'a'
+            elif col.lower() in self.dev_lookup:
+                return 'd'
+            elif col.lower() in self.cal_lookup:
+                return 'c'
+            else:
+                return None
+
+    
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self.id})"
@@ -728,7 +744,7 @@ class BaseEstimator:
         print("GetParameterNames is not implemented for this model.")
         raise NotImplementedError
 
-    def GetY(self, kind: str = "train") -> pd.Series:
+    def GetY(self, kind: str = "train", actual_scale: bool = False) -> pd.Series:
         """
         Getter for the model's y data. If there is no y data, take the y vector
         directly from the triangle.
@@ -739,11 +755,19 @@ class BaseEstimator:
         # get the correct version of y depending on the kind
         if kind.lower() in ["train", "forecast"]:
             if kind.lower() == "train":
-                return self.y_train[idx]
+                out = self.y_train[idx]
             elif kind.lower() == "forecast":
                 raise ValueError("y_forecast is what we are trying to predict!")
         else:
             raise ValueError("kind must be 'train' for `y`")
+
+        # standardize y if self.standardize is True
+        if self.standardize and not actual_scale:
+            self.standardize_mu = out.mean()
+            self.standardize_sigma = out.std()
+            out = (out - self.standardize_mu) / self.standardize_sigma
+
+        return out
 
     def SetY(self, y: pd.Series) -> None:
         """
@@ -895,6 +919,82 @@ class BaseEstimator:
         print("GetParameters is not implemented for this model.")
         raise NotImplementedError
 
+    def LassoFeatureImportance(self,
+                               alphas:list = None,
+                               **kwargs
+                              ) -> pd.DataFrame:
+        """
+        Get the Lasso feature importance for the model.
+
+        Lasso feature importance is a ranking of the possible variables
+        based on the regularization weight `alpha` at which they are
+        removed from the model.
+
+        Since L1 regularization is used, the model will remove variables
+        that do not contribute enough to the model's predictive power to
+        overcome the regularization penalty.
+
+        The regularization penalty is defined by:
+
+        `alpha * sum(abs(beta))`
+
+        Where `alpha` is the regularization weight and `beta` is the
+        model's weights. Here sum(abs(beta)) equals the L1 norm of beta.
+
+        Parameters
+        ----------
+        alphas : list, optional
+            The regularization weights at which to calculate the
+            feature importance, by default None. If None, the
+            function will start at alpha=0 and increment by 0.0025
+            until all coefficients are regularized out.
+        **kwargs, optional
+            Additional keyword arguments to pass to the Lasso model.
+
+        Returns
+        -------
+        pd.DataFrame
+            The feature importance of the model.
+        """
+        from sklearn.linear_model import Lasso
+
+        # If no alphas are provided, create a starter alphpa
+        if alphas is None:
+            alpha = 0
+
+        # Initialize dictionary to store results
+        coef_dict = {}
+
+        # For each alpha value in the list...
+        while True:
+            # Create a Lasso model with that alpha
+            lasso = Lasso(alpha=alpha, **kwargs)
+
+            # Fit the model
+            lasso.fit(self.GetX("train"), self.GetY("train"))
+
+            # Store the coefficients
+            coef_dict[alpha] = lasso.coef_
+
+            # increment alpha
+            alpha += 0.0025
+
+            # If all coefficients are 0, stop
+            if pd.Series(lasso.coef_).eq(0).all():
+                break
+
+        # Convert the dictionary to a dataframe
+        coef_df = pd.DataFrame(coef_dict)
+
+        # Get the feature importance
+        # coef_df = coef_df.rank(axis=1, method="first", ascending=False)
+
+        # Get the feature names
+        # coef_df.columns = self.GetX("train").columns
+
+        # Return the feature importance
+        return coef_df
+
     #############################################
     ## functions for plotting model parameters ##
     #############################################
@@ -940,13 +1040,15 @@ class BaseEstimator:
         function.
         """
         # list of valid parameter types
-        param_types = ["accident", "development", "calendar", "hetero"]
+        param_types = ['accident period', 'development period', 'calendar period', 'hetero']
         
         # validate the parameter type
+        param_type = self.lookup_col_full(param_type)
+        print(param_type)
         if param_type is None:
-            raise ValueError("param_type must be specified")
-        if param_type.lower() not in param_types and runningTotal==False:
-            raise ValueError(f"param_type must be one of {param_types}")
+            raise ValueError(f"param_type {param_type} must be specified")
+        if param_type.lower() not in param_types and not runningTotal:
+            raise ValueError(f"param_type {param_type} must be one of {param_types}")
 
         if param_type.lower() == "hetero":
             return self._HeteroTrendPlot(**kwargs)
@@ -960,21 +1062,21 @@ class BaseEstimator:
                 df = df.set_index('names').cumsum().reset_index()
             
             # rename the columns and remove the prefix from the parameter names
-            df = df.rename(columns={"names":f'{param_type}_period'})
-            df[f'{param_type}_period'] = df[f'{param_type}_period'].str.replace(f'{param_type}_period_', '')
+            df = df.rename(columns={"names":f'{param_type}'})
+            df[f'{param_type}'] = df[f'{param_type}'].str.replace(f'{param_type}_', '')
 
             # filter the dataframe for high/low period values if specified
             if less_than is not None:
-                df = df.loc[df[f'{param_type}_period'].astype(int) <= less_than]
+                df = df.loc[df[f'{param_type}'].astype(int) <= less_than]
             if greater_than is not None:
-                df = df.loc[df[f'{param_type}_period'].astype(int) >= greater_than]
+                df = df.loc[df[f'{param_type}'].astype(int) >= greater_than]
             
             # plot the parameter values
             fig = px.line(df,
-                        x=f'{param_type}_period',
+                        x=f'{param_type}',
                         y='param',
-                        title=f"{param_type.title()} Period Parameter Estimates",
-                        labels={f'{param_type}_period':f'{param_type.title()} Period',
+                        title=f"{param_type.title()} Parameter Estimates",
+                        labels={f'{param_type}':f'{param_type.title()}',
                                     'param':'Estimate'},
                             **kwargs)
 
@@ -1034,21 +1136,26 @@ class BaseEstimator:
            ICRFS.
         5. Relies on the helper method `_SingleTrendPlot`.
         """
-        param_types = ['accident', 'development', 'calendar', 'hetero']
+        param_types = ['accident period', 'development period', 'calendar period', 'hetero']
         param_colors = ['red', 'blue', 'green', 'black']
         param_trend = [False, True, True, False]
 
         def get_color(param_type) -> str:
-            return param_colors[param_types.index(param_type)]
+            return param_colors[param_types.index(param_type.lower())]
         
         def get_trend(param_type) -> bool:
-            return param_trend[param_types.index(param_type)]
+            return param_trend[param_types.index(param_type.lower())]
+
+        # validate the parameter type
+        param_type = self.lookup_col_full(param_type)
+        print(param_type)
+
 
         if param_type is None:
             
             fig = make_subplots(rows=2,
                                 cols=2,
-                                subplot_titles=[f"{p.title()} Period" for p in param_types])
+                                subplot_titles=[f"{self.lookup_col_full(p).title()}" for p in param_types])
             for i, param_type in enumerate(param_types):
                 if param_type=="hetero":
                     fig.add_trace(self._SingleTrendPlot(param_type,
@@ -1058,6 +1165,7 @@ class BaseEstimator:
                                 row=2,
                                 col=2)
                 else:
+                    param_type = self.lookup_col_full(param_type)
                     fig.add_trace(self._SingleTrendPlot(param_type,
                                                         less_than,
                                                         greater_than,
@@ -1069,7 +1177,7 @@ class BaseEstimator:
                                 col=(i%2)+1)
             fig.update_layout(height=self.plot_height, width=self.plot_width, title_text="Parameter Trend Plots")
         else:
-            
+            param_type = self.lookup_col_full(param_type)
             fig = self._SingleTrendPlot(param_type,
                                         less_than,
                                         greater_than,
