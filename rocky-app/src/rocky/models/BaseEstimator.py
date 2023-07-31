@@ -98,6 +98,8 @@ class BaseEstimator:
         self.cal_lookup = ['c', 'cal', 'calendar', 'calendar_period', 'calendar_year',
                            'cal_yr', 'cy', 'cal_period', 'cal_prd', 'cal period',
                            'cal year', 'calendar year', 'calendar period']
+        self.hetero_lookup = ['hetero', 'heteroskedasticity', 'het', 'h', 'hetero_gp',
+                              'heteroskedasticity adjustment', 'hetero adjustment']
         self.yhat_lookup = ['yhat', 'estimated', 'est', 'fitted', 'predicted',
                             'indicated', 'modeled', 'modelled']
         self.y_lookup = ['y', 'actual', 'observed', 'reported', 'paid', 'incurred']
@@ -112,6 +114,8 @@ class BaseEstimator:
                 return 'Development Period'
             elif col.lower() in self.cal_lookup:
                 return 'Calendar Period'
+            elif col.lower() in self.hetero_lookup:
+                return 'Heteroskedasticity Adjustment'
             elif col.lower() in self.yhat_lookup:
                 return 'yhat'
             elif col.lower() in self.y_lookup:
@@ -921,6 +925,7 @@ class BaseEstimator:
 
     def LassoFeatureImportance(self,
                                alphas:list = None,
+                               step_size: float = 0.0025,
                                **kwargs
                               ) -> pd.DataFrame:
         """
@@ -977,7 +982,7 @@ class BaseEstimator:
             coef_dict[alpha] = lasso.coef_
 
             # increment alpha
-            alpha += 0.0025
+            alpha += step_size
 
             # If all coefficients are 0, stop
             if pd.Series(lasso.coef_).eq(0).all():
@@ -1044,16 +1049,15 @@ class BaseEstimator:
         
         # validate the parameter type
         param_type = self.lookup_col_full(param_type)
-        print(param_type)
+        # print(param_type)
         if param_type is None:
             raise ValueError(f"param_type {param_type} must be specified")
         if param_type.lower() not in param_types and not runningTotal:
             raise ValueError(f"param_type {param_type} must be one of {param_types}")
 
-        if param_type.lower() == "hetero":
+        if param_type.lower() == "heteroskedasticity adjustment":
             return self._HeteroTrendPlot(**kwargs)
-        else:
-                
+        else: 
             # get the dataframe of parameters
             df = self.GetParameters(param_type)
 
@@ -1136,7 +1140,7 @@ class BaseEstimator:
            ICRFS.
         5. Relies on the helper method `_SingleTrendPlot`.
         """
-        param_types = ['accident period', 'development period', 'calendar period', 'hetero']
+        param_types = ['accident period', 'development period', 'calendar period', 'heteroskedasticity adjustment']
         param_colors = ['red', 'blue', 'green', 'black']
         param_trend = [False, True, True, False]
 
@@ -1148,7 +1152,7 @@ class BaseEstimator:
 
         # validate the parameter type
         param_type = self.lookup_col_full(param_type)
-        print(param_type)
+        # print(param_type)
 
 
         if param_type is None:
@@ -1157,7 +1161,7 @@ class BaseEstimator:
                                 cols=2,
                                 subplot_titles=[f"{self.lookup_col_full(p).title()}" for p in param_types])
             for i, param_type in enumerate(param_types):
-                if param_type=="hetero":
+                if param_type.lower()=="heteroskedasticity adjustment":
                     fig.add_trace(self._SingleTrendPlot(param_type,
                                                         trend=trend,
                                                         runningTotal=True,
@@ -1166,10 +1170,10 @@ class BaseEstimator:
                                 col=2)
                 else:
                     param_type = self.lookup_col_full(param_type)
-                    fig.add_trace(self._SingleTrendPlot(param_type,
+                    fig.add_trace(self._SingleTrendPlot(param_type.lower(),
                                                         less_than,
                                                         greater_than,
-                                                        trend=get_trend(param_type),
+                                                        trend=get_trend(param_type.lower()),
                                                         runningTotal=True,
                                                         color_discrete_sequence=[param_colors[i]]
                                                         ).data[0],
@@ -1177,13 +1181,15 @@ class BaseEstimator:
                                 col=(i%2)+1)
             fig.update_layout(height=self.plot_height, width=self.plot_width, title_text="Parameter Trend Plots")
         else:
-            param_type = self.lookup_col_full(param_type)
+            print(param_type)
+            # param_type = self.lookup_col_full(param_type)
+            # print(param_type)
             fig = self._SingleTrendPlot(param_type,
                                         less_than,
                                         greater_than,
-                                        get_trend(param_type),
+                                        get_trend(param_type.lower()),
                                         # lookup the color for the parameter type
-                                        color_discrete_sequence=[get_color(param_type)]
+                                        color_discrete_sequence=[get_color(param_type.lower())]
                                         )
 
         if show:
@@ -1195,7 +1201,7 @@ class BaseEstimator:
         if return_:
             return fig
 
-    def FitPlot(self, color=None, save_to=None, log=True, **kwargs):
+    def FitPlot(self, color=None, save_to=None, log=True, actual_scale=False, **kwargs):
         """
         Plot the fitted values against the actual values.
 
@@ -1206,17 +1212,30 @@ class BaseEstimator:
         color : str, optional
             The name of the variable to use for the color of the points.
             Default is None, which uses the same color for all points.
+        actual_scale : bool, optional
+            Whether to plot the actual values on the same scale as the
+            fitted values. Default is False, which plots the actual
+            values on the same scale as the original data.
+        save_to : str, optional
+            The name of the file to save the plot to. Default is None,
+            which does not save the plot.
+        **kwargs
         """
         # get the fitted values
-        yhat = self.GetYhat()
+        yhat = self.GetYhat('train', log=log, actual_scale=actual_scale)
 
         # get the actual values
-        y = self.GetY()
+        y = self.GetY('train', log=log, actual_scale=actual_scale)
+
+        # print(f"y: {y}")
+        # print(f"yhat: {yhat}")
 
         # if color is not None, get the color variable
         if color is not None:
             color = self.lookup_col_full(color)
             color_msg = f", with color varying with '{color}'" if color is not None else ""
+        else:
+            color_msg = ""
 
         hover_dat = pd.DataFrame({
                 "Accident Period": self.GetAcc('train'),
@@ -1240,9 +1259,9 @@ class BaseEstimator:
             y=y,
             title=f"Fitted vs. Actual{' (log scale)' if log else ''}{color_msg}",
             labels={"x": "Fitted", "y": "Actual"},
-            log_x=log,
-            log_y=log,
-            color=hover_dat[self.lookup_col_full(color) if color is not None else None],
+            log_x=False,
+            log_y=False,
+            color=hover_dat[self.lookup_col_full(color)] if color is not None else None,
             hover_data={k: np.round(hover_dat[k], 4) for k in hd},
         )
 

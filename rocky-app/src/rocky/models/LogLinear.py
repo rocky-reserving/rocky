@@ -168,29 +168,6 @@ selecting carried reserves."
         """
         Get the weights for the model.
         """
-        # weight_df = (self.hetero_gp
-        #              .columns[1:]
-        #              .to_series()
-        #              .str.replace("hetero_", "")
-        #              .astype(int)
-        #              .reset_index(drop=True)
-        #              .to_frame()
-        #              .rename(columns={0: "development_period"})
-        #              .assign(weights = self.weights)
-        # )
-        # idx = self.GetIdx(kind=kind)
-        # if kind == "train":
-        #     out = pd.DataFrame({"development_period": self.GetDev('train')})
-        # elif kind == "forecast":
-        #     out = pd.DataFrame({"development_period": self.GetDev('forecast')})
-        # else:
-        #     raise ValueError("kind must be either 'train' or 'forecast'")
-        
-        # out = out.merge(weight_df, on="development_period", how="left")
-        # out["weights"] = out["weights"].fillna(1)
-        # out.index = idx
-        # return out["weights"]
-        
         # get the hetero weights
         init = pd.DataFrame({
             'development_period': self.GetDev('train'),
@@ -212,33 +189,6 @@ selecting carried reserves."
         s = pd.Series(df['adj'].values, index=self.GetIdx(kind=kind))
         return s#, dev_periods, df
     
-    def GetHeteroAdjustment(self):
-        """
-        Clusters development periods with similar residual variances.
-        
-        Parameters
-        ----------
-        n_clusters : int
-            The number of clusters to form.
-        """
-        # Ensure the model is fitted before trying to cluster
-        if not self.is_fitted:
-            raise RuntimeError("The model is not fitted yet.")
-
-        # Calculate residual variances for each development period
-        # This code depends on your specific implementation
-        # residual_variances = ...
-
-        # Reshape for clustering
-        variances = self.residual_variances.values.reshape(-1, 1)
-        
-        # Apply KMeans clustering
-        kmeans = KMeans(n_clusters=self.hetero_clusters, random_state=0).fit(variances)
-        
-        # Store cluster labels back into the dataframe
-        self.hetero_gp['cluster'] = kmeans.labels_
-
-
     def SetHyperparameters(self, alpha, l1_ratio, max_iter=100000):
         self.alpha = alpha
         self.l1_ratio = l1_ratio
@@ -361,15 +311,17 @@ selecting carried reserves."
         the current model object.
         """
         p = self.lookup_col(parameter_type)
-        match p:
-            case "a":
-                p1 = 'accident'
-            case "d":
-                p1 = 'development'
-            case 'c':
-                p1 = 'calendar'
-            case None:
-                p1 = None
+        if p=='a':
+            p1 = 'accident'
+        elif p=='d':
+            p1 = 'development'
+        elif p=='c':
+            p1 = 'calendar'
+        elif p is None:
+            p1 = None
+        else:
+            raise ValueError("parameter_type must be one of 'a', 'd', 'c'")
+        
 
         coef = self.model.coef_
         names = self.model.feature_names_in_
@@ -410,10 +362,9 @@ selecting carried reserves."
                                     axis=1)
         df['resid'] = self.GetY('train', log=True) - self.GetYhat('train', log=True)
         df['var_resid'] = df.resid.var()
-
         dev = self.GetDev('train')
         max_dev = dev.max()
-
+        
         # Create an empty series to hold the adjustments
         adjustments = pd.Series(index=df.index)
 
