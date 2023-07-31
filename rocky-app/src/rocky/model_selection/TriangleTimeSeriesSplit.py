@@ -232,7 +232,7 @@ model_type={self.model_type})"
         X_id = self.tri.get_X_id().reset_index(drop=True)
 
         # current calendar period
-        current_cal = self.tri.getCurCalendarIndex()
+        current_cal = self.tri.getCurCalendarPeriod()
 
         for i in range(1, self.n_splits_ + 1):
             # get the calendar period for the current split

@@ -279,14 +279,13 @@ selecting carried reserves."
         )
 
         # set the parameter search grid
-        cv.SetParameterGrid(
-            alpha=param_grid["alpha"],
-            l1ratio=param_grid["l1ratio"],
-            max_iter=param_grid["max_iter"],
-        )
+        cv.SetParameterGrid(alpha=param_grid["alpha"],
+                            l1ratio=param_grid["l1ratio"],
+                            max_iter=param_grid["max_iter"])
 
         # grid search & return the optimal model
-        optimal_model = cv.OptimalParameters(measures=measures, tie_criterion=tie_criterion)
+        optimal_model = cv.OptimalParameters(measures=measures,
+                                             tie_criterion=tie_criterion)
 
         # set the optimal hyperparameters
         self.alpha = optimal_model.alpha
@@ -297,25 +296,7 @@ selecting carried reserves."
 
         # fit the model
         self.Fit()
-
-    # def TuneDevWeightGroups(self,
-    #                         n_splits=5,
-    #                         param_grid=None,
-    #                         measures=None,
-    #                         tie_criterion="ave_mse_test",
-    #                         **kwargs):
-    #     """
-    #     Tune the development year weight groups.
-    #     """
-    #     cv = TriangleTimeSeriesSplit(
-    #         self.tri,
-    #         n_splits=n_splits,
-    #         loglinear_grid=param_grid,
-    #         model_type="loglinear",
-    #         model=self,
-    #     )
-
-    def GetY(self,
+def GetY(self,
              kind:str = "train",
              log:bool = True,
              actual_scale:bool = False
@@ -345,11 +326,9 @@ selecting carried reserves."
             self.standardize_mu = out.mean()
             self.standardize_sigma = out.std()
             out = (out - self.standardize_mu) / self.standardize_sigma
-            
-        
         return pd.Series(out, index=idx)
-        
-    def GetYhat(self, kind="train", log=True):
+
+    def GetYhat(self, kind:str = "train", log:bool = True, actual_scale:bool = False):
         """
         Getter for the model's yhat data. Yhat is calculated from the fitted model.
         """
@@ -361,6 +340,9 @@ selecting carried reserves."
                 out = self.Predict(X=self.GetX(kind="forecast"))
         else:
             raise ValueError("kind must be 'train' or 'forecast' for `yhat`")
+
+        if actual_scale:
+            out = out * self.standardize_sigma + self.standardize_mu
 
         if log:
             pass
@@ -745,8 +727,15 @@ selecting carried reserves."
         yhat = self.model.predict(X)
         return pd.Series(yhat)
     
-    def RawResiduals(self, log:bool = True) -> pd.Series:
-        out = self.GetY("train", log=log) - self.GetYhat("train", log=log)
+    def RawResiduals(self,
+                     log:bool = True,
+                     actual_scale:bool = False
+                    ) -> pd.Series:
+        """
+        Get the raw residuals of the model.
+        """
+        out = self.GetY("train", log=log, actual_scale=actual_scale) 
+        out -= self.GetYhat("train", log=log, actual_scale=actual_scale)
         return out.dropna()
 
     ###################################################################################
