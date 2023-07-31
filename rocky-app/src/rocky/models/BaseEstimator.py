@@ -1437,7 +1437,7 @@ class BaseEstimator:
             fig = self._ResidualPlotBy(by=by,
                                         color_col=color_col,
                                         return_=True,
-                                          show=False)
+                                        show=False)
         if show:
             fig.show()
         if save_to is not None:
