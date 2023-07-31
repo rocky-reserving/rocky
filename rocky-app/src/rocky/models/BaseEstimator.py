@@ -288,7 +288,7 @@ class BaseEstimator:
         X = X.loc[idx, :]
         return X
 
-    def GetYBase(self, kind="train"):
+    def GetYBase(self, kind="train", log=False) -> pd.Series:
         """
         This is a wrapper function for the Triangle class's get_y_base method.
 
@@ -301,6 +301,9 @@ class BaseEstimator:
 
         y = self.tri.get_y_base(kind)
         y = y[idx]
+
+        if log:
+            y = pd.Series(np.log(y), index=idx)
         return y
 
     def GetAcc(self, kind: str = None) -> pd.Series:
@@ -1242,8 +1245,8 @@ class BaseEstimator:
                 "Development Period": self.GetDev('train'),
                 "Calendar Period": self.GetCal('train'),
                 "Hetero Adjustment": self.GetWeights('train'),
-                "y": self.GetY('train'),
-                "yhat": self.GetYhat('train'),
+                "y": y,
+                "yhat": yhat,
             })
 
         # create the plot

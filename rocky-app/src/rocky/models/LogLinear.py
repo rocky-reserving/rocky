@@ -110,6 +110,9 @@ selecting carried reserves."
             columns={"hetero_development_period": "development_period"},
             inplace=True)
         self.hetero_weights = pd.Series(np.ones_like(self.dev))
+
+        self.standardize_mu = None
+        self.standardize_sigma = None
         
 
     def __repr__(self):
@@ -246,6 +249,10 @@ selecting carried reserves."
 
         # fit the model
         self.Fit()
+
+    def GetZScoreParams(self, log=True):
+        self.standardize_mu = self.GetYBase('train', log=log).mean()
+        self.standardize_sigma = self.GetYBase('train', log=log).std()
     
     def GetY(self,
              kind:str = "train",
@@ -274,9 +281,14 @@ selecting carried reserves."
 
         # standardize y if self.standardized is True
         if self.standardize and not actual_scale:
-            self.standardize_mu = out.mean()
-            self.standardize_sigma = out.std()
+            if self.standardize_mu is None:
+                self.GetZScoreParams(log=log)
+
             out = (out - self.standardize_mu) / self.standardize_sigma
+        elif actual_scale:
+            if self.standardize_mu is None:
+                self.GetZScoreParams(log=log)
+            out = out * self.standardize_sigma + self.standardize_mu
         return pd.Series(out, index=idx)
 
     def GetYhat(self,
@@ -329,7 +341,8 @@ selecting carried reserves."
         df['param_type'] = df.names.apply(lambda x: x.split('_')[0])
 
         if p1 is not None:
-            assert p1 in df.param_type.unique(), f"parameter_type must be one of {df.param_type.unique()}"
+            assert p1 in list(df.param_type.unique()) + ['calendar'], \
+            f"parameter_type ({p1}) must be one of {df.param_type.unique()}"
             df = df.loc[df.param_type.eq(p1)]
 
         return df
@@ -400,7 +413,7 @@ selecting carried reserves."
     def FitHetero(self,
                   hetero_func: callable = BasicHeteroAdjustment,
                   stop_threshold: float = 0.01,
-                  max_iterations: int = 100
+                  max_iterations: int = 10000
                   ):
         """
         Fit model with heteroskedasticity adjustment. Alternate between fitting the

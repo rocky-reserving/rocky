@@ -416,9 +416,9 @@ model_type={self.model_type})"
             A dictionary where keys are the names of measures to consider when computing
             the Pareto front, and the values are 'min' if we want to minimize that
             measure or 'max' if we want to maximize that measure. For example, if we
-            want to minimize the mean squared error and maximize the d2 score, we would
-            pass measures={'mse': 'min'}. If None, the default is to
-            minimize the mean squared error and minimize the standard deviation of the
+            want to minimize the mean squared error and the standard error of the MSE,
+            we would pass measures={'mse': 'min', 'std':'min'}. If None, the default is
+            to minimize the mean squared error and minimize the standard deviation of the
             mean squared error. This is the recommended setting, and is meant to balance
             model performance and stability.
 
