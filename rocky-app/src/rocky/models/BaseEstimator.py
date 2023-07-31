@@ -38,6 +38,7 @@ class BaseEstimator:
     model_class: str | None = None
     model: object | None = None
     tri: Triangle = None
+    standardize: bool = True # whether or not to standardize the data behind the scenes
     exposure: pd.Series | None = None
     coef: pd.Series | None = None
     is_fitted: bool = False
@@ -743,7 +744,7 @@ class BaseEstimator:
         print("GetParameterNames is not implemented for this model.")
         raise NotImplementedError
 
-    def GetY(self, kind: str = "train") -> pd.Series:
+    def GetY(self, kind: str = "train", actual_scale: bool = False) -> pd.Series:
         """
         Getter for the model's y data. If there is no y data, take the y vector
         directly from the triangle.
@@ -754,11 +755,19 @@ class BaseEstimator:
         # get the correct version of y depending on the kind
         if kind.lower() in ["train", "forecast"]:
             if kind.lower() == "train":
-                return self.y_train[idx]
+                out = self.y_train[idx]
             elif kind.lower() == "forecast":
                 raise ValueError("y_forecast is what we are trying to predict!")
         else:
             raise ValueError("kind must be 'train' for `y`")
+
+        # standardize y if self.standardize is True
+        if self.standardize and not actual_scale:
+            self.standardize_mu = out.mean()
+            self.standardize_sigma = out.std()
+            out = (out - self.standardize_mu) / self.standardize_sigma
+
+        return out
 
     def SetY(self, y: pd.Series) -> None:
         """
