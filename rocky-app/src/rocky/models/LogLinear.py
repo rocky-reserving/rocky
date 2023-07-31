@@ -314,7 +314,11 @@ selecting carried reserves."
     #         model=self,
     #     )
 
-    def GetY(self, kind="train", log=True):
+    def GetY(self,
+             kind:str = "train",
+             log:bool = True,
+             actual_scale:bool = False
+            ) -> pd.Series:
         """
         Getter for the model's y data. If there is no y data, take the y vector
         directly from the triangle.
