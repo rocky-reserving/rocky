@@ -448,11 +448,8 @@ selecting carried reserves."
             adjustment = hetero_func(self)
             # Check stopping criterion
             if prev_adjustment is not None:
-                # print(f"{i}:\n==================\nprev_adjustment:\n{prev_adjustment.round(1)}\n\nadjustment:\n{adjustment.round(1)}")
                 rmse = np.sqrt(mean_squared_error(prev_adjustment,adjustment))
-
-                print(f"{i}/{rmse:.4f}",
-                end=' ')
+                print(f"{i}/{rmse:.4f}", end=' ')
                 if rmse < stop_threshold:
                     break
             prev_adjustment = adjustment.copy()
@@ -462,7 +459,6 @@ selecting carried reserves."
         self.weights.index = self.GetIdx('train')
         self.hetero_adjustment.index = self.GetIdx('train')
         
-
         # one final fit
         self.Fit()
 
