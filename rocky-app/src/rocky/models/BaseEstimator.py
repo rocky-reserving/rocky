@@ -246,7 +246,8 @@ class BaseEstimator:
         Get the index for the model.
 
         This is used to get the index for the train, forecast, or all data,
-        and is used to filter the X and y data when GetX and GetY are called.
+        and is used to filter the `X` and `y` data when `GetX` and `GetY` are
+        called.
 
         Parameters
         ----------
@@ -266,12 +267,20 @@ class BaseEstimator:
             idx = self.forecast_index
         elif kind == "all" or kind is None:
             idx = self.train_index.tolist() + self.forecast_index.tolist()
-            idx = pd.Series(idx).sort_values().drop_duplicates().values
         else:
             raise ValueError("kind must be 'train', 'forecast', or 'all'")
+
+        idx = pd.Series(idx).sort_values().reset_index(drop=True)
+
+        assert isinstance(idx, pd.Series), \
+        f"""idx must be a pd.Series:
+            kind: {kind}
+            idx: {idx}
+            idx.dtype: {idx.dtype}
+        """
         return idx
 
-    def GetXBase(self, kind: str = "train") -> pd.DataFrame:
+    def GetXBase(self, kind:str = "train") -> pd.DataFrame:
         """
         This is a wrapper function for the Triangle class's get_X_base method.
 
