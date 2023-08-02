@@ -1221,25 +1221,43 @@ class BaseEstimator:
         if return_:
             return fig
 
-    def FitPlot(self, color=None, save_to=None, log=True, actual_scale=False, **kwargs):
+    def FitPlot(self,
+                color:str = None,
+                save_to:str = None,
+                log:bool = True,
+                actual_scale:bool = False,
+                scatter_size:int = 9,
+                scatter_opacity:float = 0.6,
+                scatter_border_width:int = 1,
+                scatter_border_color:str = 'black',
+                round_to:int = 3,
+                **kwargs):
         """
         Plot the fitted values against the actual values.
 
         Parameters
         ----------
+        color : str | None, optional
+            The variable to color the points by. Default is None.
+        save_to : str | None, optional
+            The path to save the plot to. Default is None.
         log : bool, optional
             Whether to plot the values on a log scale. Default is True.
-        color : str, optional
-            The name of the variable to use for the color of the points.
-            Default is None, which uses the same color for all points.
         actual_scale : bool, optional
-            Whether to plot the actual values on the same scale as the
-            fitted values. Default is False, which plots the actual
-            values on the same scale as the original data.
-        save_to : str, optional
-            The name of the file to save the plot to. Default is None,
-            which does not save the plot.
+            Whether to plot the values on the actual scale. Default is False.
+        scatter_size : int, optional
+            The size of the scatter points. Default is 9.
+        scatter_opacity : float, optional
+            The opacity of the scatter points. Default is 0.6.
+        scatter_border_width : int, optional
+            The width of the scatter point borders. Default is 1.
+        scatter_border_color : str, optional
+            The color of the scatter point borders. Default is 'black'.
+        round_to : int, optional
+            The number of decimal places to round to. Default is 3.
         **kwargs
+            Additional keyword arguments to pass to the plotly express
+            scatter plot.
         """
         # get the fitted values
         yhat = self.GetYhat('train', log=log, actual_scale=actual_scale)
@@ -1261,9 +1279,9 @@ class BaseEstimator:
                 "Accident Period": self.GetAcc('train'),
                 "Development Period": self.GetDev('train'),
                 "Calendar Period": self.GetCal('train'),
-                "Hetero Adjustment": self.GetWeights('train'),
-                "y": y,
-                "yhat": yhat,
+                "Hetero Adjustment": self.GetWeights('train').round(round_to),
+                "y": y.round(round_to),
+                "yhat": yhat.round(round_to),
             })
 
         # create the plot
@@ -1275,8 +1293,8 @@ class BaseEstimator:
               'yhat']
         
         fig = px.scatter(
-            x=yhat,
-            y=y,
+            x=yhat.round(round_to),
+            y=y.round(round_to),
             title=f"Fitted vs. Actual{' (log scale)' if log else ''}{color_msg}",
             labels={"x": "Fitted", "y": "Actual"},
             log_x=False,
@@ -1285,6 +1303,14 @@ class BaseEstimator:
             hover_data={k: np.round(hover_dat[k], 4) for k in hd},
         )
 
+        # update the scatter markers
+        fig.update_traces(marker=dict(size=scatter_size,
+                                      opacity=scatter_opacity,
+                                      line=dict(width=scatter_border_width,
+                                                color=scatter_border_color)
+                                        ),
+                            selector=dict(mode='markers'))
+                            
         # add a 45-degree line
         fig.add_shape(
             type="line",
