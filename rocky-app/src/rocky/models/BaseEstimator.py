@@ -1113,9 +1113,9 @@ class BaseEstimator:
                   save_to:str = None,
                   less_than:int = None,
                   greater_than:int = None,
-                  trend=False,
-                  return_=False,
-                  show=True):
+                  trend:bool = False,
+                  return_:bool = False,
+                  show:bool = True):
         """
         Plot the trend plot for a given parameter type.
 
@@ -1142,7 +1142,7 @@ class BaseEstimator:
             Whether to return the plot. Default is False.
         show : bool, optional
             Whether to show the plot. Default is True.
-
+            
         Returns
         -------
         plotly.graph_objects.Figure
@@ -1181,6 +1181,7 @@ class BaseEstimator:
                                 cols=2,
                                 subplot_titles=[f"{self.lookup_col_full(p).title()}" for p in param_types])
             for i, param_type in enumerate(param_types):
+                # hetero adjustment is a special case
                 if param_type.lower()=="heteroskedasticity adjustment":
                     fig.add_trace(self._SingleTrendPlot(param_type,
                                                         trend=trend,
@@ -1188,7 +1189,9 @@ class BaseEstimator:
                                                         ).data[0],
                                 row=2,
                                 col=2)
+                    
                 else:
+                    # remaining model parameters are plotted in the remaining 2x2 grid cells
                     param_type = self.lookup_col_full(param_type)
                     fig.add_trace(self._SingleTrendPlot(param_type.lower(),
                                                         less_than,
@@ -1199,7 +1202,12 @@ class BaseEstimator:
                                                         ).data[0],
                                 row=(i//2)+1,
                                 col=(i%2)+1)
-            fig.update_layout(height=self.plot_height, width=self.plot_width, title_text="Parameter Trend Plots")
+
+            # add title & height/width
+            fig.update_layout(height=self.plot_height,
+                              width=self.plot_width,
+                              title_text="Parameter Trend Plots")
+
         else:
             print(param_type)
             # param_type = self.lookup_col_full(param_type)
@@ -1330,10 +1338,10 @@ class BaseEstimator:
         if save_to is not None:
             plotly.offline.plot(fig, filename=f"./{save_to}")
 
-    def _ExpectedResidualPlot(self, color_col=None, return_=False, show=True):
+    def _ExpectedResidualPlot(self, color_col=None, return_=False, show=True, round_to=3):
         df = pd.DataFrame({
-            'y': self.GetY('train'),
-            'yhat': self.GetYhat('train'),
+            'y': self.GetY('train').round(round_to),
+            'yhat': self.GetYhat('train').round(round_to),
             'Accident Period': self.GetAcc('train'),
             'Development Period': self.GetDev('train'),
             'Calendar Period': self.GetCal('train'),
@@ -1343,6 +1351,7 @@ class BaseEstimator:
         df['residmean'] = df['resid'].mean()
         df['residstd'] = df['resid'].std()
         df['resid_std'] = df['resid'] / df['residstd']
+        df['resid_std'] = df.resid_std.round(round_to)
         df.drop(columns=['resid', 'residmean', 'residstd'], inplace=True)
         fig = px.scatter(df,
                          x='yhat',
@@ -1412,29 +1421,29 @@ class BaseEstimator:
                                             'Accident Period',
                                             'Calendar Period',
                                             'Expected'))
-        fig.add_trace(self._ResidualPlotBy('Development Period',
-                                            color_col=color_col,
-                                            return_=True,
-                                            show=False).data[0],
-                        row=1,
-                        col=1)
-        fig.add_trace(self._ResidualPlotBy('Accident Period',
-                                            color_col=color_col,
-                                            return_=True,
-                                            show=False).data[0],
-                        row=1,
-                        col=2)
-        fig.add_trace(self._ResidualPlotBy('Calendar Period',
-                                            color_col=color_col,
-                                            return_=True,       
-                                            show=False).data[0],
-                        row=2,
-                        col=1)
-        fig.add_trace(self._ExpectedResidualPlot(return_=True,
-                                                 color_col=color_col,
-                                                 show=False).data[0],    
-                        row=2,
-                        col=2)
+
+        # function to add a trace to the figure
+        def add_trace(fig, row, col, column=None, is_expected=False):
+            if not is_expected:
+                fig.add_trace(self._ResidualPlotBy(column,
+                                                    color_col=color_col,
+                                                    return_=True,
+                                                    show=False).data[0],
+                                                    row=row, col=col)
+            else:
+                fig.add_trace(self._ExpectedResidualPlot(color_col=color_col,
+                                                        return_=True,
+                                                        show=False).data[0],
+                                                        row=row,col=col)
+
+            # update the scatterpoints
+            return fig
+
+        fig = add_trace(fig, row=1, col=1, column='Development Period')
+        fig = add_trace(fig, row=1, col=2, column='Accident Period')
+        fig = add_trace(fig, row=2, col=1, column='Calendar Period')
+        fig = add_trace(fig, row=2, col=2, is_expected=True)
+
         fig.update_layout(title='Standardized Residual Plots',
                             height=self.plot_height,
                             width=self.plot_width)
@@ -1450,9 +1459,12 @@ class BaseEstimator:
                      save_to=None,
                      return_=False,
                      show=True,
-                     outline_width=1,
-                     outline_color='black',
-                     opacity=0.6):
+                     scatter_size=9,
+                     scatter_opacity=0.5,
+                     scatter_border_width=1,
+                     scatter_border_color='black',
+                     round_to=2,
+                     ):
         """
         Plots weighted standardized residuals against different values.
         Looks up the column name based on the input string.
@@ -1476,12 +1488,16 @@ class BaseEstimator:
             Whether to return the plot object. The default is False.
         show : bool, optional
             Whether to show the plot. The default is True.
-        outline_width : int, optional
-            Width of the outline around the points. The default is 1.
-        outline_color : str, optional
-            Color of the outline around the points. The default is 'black'.
-        opacity : float, optional
-            Opacity of the points. The default is 0.6.
+        scatter_size : int, optional
+            The size of the scatter points. Default is 9.
+        scatter_opacity : float, optional
+            The opacity of the scatter points. Default is 0.6.
+        scatter_border_width : int, optional
+            The width of the scatter point borders. Default is 1.
+        scatter_border_color : str, optional
+            The color of the scatter point borders. Default is 'black'.
+        round_to : int, optional
+            The number of decimal places to round to. Default is 3.
 
         Returns
         -------
@@ -1499,9 +1515,14 @@ class BaseEstimator:
                                           show=False)
         # update the figure trace by trace
         for trace in fig.data:
-            trace.update(marker=dict(line=dict(width=outline_width,
-                                               color=outline_color),
-                                     opacity=opacity))
+            trace.update(marker=dict(line=dict(width=scatter_border_width,
+                                               color=scatter_border_color),
+                                     opacity=scatter_opacity,
+                                     size=scatter_size))
+        # update the layout
+        fig.update_layout(height=self.plot_height,
+                          width=self.plot_width,
+                          title='Standardized Residual Plots')
         
         if show:
             fig.show()
