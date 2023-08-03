@@ -986,7 +986,10 @@ class Triangle:
                       (cal.index.month.astype(int) - cal.index.month.astype(int).min()))
                       
             # then add the column name as an integer
-            cal[c] += int(c) / cal.columns.to_series().astype(int).min()
+            if cal.columns.to_series().astype(int).min() == 0:
+                cal[c] += int(c) # don't divide by 0!!
+            else:
+                cal[c] += int(c) / cal.columns.to_series().astype(int).min()
 
         return cal.astype(int)
 
@@ -1876,17 +1879,13 @@ class Triangle:
             melted
             .apply(lambda x: int(x[0]) - 
                              melted['accident_period'].astype(int).min() + 
-                             int(float(x[1])/melted['development_period'].astype(float).min()),
+                             int(float(x[1])/max(melted['development_period'].astype(float).min(), 1)), 
                    axis=1))
         melted['is_observed'] = melted[value_name].notnull().astype(int)
 
         cal_period = melted['calendar_period'].fillna(0)
         first_accident_year = melted['accident_period'].astype(int).fillna(9999999).min()
         melted['calendar_period'] = cal_period + first_accident_year - 1
-
-        
-        # print(f"cal period:\n {cal_period}")
-        # print(f"\nacc period:\n {first_accident_year}")
 
         # create the design matrices for each column
         # accident period
