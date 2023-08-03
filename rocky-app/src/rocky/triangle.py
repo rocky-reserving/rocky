@@ -982,11 +982,16 @@ class Triangle:
         # start by setting each cell equal to the number of months since
         # year 0
         for c in cal.columns.tolist():
+            print(f"column:\n{c}\n")
             cal[c] = ((cal.index.year.astype(int) - cal.index.year.astype(int).min()) +
                       (cal.index.month.astype(int) - cal.index.month.astype(int).min()))
+            print(f"cal[c]:\n{cal[c]}\n")
                       
             # then add the column name as an integer
-            cal[c] += int(c) / cal.columns.to_series().astype(int).min()
+            if cal.columns.to_series().astype(int).min() == 0:
+                cal[c] += int(c) # don't divide by 0!!
+            else:
+                cal[c] += int(c) / cal.columns.to_series().astype(int).min()
 
         return cal.astype(int)
 
