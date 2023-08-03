@@ -613,8 +613,8 @@ Either regression_hyperparameters or clustering_hyperparameters must be True.
             train_idx, test_idx = gen
             
             # get train/test data
-            print(f"X: {self.X.head()}")
-            print(f"train_idx: {train_idx}")
+            # print(f"X: {self.X.head()}")
+            # print(f"train_idx: {train_idx}")
 
             X_train = self.X.loc[train_idx]
             y_train = _getY(train_idx)
